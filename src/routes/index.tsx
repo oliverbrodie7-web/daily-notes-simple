@@ -20,9 +20,6 @@ function Index() {
       <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
         Daily Notes
       </h1>
-      <p className="mt-3 text-lg text-muted-foreground">
-        NumberWorks'nWords Miranda
-      </p>
     </main>
   );
 }
