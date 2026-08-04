@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { copyText } from "../lib/clipboard";
 import { sydneyTodayIso } from "../lib/dates";
 import { supabase } from "../lib/supabase";
-import { TickIcon } from "./Icons";
+import { TickIcon, WarningIcon } from "./Icons";
 
 type OutputNote = {
   id: string;
@@ -10,6 +10,7 @@ type OutputNote = {
   note_text: string;
   created_at: string;
   draft_created: boolean;
+  no_match: boolean;
 };
 
 function noteAsText(note: OutputNote): string {
@@ -27,7 +28,7 @@ export function OutputScreen() {
     let cancelled = false;
     supabase
       .from("daily_notes")
-      .select("id, student_name, note_text, created_at, draft_created")
+      .select("id, student_name, note_text, created_at, draft_created, no_match")
       .eq("note_date", sydneyTodayIso())
       .eq("collated", true)
       .order("created_at", { ascending: false })
@@ -64,9 +65,28 @@ export function OutputScreen() {
   const countLabel =
     hasNotes && `${notes.length} ${notes.length === 1 ? "student" : "students"}, collated 7:30 pm`;
   const allText = hasNotes ? notes.map(noteAsText).join("\n\n") : "";
+  const noMatchNames = hasNotes
+    ? notes.filter((note) => note.no_match).map((note) => note.student_name)
+    : [];
 
   return (
     <section className="output-screen">
+      {noMatchNames.length > 0 ? (
+        <div className="output-warning">
+          <WarningIcon className="output-warning-icon" size={20} />
+          <div className="output-warning-body">
+            <p className="output-warning-title">
+              {noMatchNames.length === 1
+                ? "1 name did not match a student"
+                : `${noMatchNames.length} names did not match a student`}
+            </p>
+            <p className="output-warning-text">
+              No email draft was created for these. Check the spelling against your student list.
+            </p>
+            <p className="output-warning-names">{noMatchNames.join(", ")}</p>
+          </div>
+        </div>
+      ) : null}
       <div className="output-head">
         <div>
           <h2 className="section-heading">Tonight's output</h2>
@@ -111,7 +131,9 @@ export function OutputScreen() {
                 >
                   {copiedKey === note.id ? "Copied" : "Copy"}
                 </button>
-                {note.draft_created ? (
+                {note.no_match ? (
+                  <span className="no-match-flag">No match</span>
+                ) : note.draft_created ? (
                   <span className="draft-flag">
                     <TickIcon />
                     Draft created

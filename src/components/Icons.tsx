@@ -59,6 +59,28 @@ export function TickIcon({ className, size = 14 }: IconProps) {
   );
 }
 
+export function WarningIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 3.5 21.5 20 2.5 20 Z" />
+      <path d="M12 10v4" />
+      <path d="M12 17.2v.1" />
+    </svg>
+  );
+}
+
 export function MoonIcon({ className, size = 16 }: IconProps) {
   return (
     <svg

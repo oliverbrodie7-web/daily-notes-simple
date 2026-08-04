@@ -113,6 +113,9 @@ svg {
   --accent-soft: #f4ecf9;
   --card-stripe: #fcc640;
   --card-shadow: 0 10px 30px rgba(66, 5, 90, 0.18);
+  --warning: #d38a2e;
+  --warning-soft: #fff4e5;
+  --warning-border: rgba(211, 138, 46, 0.45);
   color-scheme: light;
 }
 
@@ -135,6 +138,9 @@ svg {
   --accent-soft: rgba(143, 166, 191, 0.16);
   --card-stripe: #8fa6bf;
   --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --warning: #d38a2e;
+  --warning-soft: rgba(211, 138, 46, 0.14);
+  --warning-border: rgba(211, 138, 46, 0.4);
   color-scheme: dark;
 }
 
@@ -441,6 +447,44 @@ svg {
 }
 
 /* Output screen */
+.output-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+
+.output-warning-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warning);
+}
+
+.output-warning-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.output-warning-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.output-warning-text {
+  margin-top: 2px;
+  color: var(--text-soft);
+}
+
+.output-warning-names {
+  margin-top: 6px;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
 .output-head {
   display: flex;
   align-items: flex-start;
@@ -541,6 +585,12 @@ svg {
   align-items: center;
   gap: 6px;
   color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.no-match-flag {
+  color: var(--warning);
   font-weight: 600;
   font-size: 14px;
 }
