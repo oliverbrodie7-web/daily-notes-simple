@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Header } from "../components/Header";
 import { OutputScreen } from "../components/OutputScreen";
+import { SettingsScreen } from "../components/SettingsScreen";
 import { SignIn } from "../components/SignIn";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { useTheme } from "../hooks/useTheme";
@@ -28,6 +29,19 @@ function Index() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<AppView>("today");
+  const [settingsDirty, setSettingsDirty] = useState(false);
+
+  function handleViewChange(next: AppView) {
+    if (next === view) return;
+    if (view === "settings" && settingsDirty) {
+      const leave = window.confirm(
+        "There are unsaved changes to the email template. Leave this screen and lose them?",
+      );
+      if (!leave) return;
+      setSettingsDirty(false);
+    }
+    setView(next);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -58,9 +72,15 @@ function Index() {
       ) : session ? (
         <>
           <Header theme={theme} onToggleTheme={toggleTheme} onSignOut={handleSignOut} />
-          <ViewSwitcher variant="tabs" view={view} onViewChange={setView} />
-          <main className="app-main">{view === "output" ? <OutputScreen /> : null}</main>
-          <ViewSwitcher variant="bar" view={view} onViewChange={setView} />
+          <ViewSwitcher variant="tabs" view={view} onViewChange={handleViewChange} />
+          <main className="app-main">
+            {view === "output" ? (
+              <OutputScreen />
+            ) : view === "settings" ? (
+              <SettingsScreen onDirtyChange={setSettingsDirty} />
+            ) : null}
+          </main>
+          <ViewSwitcher variant="bar" view={view} onViewChange={handleViewChange} />
         </>
       ) : (
         <SignIn />

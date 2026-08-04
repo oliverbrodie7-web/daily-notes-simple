@@ -1,8 +1,9 @@
-export type AppView = "today" | "output";
+export type AppView = "today" | "output" | "settings";
 
 const VIEWS: { key: AppView; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "output", label: "Output" },
+  { key: "settings", label: "Settings" },
 ];
 
 type ViewSwitcherProps = {

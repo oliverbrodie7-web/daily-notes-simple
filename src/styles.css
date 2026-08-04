@@ -395,6 +395,7 @@ svg {
   color: var(--text-soft);
   font-weight: 600;
   font-size: 16px;
+  white-space: nowrap;
 }
 
 .view-tab.is-active {
@@ -423,12 +424,15 @@ svg {
 
 .view-bar-item {
   flex: 1;
+  min-width: 0;
   min-height: 56px;
+  padding: 0 4px;
   background: transparent;
   border: none;
   color: var(--text-soft);
   font-weight: 600;
   font-size: 16px;
+  white-space: nowrap;
 }
 
 .view-bar-item.is-active {
@@ -541,6 +545,100 @@ svg {
   font-size: 14px;
 }
 
+/* Settings screen */
+.settings-screen {
+  display: flex;
+  justify-content: center;
+}
+
+.settings-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px 20px;
+}
+
+.settings-sub {
+  margin-top: 4px;
+  margin-bottom: 20px;
+  color: var(--text-soft);
+  font-size: 15px;
+}
+
+.settings-message {
+  margin-top: 10px;
+  color: var(--text-soft);
+}
+
+.text-area {
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  /* Twelve lines of text plus the field's own padding and border. */
+  min-height: 314px;
+}
+
+.placeholder-panel {
+  background: var(--accent-soft);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.placeholder-line {
+  color: var(--text-soft);
+}
+
+.placeholder-line + .placeholder-line {
+  margin-top: 6px;
+}
+
+.placeholder-token {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.settings-note {
+  margin-top: 12px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+.settings-save {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.preview-heading {
+  margin-top: 26px;
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--text);
+}
+
+.preview-panel {
+  margin-top: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.preview-subject {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.preview-body {
+  margin-top: 10px;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+}
+
 /* Not found and error pages sit outside the themed app root, so they carry
    their own small variable set and follow the system setting. */
 .page-fallback {
@@ -647,5 +745,9 @@ svg {
   .output-grid {
     grid-template-columns: 1fr 1fr;
     gap: 18px;
+  }
+
+  .settings-card {
+    padding: 28px;
   }
 }
