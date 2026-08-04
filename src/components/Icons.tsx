@@ -39,6 +39,26 @@ export function SunIcon({ className, size = 16 }: IconProps) {
   );
 }
 
+export function TickIcon({ className, size = 14 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M4 12.5 9.5 18 20 6.5" />
+    </svg>
+  );
+}
+
 export function MoonIcon({ className, size = 16 }: IconProps) {
   return (
     <svg

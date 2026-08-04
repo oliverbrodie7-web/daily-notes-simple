@@ -66,6 +66,10 @@ svg {
   .primary-button,
   .signout-button,
   .fallback-button,
+  .view-tab,
+  .view-bar-item,
+  .copy-button,
+  .copy-all-button,
   .text-field {
     transition:
       background-color 0.15s ease,
@@ -161,7 +165,9 @@ svg {
   width: 100%;
   max-width: 1060px;
   margin: 0 auto;
-  padding: 20px;
+  /* The bottom clearance keeps the fixed switcher bar off the last of the
+     content on narrow screens. */
+  padding: 20px 20px calc(92px + env(safe-area-inset-bottom));
 }
 
 /* Header. The bar's background runs the full width of the screen while its
@@ -365,6 +371,176 @@ svg {
   font-size: 14px;
 }
 
+/* Switcher between the Today and Output views. The fixed bottom bar shows
+   below 900px and the tab strip under the header shows at 900px and above,
+   so exactly one of the two is ever visible. */
+.view-tabs {
+  display: none;
+}
+
+.view-tabs-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 6px 28px 0;
+  display: flex;
+  gap: 8px;
+}
+
+.view-tab {
+  min-height: 48px;
+  padding: 0 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.view-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 700;
+}
+
+.view-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  /* Keeps the bar above the home indicator on phones with a safe area. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.view-bar-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+  display: flex;
+}
+
+.view-bar-item {
+  flex: 1;
+  min-height: 56px;
+  background: transparent;
+  border: none;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.view-bar-item.is-active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Output screen */
+.output-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.section-heading {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 24px;
+  color: var(--text);
+}
+
+.output-count {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 15px;
+}
+
+.copy-all-button {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.output-message {
+  margin-top: 20px;
+  color: var(--text-soft);
+}
+
+.output-grid {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.output-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 18px 16px 21px;
+}
+
+.output-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--card-stripe);
+}
+
+.output-card-name {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--text);
+}
+
+.output-card-text {
+  margin-top: 6px;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+}
+
+.output-card-foot {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.copy-button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.draft-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
 /* Not found and error pages sit outside the themed app root, so they carry
    their own small variable set and follow the system setting. */
 .page-fallback {
@@ -458,5 +634,18 @@ svg {
 
   .app-main {
     padding: 28px;
+  }
+
+  .view-tabs {
+    display: block;
+  }
+
+  .view-bar {
+    display: none;
+  }
+
+  .output-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
   }
 }

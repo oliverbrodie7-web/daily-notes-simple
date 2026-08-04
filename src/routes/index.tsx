@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Header } from "../components/Header";
+import { OutputScreen } from "../components/OutputScreen";
 import { SignIn } from "../components/SignIn";
+import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { useTheme } from "../hooks/useTheme";
 import { supabase } from "../lib/supabase";
 
@@ -25,6 +27,7 @@ function Index() {
   const { theme, toggleTheme } = useTheme();
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [view, setView] = useState<AppView>("today");
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +58,9 @@ function Index() {
       ) : session ? (
         <>
           <Header theme={theme} onToggleTheme={toggleTheme} onSignOut={handleSignOut} />
-          <main className="app-main" />
+          <ViewSwitcher variant="tabs" view={view} onViewChange={setView} />
+          <main className="app-main">{view === "output" ? <OutputScreen /> : null}</main>
+          <ViewSwitcher variant="bar" view={view} onViewChange={setView} />
         </>
       ) : (
         <SignIn />
