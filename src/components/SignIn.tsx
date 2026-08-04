@@ -28,6 +28,7 @@ export function SignIn() {
           <StarIcon className="signin-star" size={22} />
           <span className="signin-title">Daily Notes</span>
         </div>
+        <p className="signin-subtitle">Sign in to add today's notes.</p>
         <label className="field-label" htmlFor="signin-email">
           Email
         </label>
@@ -35,7 +36,7 @@ export function SignIn() {
           id="signin-email"
           className="text-field"
           type="email"
-          autoComplete="email"
+          autoComplete="username"
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}

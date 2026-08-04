@@ -48,20 +48,18 @@ function Index() {
 
   return (
     <div className={`app-root theme-${theme}`}>
-      <div className="app-frame">
-        {checkingSession ? (
-          <div className="app-status">
-            <p className="app-status-text">Loading</p>
-          </div>
-        ) : session ? (
-          <>
-            <Header theme={theme} onToggleTheme={toggleTheme} onSignOut={handleSignOut} />
-            <main className="app-main" />
-          </>
-        ) : (
-          <SignIn />
-        )}
-      </div>
+      {checkingSession ? (
+        <div className="app-status">
+          <p className="app-status-text">Loading</p>
+        </div>
+      ) : session ? (
+        <>
+          <Header theme={theme} onToggleTheme={toggleTheme} onSignOut={handleSignOut} />
+          <main className="app-main" />
+        </>
+      ) : (
+        <SignIn />
+      )}
     </div>
   );
 }

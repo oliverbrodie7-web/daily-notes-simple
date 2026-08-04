@@ -27,12 +27,12 @@ body {
   font-weight: 400;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  background: #fff6dc;
+  background: #fcc640;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background: #0e1116;
+    background: #14171c;
   }
 }
 
@@ -108,7 +108,7 @@ svg {
   --accent-contrast: #ffffff;
   --accent-soft: #f4ecf9;
   --card-stripe: #fcc640;
-  --page-background: #fff6dc;
+  --card-shadow: 0 10px 30px rgba(66, 5, 90, 0.18);
   color-scheme: light;
 }
 
@@ -130,7 +130,7 @@ svg {
   --accent-contrast: #0e1116;
   --accent-soft: rgba(143, 166, 191, 0.16);
   --card-stripe: #8fa6bf;
-  --page-background: #0e1116;
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
@@ -144,34 +144,37 @@ svg {
   outline-color: var(--header-accent);
 }
 
-/* Shell */
+/* Shell. The app background fills the whole viewport edge to edge; the
+   1060px limit applies to content only, never to background colours. */
 .app-root {
   min-height: 100vh;
-  background: var(--page-background);
+  min-height: 100dvh;
+  background: var(--app-background);
   color: var(--text);
   font-family: "Figtree", system-ui, sans-serif;
-  display: flex;
-  justify-content: center;
-}
-
-.app-frame {
-  width: 100%;
-  max-width: 1060px;
-  min-height: 100vh;
-  background: var(--app-background);
   display: flex;
   flex-direction: column;
 }
 
 .app-main {
   flex: 1;
+  width: 100%;
+  max-width: 1060px;
+  margin: 0 auto;
   padding: 20px;
 }
 
-/* Header */
+/* Header. The bar's background runs the full width of the screen while its
+   contents stay within the same centred limit as the content below. */
 .app-header {
+  width: 100%;
   background: var(--header-background);
   color: var(--header-text);
+}
+
+.app-header-inner {
+  max-width: 1060px;
+  margin: 0 auto;
   padding: 14px 20px;
   display: flex;
   align-items: center;
@@ -262,6 +265,9 @@ svg {
 /* Sign in */
 .signin-wrap {
   flex: 1;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -274,7 +280,8 @@ svg {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 28px 24px;
+  padding: 32px;
+  box-shadow: var(--card-shadow);
   display: flex;
   flex-direction: column;
 }
@@ -284,6 +291,13 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  margin-bottom: 6px;
+}
+
+.signin-subtitle {
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 15px;
   margin-bottom: 22px;
 }
 
@@ -438,7 +452,7 @@ svg {
 
 /* Wide screens */
 @media (min-width: 900px) {
-  .app-header {
+  .app-header-inner {
     padding: 18px 28px;
   }
 
