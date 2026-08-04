@@ -5,6 +5,7 @@ import { Header } from "../components/Header";
 import { OutputScreen } from "../components/OutputScreen";
 import { SettingsScreen } from "../components/SettingsScreen";
 import { SignIn } from "../components/SignIn";
+import { TodayScreen } from "../components/TodayScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { useTheme } from "../hooks/useTheme";
 import { supabase } from "../lib/supabase";
@@ -78,7 +79,9 @@ function Index() {
               <OutputScreen />
             ) : view === "settings" ? (
               <SettingsScreen onDirtyChange={setSettingsDirty} />
-            ) : null}
+            ) : (
+              <TodayScreen />
+            )}
           </main>
           <ViewSwitcher variant="bar" view={view} onViewChange={handleViewChange} />
         </>

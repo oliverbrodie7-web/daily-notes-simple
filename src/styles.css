@@ -70,6 +70,7 @@ svg {
   .view-bar-item,
   .copy-button,
   .copy-all-button,
+  .remove-button,
   .text-field {
     transition:
       background-color 0.15s ease,
@@ -113,6 +114,7 @@ svg {
   --accent-soft: #f4ecf9;
   --card-stripe: #fcc640;
   --card-shadow: 0 10px 30px rgba(66, 5, 90, 0.18);
+  --accent-border: rgba(106, 43, 142, 0.35);
   --warning: #d38a2e;
   --warning-soft: #fff4e5;
   --warning-border: rgba(211, 138, 46, 0.45);
@@ -138,6 +140,7 @@ svg {
   --accent-soft: rgba(143, 166, 191, 0.16);
   --card-stripe: #8fa6bf;
   --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --accent-border: rgba(143, 166, 191, 0.3);
   --warning: #d38a2e;
   --warning-soft: rgba(211, 138, 46, 0.14);
   --warning-border: rgba(211, 138, 46, 0.4);
@@ -443,6 +446,152 @@ svg {
 
 .view-bar-item.is-active {
   color: var(--accent);
+  font-weight: 700;
+}
+
+/* Today screen. Named grid areas keep one DOM order for both layouts:
+   a single column below 900px, and from 900px a left column of about 42
+   percent holding the input card with the strip beneath it, with the list
+   filling the right. */
+.today-screen {
+  display: grid;
+  gap: 18px;
+  grid-template-areas:
+    "input"
+    "list"
+    "strip";
+}
+
+.today-input-card {
+  grid-area: input;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.today-entry {
+  min-height: 96px;
+  resize: none;
+  line-height: 1.5;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.today-form-message {
+  margin: 0 0 12px;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.today-add {
+  width: 100%;
+}
+
+.today-helper {
+  margin-top: 10px;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+.today-list-section {
+  grid-area: list;
+  min-width: 0;
+}
+
+.today-list-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.today-count {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.today-message {
+  margin-top: 14px;
+  color: var(--text-soft);
+}
+
+.today-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.today-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 16px 8px;
+}
+
+.today-item-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.today-item-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.today-item-time {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.today-item-text {
+  margin-top: 4px;
+  color: var(--text-soft);
+  overflow-wrap: break-word;
+}
+
+.today-item-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.remove-button {
+  min-height: 44px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.remove-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.today-strip {
+  grid-area: strip;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.today-strip strong {
   font-weight: 700;
 }
 
@@ -799,5 +948,18 @@ svg {
 
   .settings-card {
     padding: 28px;
+  }
+
+  .today-screen {
+    grid-template-columns: 42fr 58fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "input list"
+      "strip list";
+    align-items: start;
+  }
+
+  .today-strip {
+    align-self: start;
   }
 }
