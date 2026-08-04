@@ -7,6 +7,11 @@ type TodayNote = {
   student_name: string;
   note_text: string;
   created_at: string;
+  added_by: string | null;
+};
+
+type TodayScreenProps = {
+  displayName: string;
 };
 
 // Split on the first hyphen only: the name before it, the note after it.
@@ -20,7 +25,7 @@ function parseEntry(raw: string): { studentName: string; noteText: string } | nu
   return { studentName, noteText };
 }
 
-export function TodayScreen() {
+export function TodayScreen({ displayName }: TodayScreenProps) {
   const [entry, setEntry] = useState("");
   const [notes, setNotes] = useState<TodayNote[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -34,7 +39,7 @@ export function TodayScreen() {
     let cancelled = false;
     supabase
       .from("daily_notes")
-      .select("id, student_name, note_text, created_at")
+      .select("id, student_name, note_text, created_at, added_by")
       .eq("note_date", sydneyTodayIso())
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
@@ -69,8 +74,9 @@ export function TodayScreen() {
         collated: false,
         draft_created: false,
         no_match: false,
+        added_by: displayName,
       })
-      .select("id, student_name, note_text, created_at")
+      .select("id, student_name, note_text, created_at, added_by")
       .single();
     if (error || !data) {
       setInputMessage("The note could not be saved. Please try again.");
@@ -160,9 +166,19 @@ export function TodayScreen() {
               <li key={note.id} className="today-item">
                 <div className="today-item-top">
                   <span className="today-item-name">{note.student_name}</span>
-                  <span className="today-item-time">{formatSydneyTime(note.created_at)}</span>
+                  <span className="today-item-when">
+                    {note.added_by ? (
+                      <span className="today-item-by today-item-by-inline">
+                        Added by {note.added_by}
+                      </span>
+                    ) : null}
+                    <span className="today-item-time">{formatSydneyTime(note.created_at)}</span>
+                  </span>
                 </div>
                 <p className="today-item-text">{note.note_text}</p>
+                {note.added_by ? (
+                  <p className="today-item-by today-item-by-block">Added by {note.added_by}</p>
+                ) : null}
                 <div className="today-item-foot">
                   <button
                     type="button"

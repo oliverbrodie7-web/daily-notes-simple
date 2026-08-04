@@ -8,6 +8,7 @@ import { SignIn } from "../components/SignIn";
 import { TodayScreen } from "../components/TodayScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { useTheme } from "../hooks/useTheme";
+import { fallbackNameFromEmail } from "../lib/names";
 import { supabase } from "../lib/supabase";
 
 export const Route = createFileRoute("/")({
@@ -31,6 +32,33 @@ function Index() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<AppView>("today");
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+
+  const email = session?.user.email?.trim().toLowerCase() ?? "";
+
+  // The signed in person's display name, held here so every screen can use
+  // it. The app_users row wins; otherwise the email's local part stands in.
+  useEffect(() => {
+    if (!email) {
+      setDisplayName("");
+      return;
+    }
+    setDisplayName(fallbackNameFromEmail(email));
+    let cancelled = false;
+    supabase
+      .from("app_users")
+      .select("display_name")
+      .eq("email", email)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const name = ((data?.display_name as string | null) ?? "").trim();
+        if (name) setDisplayName(name);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [email]);
 
   function handleViewChange(next: AppView) {
     if (next === view) return;
@@ -78,9 +106,13 @@ function Index() {
             {view === "output" ? (
               <OutputScreen />
             ) : view === "settings" ? (
-              <SettingsScreen onDirtyChange={setSettingsDirty} />
+              <SettingsScreen
+                onDirtyChange={setSettingsDirty}
+                currentEmail={email}
+                onOwnNameChange={setDisplayName}
+              />
             ) : (
-              <TodayScreen />
+              <TodayScreen displayName={displayName} />
             )}
           </main>
           <ViewSwitcher variant="bar" view={view} onViewChange={handleViewChange} />
