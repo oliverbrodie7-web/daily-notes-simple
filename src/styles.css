@@ -72,6 +72,7 @@ svg {
   .copy-all-button,
   .remove-button,
   .row-action,
+  .date-arrow,
   .text-field {
     transition:
       background-color 0.15s ease,
@@ -646,7 +647,7 @@ svg {
   border: 1px solid var(--warning-border);
   border-radius: 12px;
   padding: 14px 16px;
-  margin-bottom: 18px;
+  margin-top: 16px;
 }
 
 .output-warning-icon {
@@ -676,12 +677,45 @@ svg {
   overflow-wrap: break-word;
 }
 
-.output-head {
+.output-datebar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.output-date-centre {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.date-arrow {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.date-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.output-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.output-grid.is-loading {
+  opacity: 0.55;
 }
 
 .section-heading {

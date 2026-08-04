@@ -23,15 +23,25 @@ export function formatSydneyTime(timestamp: string | Date): string {
   return formatted.replace(/[\u202f\u00a0]/g, " ").toLowerCase();
 }
 
-// Today in Sydney like "Monday 3 August" for the header.
-export function formatSydneyHeaderDate(): string {
+function formatSydneyDayMonth(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-AU", {
     timeZone: SYDNEY_TIME_ZONE,
     weekday: "long",
     day: "numeric",
     month: "long",
-  }).formatToParts(new Date());
+  }).formatToParts(date);
   const part = (type: Intl.DateTimeFormatPart["type"]) =>
     parts.find((entry) => entry.type === type)?.value ?? "";
   return `${part("weekday")} ${part("day")} ${part("month")}`;
+}
+
+// Today in Sydney like "Monday 3 August" for the header.
+export function formatSydneyHeaderDate(): string {
+  return formatSydneyDayMonth(new Date());
+}
+
+// A YYYY-MM-DD date column value like "Monday 3 August". Anchoring to UTC
+// midnight keeps the Sydney rendering on the same calendar day.
+export function formatSydneyFullDate(dateIso: string): string {
+  return formatSydneyDayMonth(new Date(`${dateIso}T00:00:00Z`));
 }

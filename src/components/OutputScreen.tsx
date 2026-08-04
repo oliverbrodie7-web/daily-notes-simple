@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "../lib/clipboard";
-import { sydneyTodayIso } from "../lib/dates";
+import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
 import { supabase } from "../lib/supabase";
-import { TickIcon, WarningIcon } from "./Icons";
+import { ChevronLeftIcon, ChevronRightIcon, TickIcon, WarningIcon } from "./Icons";
 
 type OutputNote = {
   id: string;
@@ -18,38 +18,96 @@ function noteAsText(note: OutputNote): string {
 }
 
 export function OutputScreen() {
+  const [dates, setDates] = useState<string[] | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [notes, setNotes] = useState<OutputNote[] | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const copiedTimer = useRef<number | undefined>(undefined);
+  const alive = useRef(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    supabase
+  useEffect(
+    () => () => {
+      alive.current = false;
+      window.clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  async function fetchBatch(date: string) {
+    setBatchLoading(true);
+    setLoadFailed(false);
+    const { data, error } = await supabase
       .from("daily_notes")
       .select("id, student_name, note_text, created_at, draft_created, no_match")
-      .eq("note_date", sydneyTodayIso())
+      .eq("note_date", date)
       .eq("collated", true)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setLoadFailed(true);
-          setNotes([]);
-          return;
-        }
-        setNotes((data ?? []) as OutputNote[]);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .order("created_at", { ascending: false });
+    if (!alive.current) return;
+    setBatchLoading(false);
+    if (error) {
+      setLoadFailed(true);
+      return;
+    }
+    setNotes((data ?? []) as OutputNote[]);
+  }
+
+  // The list of dates loads once each time the screen is opened, so a batch
+  // collated while the app sat on another screen is picked up on return.
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("daily_notes")
+        .select("note_date")
+        .eq("collated", true)
+        .order("note_date", { ascending: false });
+      if (!alive.current) return;
+      if (error) {
+        setLoadFailed(true);
+        setDates([]);
+        setNotes([]);
+        return;
+      }
+      const distinct = [
+        ...new Set((data ?? []).map((row) => (row as { note_date: string }).note_date)),
+      ];
+      setDates(distinct);
+      const newest = distinct[0];
+      if (!newest) {
+        setNotes([]);
+        return;
+      }
+      setSelectedDate(newest);
+      await fetchBatch(newest);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  const selectedIndex = dates && selectedDate ? dates.indexOf(selectedDate) : -1;
+  const hasOlder = selectedIndex >= 0 && dates !== null && selectedIndex < dates.length - 1;
+  const hasNewer = selectedIndex > 0;
+
+  function showOlder() {
+    if (!dates || !hasOlder || batchLoading) return;
+    const next = dates[selectedIndex + 1];
+    if (!next) return;
+    setSelectedDate(next);
+    void fetchBatch(next);
+  }
+
+  function showNewer() {
+    if (!dates || !hasNewer || batchLoading) return;
+    const next = dates[selectedIndex - 1];
+    if (!next) return;
+    setSelectedDate(next);
+    void fetchBatch(next);
+  }
 
   async function handleCopy(key: string, text: string) {
     const copied = await copyText(text);
+    if (!alive.current) return;
     if (!copied) {
       setCopyFailed(true);
       return;
@@ -60,17 +118,50 @@ export function OutputScreen() {
     copiedTimer.current = window.setTimeout(() => setCopiedKey(null), 2000);
   }
 
-  const loading = notes === null;
-  const hasNotes = !loading && !loadFailed && notes.length > 0;
-  const countLabel =
-    hasNotes && `${notes.length} ${notes.length === 1 ? "student" : "students"}, collated 7:30 pm`;
+  const initialLoading = dates === null || (notes === null && !loadFailed);
+  const noBatches = dates !== null && dates.length === 0 && !loadFailed;
+  const hasNotes = !initialLoading && !loadFailed && notes !== null && notes.length > 0;
   const allText = hasNotes ? notes.map(noteAsText).join("\n\n") : "";
   const noMatchNames = hasNotes
     ? notes.filter((note) => note.no_match).map((note) => note.student_name)
     : [];
+  const collatedAt = hasNotes ? formatSydneyTime(notes[0]!.created_at) : "";
+  const heading = selectedDate && !noBatches ? formatSydneyFullDate(selectedDate) : "Output";
+  const subline = batchLoading
+    ? "Loading"
+    : noBatches
+      ? "Nothing collated yet"
+      : hasNotes
+        ? `${notes.length} ${notes.length === 1 ? "student" : "students"}, collated ${collatedAt}`
+        : "";
 
   return (
     <section className="output-screen">
+      <div className="output-datebar">
+        <button
+          type="button"
+          className="date-arrow"
+          aria-label="Older batch"
+          disabled={!hasOlder}
+          onClick={showOlder}
+        >
+          <ChevronLeftIcon />
+        </button>
+        <div className="output-date-centre">
+          <h2 className="section-heading">{initialLoading ? "Output" : heading}</h2>
+          {subline ? <p className="output-count">{subline}</p> : null}
+        </div>
+        <button
+          type="button"
+          className="date-arrow"
+          aria-label="Newer batch"
+          disabled={!hasNewer}
+          onClick={showNewer}
+        >
+          <ChevronRightIcon />
+        </button>
+      </div>
+
       {noMatchNames.length > 0 ? (
         <div className="output-warning">
           <WarningIcon className="output-warning-icon" size={20} />
@@ -87,12 +178,9 @@ export function OutputScreen() {
           </div>
         </div>
       ) : null}
-      <div className="output-head">
-        <div>
-          <h2 className="section-heading">Tonight's output</h2>
-          {countLabel ? <p className="output-count">{countLabel}</p> : null}
-        </div>
-        {hasNotes ? (
+
+      {hasNotes ? (
+        <div className="output-actions">
           <button
             type="button"
             className="copy-all-button"
@@ -100,8 +188,8 @@ export function OutputScreen() {
           >
             {copiedKey === "all" ? "Copied" : "Copy all"}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {copyFailed ? (
         <p className="output-message" role="alert">
@@ -109,17 +197,19 @@ export function OutputScreen() {
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="output-message">Loading tonight's notes</p>
+      {initialLoading ? (
+        <p className="output-message">Loading the output</p>
       ) : loadFailed ? (
         <p className="output-message" role="alert">
-          Today's output could not be loaded. Please try again.
+          The output could not be loaded. Please try again.
         </p>
-      ) : notes.length === 0 ? (
-        <p className="output-message">Nothing yet. Today's notes appear here after 7:30 pm.</p>
+      ) : noBatches ? (
+        <p className="output-message">Nothing yet. Your first batch appears after 7:30 pm.</p>
+      ) : notes !== null && notes.length === 0 ? (
+        <p className="output-message">Nothing collated on this date.</p>
       ) : (
-        <ul className="output-grid">
-          {notes.map((note) => (
+        <ul className={`output-grid${batchLoading ? " is-loading" : ""}`}>
+          {(notes ?? []).map((note) => (
             <li key={note.id} className="output-card">
               <h3 className="output-card-name">{note.student_name}</h3>
               <p className="output-card-text">{note.note_text}</p>

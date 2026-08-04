@@ -59,6 +59,46 @@ export function TickIcon({ className, size = 14 }: IconProps) {
   );
 }
 
+export function ChevronLeftIcon({ className, size = 20 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M14.5 5.5 8 12l6.5 6.5" />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon({ className, size = 20 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9.5 5.5 16 12l-6.5 6.5" />
+    </svg>
+  );
+}
+
 export function WarningIcon({ className, size = 18 }: IconProps) {
   return (
     <svg
