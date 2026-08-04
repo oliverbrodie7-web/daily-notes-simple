@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { supabase } from "../lib/supabase";
 
@@ -14,26 +14,17 @@ type TodayScreenProps = {
   displayName: string;
 };
 
-// Split on the first hyphen only: the name before it, the note after it.
-// Any further hyphens belong to the note itself.
-function parseEntry(raw: string): { studentName: string; noteText: string } | null {
-  const hyphenAt = raw.indexOf("-");
-  if (hyphenAt === -1) return null;
-  const studentName = raw.slice(0, hyphenAt).trim();
-  const noteText = raw.slice(hyphenAt + 1).trim();
-  if (!studentName || !noteText) return null;
-  return { studentName, noteText };
-}
-
 export function TodayScreen({ displayName }: TodayScreenProps) {
-  const [entry, setEntry] = useState("");
+  const [studentName, setStudentName] = useState("");
+  const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<TodayNote[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [inputMessage, setInputMessage] = useState<string | null>(null);
   const [listMessage, setListMessage] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const noteRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,11 +47,20 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
     };
   }, []);
 
+  // The note box starts about four lines tall and grows with the text.
+  useEffect(() => {
+    const el = noteRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [noteText]);
+
   async function handleAdd() {
     if (saving) return;
-    const parsed = parseEntry(entry);
-    if (!parsed) {
-      setInputMessage("Add a student name, then a dash, then the note.");
+    const name = studentName.trim();
+    const note = noteText.trim();
+    if (!name || !note) {
+      setInputMessage("Add a student name and a note.");
       return;
     }
     setSaving(true);
@@ -68,8 +68,8 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
     const { data, error } = await supabase
       .from("daily_notes")
       .insert({
-        student_name: parsed.studentName,
-        note_text: parsed.noteText,
+        student_name: name,
+        note_text: note,
         note_date: sydneyTodayIso(),
         collated: false,
         draft_created: false,
@@ -84,9 +84,36 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
       return;
     }
     setNotes((current) => [data as TodayNote, ...(current ?? [])]);
-    setEntry("");
+    setStudentName("");
+    setNoteText("");
     setSaving(false);
-    boxRef.current?.focus();
+    nameRef.current?.focus();
+  }
+
+  // Enter in the name field moves to the note field. Enter in the note field
+  // saves, Shift Enter makes a new line, and Control or Command with Enter
+  // saves from either field. Nothing fires while a save is in progress.
+  function handleNameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (saving) return;
+    if (event.ctrlKey || event.metaKey) {
+      void handleAdd();
+      return;
+    }
+    noteRef.current?.focus();
+  }
+
+  function handleNoteKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter") return;
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      if (!saving) void handleAdd();
+      return;
+    }
+    if (event.shiftKey) return;
+    event.preventDefault();
+    if (!saving) void handleAdd();
   }
 
   async function handleRemove(note: TodayNote) {
@@ -112,19 +139,35 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
   return (
     <section className="today-screen">
       <div className="today-input-card">
-        <label className="field-label" htmlFor="today-entry">
-          Add a note
+        <label className="field-label" htmlFor="today-student">
+          Student name
         </label>
-        <textarea
-          id="today-entry"
-          className="text-field today-entry"
-          rows={3}
-          ref={boxRef}
-          value={entry}
+        <input
+          id="today-student"
+          className="text-field"
+          type="text"
+          ref={nameRef}
+          value={studentName}
           onChange={(event) => {
-            setEntry(event.target.value);
+            setStudentName(event.target.value);
             setInputMessage(null);
           }}
+          onKeyDown={handleNameKeyDown}
+        />
+        <label className="field-label" htmlFor="today-note">
+          Note
+        </label>
+        <textarea
+          id="today-note"
+          className="text-field today-note-entry"
+          rows={4}
+          ref={noteRef}
+          value={noteText}
+          onChange={(event) => {
+            setNoteText(event.target.value);
+            setInputMessage(null);
+          }}
+          onKeyDown={handleNoteKeyDown}
         />
         {inputMessage ? (
           <p className="today-form-message" role="alert">
@@ -139,7 +182,10 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
         >
           {saving ? "Adding..." : "Add note"}
         </button>
-        <p className="today-helper">Student name first, then a dash, then the note.</p>
+        <p className="today-hint">
+          <kbd className="key-chip">Enter</kbd> to save, <kbd className="key-chip">Shift</kbd>{" "}
+          <kbd className="key-chip">Enter</kbd> for a new line
+        </p>
       </div>
 
       <div className="today-list-section">

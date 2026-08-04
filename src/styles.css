@@ -471,9 +471,10 @@ svg {
   padding: 20px;
 }
 
-.today-entry {
-  min-height: 96px;
+.today-note-entry {
+  min-height: 122px;
   resize: none;
+  overflow: hidden;
   line-height: 1.5;
   padding-top: 12px;
   padding-bottom: 12px;
@@ -491,11 +492,22 @@ svg {
   width: 100%;
 }
 
-.today-helper {
+.today-hint {
   margin-top: 10px;
   color: var(--text-faint);
   font-size: 13px;
   text-align: center;
+}
+
+.key-chip {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12px;
 }
 
 .today-list-section {
