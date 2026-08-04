@@ -1,144 +1,448 @@
-@import "tailwindcss" source(none);
-@source "../src";
-@import "tw-animate-css";
-
-@custom-variant dark (&:is(.dark *));
-
 /*
- * Design system definition.
+ * Daily Notes styles.
  *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * Plain CSS. Both colour modes are defined as custom properties on a theme
+ * class applied to the app root, so switching mode swaps the variables and
+ * no layout rule is ever duplicated.
  */
 
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+* {
+  margin: 0;
 }
 
-.dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
-@layer base {
-  * {
-    border-color: var(--color-border);
+body {
+  min-height: 100vh;
+  font-family: "Figtree", system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background: #fff6dc;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0e1116;
+  }
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  overflow-wrap: break-word;
+}
+
+svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Motion is opt-in so the reduced motion setting is respected. */
+@media (prefers-reduced-motion: no-preference) {
+  .theme-toggle-option,
+  .primary-button,
+  .signout-button,
+  .fallback-button,
+  .text-field {
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease,
+      opacity 0.15s ease;
   }
 
-  body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+  .app-status-text {
+    animation: soft-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes soft-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+}
+
+/* Theme variables */
+.theme-light {
+  --app-background: #fcc640;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --header-background: #42055a;
+  --header-text: #ffffff;
+  --header-accent: #fcc640;
+  --header-control-border: rgba(255, 255, 255, 0.32);
+  --header-control-active: #ffffff;
+  --header-control-active-icon: #42055a;
+  --border: rgba(66, 5, 90, 0.14);
+  --text: #42055a;
+  --text-soft: rgba(66, 5, 90, 0.66);
+  --text-faint: rgba(66, 5, 90, 0.42);
+  --accent: #6a2b8e;
+  --accent-contrast: #ffffff;
+  --accent-soft: #f4ecf9;
+  --card-stripe: #fcc640;
+  --page-background: #fff6dc;
+  color-scheme: light;
+}
+
+.theme-dark {
+  --app-background: #14171c;
+  --surface: #1e232a;
+  --surface-raised: #262c34;
+  --header-background: #0e1116;
+  --header-text: #e8ebef;
+  --header-accent: #8fa6bf;
+  --header-control-border: rgba(255, 255, 255, 0.22);
+  --header-control-active: #8fa6bf;
+  --header-control-active-icon: #0e1116;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: #e8ebef;
+  --text-soft: rgba(232, 235, 239, 0.62);
+  --text-faint: rgba(232, 235, 239, 0.38);
+  --accent: #8fa6bf;
+  --accent-contrast: #0e1116;
+  --accent-soft: rgba(143, 166, 191, 0.16);
+  --card-stripe: #8fa6bf;
+  --page-background: #0e1116;
+  color-scheme: dark;
+}
+
+/* Keyboard focus stays visible on every control. */
+:focus-visible {
+  outline: 3px solid var(--accent, #6a2b8e);
+  outline-offset: 2px;
+}
+
+.app-header :focus-visible {
+  outline-color: var(--header-accent);
+}
+
+/* Shell */
+.app-root {
+  min-height: 100vh;
+  background: var(--page-background);
+  color: var(--text);
+  font-family: "Figtree", system-ui, sans-serif;
+  display: flex;
+  justify-content: center;
+}
+
+.app-frame {
+  width: 100%;
+  max-width: 1060px;
+  min-height: 100vh;
+  background: var(--app-background);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+  padding: 20px;
+}
+
+/* Header */
+.app-header {
+  background: var(--header-background);
+  color: var(--header-text);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.app-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-title-star {
+  color: var(--header-accent);
+  flex: none;
+}
+
+.app-date {
+  color: var(--header-accent);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.app-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 4px;
+  border: 1px solid var(--header-control-border);
+  border-radius: 999px;
+  background: transparent;
+}
+
+.theme-toggle-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--header-text);
+  opacity: 0.55;
+}
+
+.theme-toggle-option.is-active {
+  background: var(--header-control-active);
+  color: var(--header-control-active-icon);
+  opacity: 1;
+}
+
+.signout-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--header-control-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--header-text);
+  font-weight: 600;
+}
+
+/* Loading state */
+.app-status {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.app-status-text {
+  color: var(--text-soft);
+  font-weight: 600;
+}
+
+/* Sign in */
+.signin-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.signin-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.signin-star {
+  color: var(--accent);
+}
+
+.signin-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 24px;
+  color: var(--text);
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.text-field {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+.primary-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.signin-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.form-message {
+  margin-top: 14px;
+  text-align: center;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Not found and error pages sit outside the themed app root, so they carry
+   their own small variable set and follow the system setting. */
+.page-fallback {
+  --fallback-page: #fff6dc;
+  --fallback-card: #ffffff;
+  --fallback-text: #42055a;
+  --fallback-text-soft: rgba(66, 5, 90, 0.66);
+  --fallback-border: rgba(66, 5, 90, 0.14);
+  --fallback-accent: #6a2b8e;
+  --fallback-accent-contrast: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--fallback-page);
+  color: var(--fallback-text);
+  font-family: "Figtree", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page-fallback {
+    --fallback-page: #0e1116;
+    --fallback-card: #1e232a;
+    --fallback-text: #e8ebef;
+    --fallback-text-soft: rgba(232, 235, 239, 0.62);
+    --fallback-border: rgba(255, 255, 255, 0.1);
+    --fallback-accent: #8fa6bf;
+    --fallback-accent-contrast: #0e1116;
+  }
+}
+
+.page-fallback-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--fallback-card);
+  border: 1px solid var(--fallback-border);
+  border-radius: 18px;
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.page-fallback-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 22px;
+}
+
+.page-fallback-text {
+  margin-top: 8px;
+  color: var(--fallback-text-soft);
+}
+
+.page-fallback-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fallback-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--fallback-accent);
+  color: var(--fallback-accent-contrast);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.fallback-button-quiet {
+  background: transparent;
+  color: var(--fallback-text);
+  border-color: var(--fallback-border);
+}
+
+.page-fallback :focus-visible {
+  outline-color: var(--fallback-accent);
+}
+
+/* Wide screens */
+@media (min-width: 900px) {
+  .app-header {
+    padding: 18px 28px;
+  }
+
+  .app-main {
+    padding: 28px;
   }
 }
