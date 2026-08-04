@@ -26,7 +26,7 @@ export function SignIn() {
       <form className="signin-card" onSubmit={handleSubmit}>
         <div className="signin-brand">
           <StarIcon className="signin-star" size={22} />
-          <span className="signin-title">Daily Notes</span>
+          <span className="signin-title">Touch Points</span>
         </div>
         <p className="signin-subtitle">Sign in to add today's notes.</p>
         <label className="field-label" htmlFor="signin-email">

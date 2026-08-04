@@ -16,7 +16,7 @@ export function Header({ theme, onToggleTheme, onSignOut }: HeaderProps) {
         <div className="app-header-brand">
           <h1 className="app-title">
             <StarIcon className="app-title-star" size={20} />
-            Daily Notes
+            Touch Points
           </h1>
           <p className="app-date">{formatSydneyHeaderDate()}</p>
         </div>

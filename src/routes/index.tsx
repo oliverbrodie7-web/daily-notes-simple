@@ -12,10 +12,10 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Daily Notes" },
-      { name: "description", content: "Quick daily notes, collated each evening." },
-      { property: "og:title", content: "Daily Notes" },
-      { property: "og:description", content: "Quick daily notes, collated each evening." },
+      { title: "Touch Points" },
+      { name: "description", content: "Quick student touch points, collated each evening." },
+      { property: "og:title", content: "Touch Points" },
+      { property: "og:description", content: "Quick student touch points, collated each evening." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

@@ -1,4 +1,4 @@
-# Daily Notes
+# Touch Points
 
 A small app for jotting quick notes about students through the day. Notes are stored in Supabase and require signing in.
 
