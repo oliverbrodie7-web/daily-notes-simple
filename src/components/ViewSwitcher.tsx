@@ -13,8 +13,12 @@ type ViewSwitcherProps = {
   variant: "tabs" | "bar";
   view: AppView;
   onViewChange: (view: AppView) => void;
-  managerLocked: boolean;
+  // Manager and Settings share one PIN lock, so their padlocks show and
+  // hide together.
+  pinLocked: boolean;
 };
+
+const PIN_PROTECTED: AppView[] = ["manager", "settings"];
 
 type GlyphProps = {
   size?: number;
@@ -82,7 +86,7 @@ const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof CalendarG
   settings: CogGlyph,
 };
 
-// A tiny padlock beside the Manager label while the screen is locked. It
+// A tiny padlock beside a protected screen's label while it is locked. It
 // stays mounted so it can fade in and out, takes the label's colour in
 // every state, and collapses to nothing once unlocked.
 function ManagerPadlock({ locked }: { locked: boolean }) {
@@ -108,7 +112,7 @@ function ManagerPadlock({ locked }: { locked: boolean }) {
 // control under the header with a raised slab that slides to the selection.
 // Below 900px it is a floating tab bar of icons above labels. CSS keeps
 // exactly one form visible at a time.
-export function ViewSwitcher({ variant, view, onViewChange, managerLocked }: ViewSwitcherProps) {
+export function ViewSwitcher({ variant, view, onViewChange, pinLocked }: ViewSwitcherProps) {
   const activeIndex = Math.max(
     0,
     VIEWS.findIndex((item) => item.key === view),
@@ -130,7 +134,7 @@ export function ViewSwitcher({ variant, view, onViewChange, managerLocked }: Vie
             />
             {VIEWS.map((item) => {
               const active = item.key === view;
-              const isManager = item.key === "manager";
+              const protectedItem = PIN_PROTECTED.includes(item.key);
               return (
                 <button
                   key={item.key}
@@ -138,11 +142,11 @@ export function ViewSwitcher({ variant, view, onViewChange, managerLocked }: Vie
                   className={`seg-item${active ? " is-active" : ""}`}
                   aria-current={active ? "true" : undefined}
                   aria-label={
-                    isManager ? (managerLocked ? "Manager, locked" : "Manager") : undefined
+                    protectedItem ? (pinLocked ? `${item.label}, locked` : item.label) : undefined
                   }
                   onClick={() => onViewChange(item.key)}
                 >
-                  {isManager ? <ManagerPadlock locked={managerLocked} /> : null}
+                  {protectedItem ? <ManagerPadlock locked={pinLocked} /> : null}
                   {item.label}
                 </button>
               );
@@ -158,7 +162,7 @@ export function ViewSwitcher({ variant, view, onViewChange, managerLocked }: Vie
       <div className="view-bar-inner">
         {VIEWS.map((item) => {
           const active = item.key === view;
-          const isManager = item.key === "manager";
+          const protectedItem = PIN_PROTECTED.includes(item.key);
           const Glyph = GLYPHS[item.key];
           return (
             <button
@@ -166,12 +170,14 @@ export function ViewSwitcher({ variant, view, onViewChange, managerLocked }: Vie
               type="button"
               className={`view-bar-item${active ? " is-active" : ""}`}
               aria-current={active ? "true" : undefined}
-              aria-label={isManager ? (managerLocked ? "Manager, locked" : "Manager") : undefined}
+              aria-label={
+                protectedItem ? (pinLocked ? `${item.label}, locked` : item.label) : undefined
+              }
               onClick={() => onViewChange(item.key)}
             >
               <Glyph />
               <span className="bar-item-label">
-                {isManager ? <ManagerPadlock locked={managerLocked} /> : null}
+                {protectedItem ? <ManagerPadlock locked={pinLocked} /> : null}
                 {item.label}
               </span>
             </button>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import type { PinGate } from "../hooks/usePinGate";
 import { hashPin, isValidPin } from "../lib/pin";
 import { supabase } from "../lib/supabase";
+import { LockGate } from "./LockGate";
 
 // The daily_notes_settings table holds exactly one row whose id is always 1.
 // This screen only ever reads and updates that row.
@@ -17,9 +19,10 @@ function fillPlaceholders(text: string): string {
 
 type SettingsScreenProps = {
   onDirtyChange: (dirty: boolean) => void;
+  pinGate: PinGate;
 };
 
-export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
+export function SettingsScreen({ onDirtyChange, pinGate }: SettingsScreenProps) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [savedSubject, setSavedSubject] = useState("");
@@ -32,7 +35,6 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
   const savedTimer = useRef<number | undefined>(undefined);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const [pinHash, setPinHash] = useState<string | null>(null);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -47,7 +49,7 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
     let cancelled = false;
     supabase
       .from("daily_notes_settings")
-      .select("email_subject, email_template, manager_pin_hash")
+      .select("email_subject, email_template")
       .eq("id", SETTINGS_ROW_ID)
       .single()
       .then(({ data, error }) => {
@@ -63,7 +65,6 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
         setBody(rowBody);
         setSavedSubject(rowSubject);
         setSavedBody(rowBody);
-        setPinHash(((data.manager_pin_hash as string | null) ?? "").trim() || null);
         setLoading(false);
       });
     return () => {
@@ -85,9 +86,9 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
     }
     setPinBusy(true);
     setPinMessage(null);
-    if (pinHash) {
+    if (pinGate.storedHash) {
       const currentHash = await hashPin(currentPin);
-      if (currentHash !== pinHash) {
+      if (currentHash !== pinGate.storedHash) {
         setPinMessage("That current PIN is not right.");
         setPinBusy(false);
         return;
@@ -103,7 +104,7 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
       setPinMessage("The change could not be saved. Please try again.");
       return;
     }
-    setPinHash(nextHash);
+    pinGate.notePinChanged(nextHash);
     setCurrentPin("");
     setNewPin("");
     setConfirmPin("");
@@ -165,8 +166,16 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
     savedTimer.current = window.setTimeout(() => setJustSaved(false), 2000);
   }
 
+  if (pinGate.state !== "unlocked") {
+    return <LockGate heading="Settings" gate={pinGate} />;
+  }
+
   return (
-    <section className="settings-screen">
+    <section
+      className="settings-screen"
+      onPointerDownCapture={pinGate.touch}
+      onKeyDownCapture={pinGate.touch}
+    >
       <div className="settings-card">
         <h2 className="section-heading">Email template</h2>
         <p className="settings-sub">
@@ -257,7 +266,7 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
           </p>
         ) : (
           <>
-            {pinHash ? (
+            {pinGate.storedHash ? (
               <>
                 <label className="field-label" htmlFor="pin-current">
                   Current PIN
@@ -306,7 +315,13 @@ export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
               disabled={pinBusy}
               onClick={handlePinSave}
             >
-              {pinBusy ? "Saving..." : pinSaved ? "Saved" : pinHash ? "Change PIN" : "Set PIN"}
+              {pinBusy
+                ? "Saving..."
+                : pinSaved
+                  ? "Saved"
+                  : pinGate.storedHash
+                    ? "Change PIN"
+                    : "Set PIN"}
             </button>
             {pinMessage ? (
               <p className="settings-message" role="alert">

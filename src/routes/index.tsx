@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Header } from "../components/Header";
 import { ManagerScreen } from "../components/ManagerScreen";
@@ -8,10 +8,9 @@ import { SettingsScreen } from "../components/SettingsScreen";
 import { SignIn } from "../components/SignIn";
 import { TodayScreen } from "../components/TodayScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
+import { usePinGate } from "../hooks/usePinGate";
 import { useTheme } from "../hooks/useTheme";
 import { supabase } from "../lib/supabase";
-
-const MANAGER_UNLOCK_MS = 15 * 60 * 1000;
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -35,26 +34,9 @@ function Index() {
   const [view, setView] = useState<AppView>("today");
   const [settingsDirty, setSettingsDirty] = useState(false);
 
-  // The Manager unlock window lives in memory only, so switching tabs keeps
-  // it open but a reload or sign out always locks the screen again. The
-  // locked flag mirrors the window so the switcher's padlock stays current.
-  const managerUnlockedUntil = useRef(0);
-  const [managerLocked, setManagerLocked] = useState(true);
-  const extendManagerUnlock = useCallback(() => {
-    managerUnlockedUntil.current = Date.now() + MANAGER_UNLOCK_MS;
-    setManagerLocked(false);
-  }, []);
-  const managerUnlockRemaining = useCallback(() => managerUnlockedUntil.current - Date.now(), []);
-
-  useEffect(() => {
-    if (managerLocked) return;
-    const check = () => {
-      if (managerUnlockedUntil.current - Date.now() <= 0) setManagerLocked(true);
-    };
-    check();
-    const timer = window.setInterval(check, 1000);
-    return () => window.clearInterval(timer);
-  }, [managerLocked]);
+  // One shared PIN lock for the Manager and Settings screens, held in
+  // memory only in this single hook instance.
+  const pinGate = usePinGate(Boolean(session));
 
   function handleViewChange(next: AppView) {
     if (next === view) return;
@@ -85,8 +67,6 @@ function Index() {
   }, []);
 
   async function handleSignOut() {
-    managerUnlockedUntil.current = 0;
-    setManagerLocked(true);
     await supabase.auth.signOut();
   }
 
@@ -103,18 +83,15 @@ function Index() {
             variant="tabs"
             view={view}
             onViewChange={handleViewChange}
-            managerLocked={managerLocked}
+            pinLocked={pinGate.locked}
           />
           <main className="app-main">
             {view === "output" ? (
               <OutputScreen />
             ) : view === "manager" ? (
-              <ManagerScreen
-                onUnlock={extendManagerUnlock}
-                unlockRemainingMs={managerUnlockRemaining}
-              />
+              <ManagerScreen pinGate={pinGate} />
             ) : view === "settings" ? (
-              <SettingsScreen onDirtyChange={setSettingsDirty} />
+              <SettingsScreen onDirtyChange={setSettingsDirty} pinGate={pinGate} />
             ) : (
               <TodayScreen />
             )}
@@ -123,7 +100,7 @@ function Index() {
             variant="bar"
             view={view}
             onViewChange={handleViewChange}
-            managerLocked={managerLocked}
+            pinLocked={pinGate.locked}
           />
         </>
       ) : (

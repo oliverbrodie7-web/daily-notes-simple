@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import type { PinGate } from "../hooks/usePinGate";
 import {
   formatSydneyFullDate,
   sydneyDateIso,
@@ -6,9 +7,9 @@ import {
   sydneyTodayIso,
   sydneyTomorrowIso,
 } from "../lib/dates";
-import { fetchPinHash, hashPin, isValidPin, savePinHash } from "../lib/pin";
 import { supabase } from "../lib/supabase";
-import { LockIcon, TickIcon } from "./Icons";
+import { LockGate } from "./LockGate";
+import { TickIcon } from "./Icons";
 
 type TouchPoint = {
   id: string;
@@ -19,13 +20,8 @@ type TouchPoint = {
   done_at: string | null;
 };
 
-type GateState = "checking" | "setup" | "locked" | "unlocked" | "failed";
-
 type ManagerScreenProps = {
-  // The fifteen minute unlock window lives in the route, in memory only, so
-  // it survives tab switches but never a reload or sign out.
-  onUnlock: () => void;
-  unlockRemainingMs: () => number;
+  pinGate: PinGate;
 };
 
 const TOUCH_POINT_COLUMNS = "id, person_name, what_about, due_date, done, done_at";
@@ -45,17 +41,8 @@ function dueLine(due: string, today: string, tomorrow: string): { text: string; 
   return { text: `By ${formatSydneyFullDate(due)}`, overdue: false };
 }
 
-export function ManagerScreen({ onUnlock, unlockRemainingMs }: ManagerScreenProps) {
-  const [gate, setGate] = useState<GateState>(() =>
-    unlockRemainingMs() > 0 ? "unlocked" : "checking",
-  );
-  const [storedHash, setStoredHash] = useState<string | null>(null);
-  const [gateMessage, setGateMessage] = useState<string | null>(null);
-  const [gateBusy, setGateBusy] = useState(false);
-  const [pinEntry, setPinEntry] = useState("");
-  const [setupPin, setSetupPin] = useState("");
-  const [setupConfirm, setSetupConfirm] = useState("");
-  const pinRef = useRef<HTMLInputElement | null>(null);
+export function ManagerScreen({ pinGate }: ManagerScreenProps) {
+  const unlocked = pinGate.state === "unlocked";
 
   const [items, setItems] = useState<TouchPoint[] | null>(null);
   const [doneToday, setDoneToday] = useState<TouchPoint[]>([]);
@@ -71,51 +58,16 @@ export function ManagerScreen({ onUnlock, unlockRemainingMs }: ManagerScreenProp
   const whoRef = useRef<HTMLInputElement | null>(null);
   const whatRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Find out whether a PIN exists whenever the gate needs deciding.
-  useEffect(() => {
-    if (gate !== "checking") return;
-    let cancelled = false;
-    fetchPinHash().then(({ hash, failed }) => {
-      if (cancelled) return;
-      if (failed) {
-        setGate("failed");
-        return;
-      }
-      setStoredHash(hash);
-      setGate(hash ? "locked" : "setup");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [gate]);
-
-  // While unlocked, watch the clock and lock the screen the moment the
-  // fifteen minutes run out.
-  useEffect(() => {
-    if (gate !== "unlocked") return;
-    const check = () => {
-      if (unlockRemainingMs() <= 0) setGate("checking");
-    };
-    check();
-    const timer = window.setInterval(check, 1000);
-    return () => window.clearInterval(timer);
-  }, [gate, unlockRemainingMs]);
-
-  // Any interaction with the unlocked screen restarts the fifteen minutes.
-  function touchActivity() {
-    if (gate === "unlocked") onUnlock();
-  }
-
   // The what to talk about box grows with its text.
   useEffect(() => {
     const el = whatRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [what, gate]);
+  }, [what, unlocked]);
 
   useEffect(() => {
-    if (gate !== "unlocked") return;
+    if (!unlocked) return;
     let cancelled = false;
     (async () => {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
@@ -149,52 +101,7 @@ export function ManagerScreen({ onUnlock, unlockRemainingMs }: ManagerScreenProp
     return () => {
       cancelled = true;
     };
-  }, [gate]);
-
-  async function handleSetupSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (gateBusy) return;
-    if (!isValidPin(setupPin)) {
-      setGateMessage("A PIN is exactly four digits.");
-      return;
-    }
-    if (setupPin !== setupConfirm) {
-      setGateMessage("The two PINs do not match.");
-      return;
-    }
-    setGateBusy(true);
-    setGateMessage(null);
-    const hash = await hashPin(setupPin);
-    const ok = await savePinHash(hash);
-    setGateBusy(false);
-    if (!ok) {
-      setGateMessage("The change could not be saved. Please try again.");
-      return;
-    }
-    setStoredHash(hash);
-    setSetupPin("");
-    setSetupConfirm("");
-    onUnlock();
-    setGate("unlocked");
-  }
-
-  async function handleUnlockSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (gateBusy || !storedHash) return;
-    setGateBusy(true);
-    setGateMessage(null);
-    const hash = await hashPin(pinEntry);
-    setGateBusy(false);
-    if (hash !== storedHash) {
-      setGateMessage("That PIN is not right.");
-      setPinEntry("");
-      pinRef.current?.focus();
-      return;
-    }
-    setPinEntry("");
-    onUnlock();
-    setGate("unlocked");
-  }
+  }, [unlocked]);
 
   async function handleAdd() {
     if (saving) return;
@@ -275,111 +182,8 @@ export function ManagerScreen({ onUnlock, unlockRemainingMs }: ManagerScreenProp
     setItems((current) => sortByDue([...(current ?? []), { ...item, done: false, done_at: null }]));
   }
 
-  if (gate === "checking") {
-    return (
-      <div className="manager-gate">
-        <p className="manager-gate-status">Loading</p>
-      </div>
-    );
-  }
-
-  if (gate === "failed") {
-    return (
-      <div className="manager-gate">
-        <p className="manager-gate-status" role="alert">
-          The Manager screen could not be loaded. Please try again.
-        </p>
-      </div>
-    );
-  }
-
-  if (gate === "setup") {
-    return (
-      <div className="manager-gate">
-        <form className="gate-card" onSubmit={handleSetupSave}>
-          <LockIcon className="gate-icon" size={24} />
-          <h2 className="gate-heading">Set a PIN</h2>
-          <p className="gate-sub">This keeps the Manager screen private on a shared device.</p>
-          <label className="field-label" htmlFor="setup-pin">
-            New PIN
-          </label>
-          <input
-            id="setup-pin"
-            className="text-field pin-field"
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            value={setupPin}
-            onChange={(event) => {
-              setSetupPin(event.target.value.replace(/\D/g, "").slice(0, 4));
-              setGateMessage(null);
-            }}
-          />
-          <label className="field-label" htmlFor="setup-pin-confirm">
-            Confirm PIN
-          </label>
-          <input
-            id="setup-pin-confirm"
-            className="text-field pin-field"
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            value={setupConfirm}
-            onChange={(event) => {
-              setSetupConfirm(event.target.value.replace(/\D/g, "").slice(0, 4));
-              setGateMessage(null);
-            }}
-          />
-          <button type="submit" className="primary-button gate-button" disabled={gateBusy}>
-            {gateBusy ? "Saving..." : "Save PIN"}
-          </button>
-          {gateMessage ? (
-            <p className="gate-message" role="alert">
-              {gateMessage}
-            </p>
-          ) : null}
-        </form>
-      </div>
-    );
-  }
-
-  if (gate === "locked") {
-    return (
-      <div className="manager-gate">
-        <form className="gate-card" onSubmit={handleUnlockSubmit}>
-          <LockIcon className="gate-icon" size={24} />
-          <h2 className="gate-heading">Manager</h2>
-          <p className="gate-sub">Enter your PIN to open this screen.</p>
-          <label className="field-label" htmlFor="manager-pin">
-            PIN
-          </label>
-          <input
-            id="manager-pin"
-            className="text-field pin-field"
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            ref={pinRef}
-            value={pinEntry}
-            onChange={(event) => {
-              setPinEntry(event.target.value.replace(/\D/g, "").slice(0, 4));
-              setGateMessage(null);
-            }}
-          />
-          <button type="submit" className="primary-button gate-button" disabled={gateBusy}>
-            {gateBusy ? "Checking..." : "Unlock"}
-          </button>
-          {gateMessage ? (
-            <p className="gate-message" role="alert">
-              {gateMessage}
-            </p>
-          ) : null}
-        </form>
-      </div>
-    );
+  if (!unlocked) {
+    return <LockGate heading="Manager" gate={pinGate} />;
   }
 
   const today = sydneyTodayIso();
@@ -390,8 +194,8 @@ export function ManagerScreen({ onUnlock, unlockRemainingMs }: ManagerScreenProp
   return (
     <section
       className="manager-screen"
-      onPointerDownCapture={touchActivity}
-      onKeyDownCapture={touchActivity}
+      onPointerDownCapture={pinGate.touch}
+      onKeyDownCapture={pinGate.touch}
     >
       <div className="manager-input-card">
         <label className="field-label" htmlFor="manager-who">
@@ -456,9 +260,7 @@ export function ManagerScreen({ onUnlock, unlockRemainingMs }: ManagerScreenProp
       <div className="manager-list-section">
         <div className="manager-list-head">
           <h2 className="section-heading">To do</h2>
-          <span className="manager-count">
-            {openCount} {openCount === 1 ? "open" : "open"}
-          </span>
+          <span className="manager-count">{openCount} open</span>
         </div>
         {listMessage ? (
           <p className="manager-message" role="alert">
