@@ -8,13 +8,28 @@ type OutputNote = {
   id: string;
   student_name: string;
   note_text: string;
+  tidied_text: string | null;
   created_at: string;
   draft_created: boolean;
   no_match: boolean;
 };
 
+// The tidied wording is the note shown and copied when the nightly job has
+// produced one that differs from the original. Otherwise the original stands
+// alone, exactly as before tidying existed.
+function cardText(note: OutputNote): string {
+  const tidied = (note.tidied_text ?? "").trim();
+  if (!tidied || tidied === note.note_text.trim()) return note.note_text;
+  return tidied;
+}
+
+function showsOriginal(note: OutputNote): boolean {
+  const tidied = (note.tidied_text ?? "").trim();
+  return tidied !== "" && tidied !== note.note_text.trim();
+}
+
 function noteAsText(note: OutputNote): string {
-  return `${note.student_name}\n${note.note_text}`;
+  return `${note.student_name}\n${cardText(note)}`;
 }
 
 export function OutputScreen() {
@@ -41,7 +56,7 @@ export function OutputScreen() {
     setLoadFailed(false);
     const { data, error } = await supabase
       .from("daily_notes")
-      .select("id, student_name, note_text, created_at, draft_created, no_match")
+      .select("id, student_name, note_text, tidied_text, created_at, draft_created, no_match")
       .eq("note_date", date)
       .eq("collated", true)
       .order("created_at", { ascending: false });
@@ -212,7 +227,13 @@ export function OutputScreen() {
           {(notes ?? []).map((note) => (
             <li key={note.id} className="output-card">
               <h3 className="output-card-name">{note.student_name}</h3>
-              <p className="output-card-text">{note.note_text}</p>
+              <p className="output-card-text">{cardText(note)}</p>
+              {showsOriginal(note) ? (
+                <div className="output-card-original">
+                  <span className="output-card-original-label">As typed</span>
+                  <p className="output-card-original-text">{note.note_text}</p>
+                </div>
+              ) : null}
               <div className="output-card-foot">
                 <button
                   type="button"

@@ -753,6 +753,8 @@ svg {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
+  /* Cards in a row keep their natural heights, aligned to the row top. */
+  align-items: start;
 }
 
 .output-card {
@@ -785,6 +787,29 @@ svg {
   margin-top: 6px;
   color: var(--text-soft);
   white-space: pre-wrap;
+}
+
+.output-card-original {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.output-card-original-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.output-card-original-text {
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .output-card-foot {
