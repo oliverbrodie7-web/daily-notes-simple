@@ -66,7 +66,7 @@ svg {
   .primary-button,
   .signout-button,
   .fallback-button,
-  .view-tab,
+  .seg-item,
   .view-bar-item,
   .copy-button,
   .copy-all-button,
@@ -78,6 +78,10 @@ svg {
       color 0.15s ease,
       border-color 0.15s ease,
       opacity 0.15s ease;
+  }
+
+  .seg-slab {
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   .app-status-text {
@@ -119,6 +123,10 @@ svg {
   --warning: #d38a2e;
   --warning-soft: #fff4e5;
   --warning-border: rgba(211, 138, 46, 0.45);
+  --seg-track: rgba(66, 5, 90, 0.1);
+  --seg-slab: var(--surface);
+  --seg-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
+  --bar-glass: rgba(255, 255, 255, 0.72);
   color-scheme: light;
 }
 
@@ -145,6 +153,10 @@ svg {
   --warning: #d38a2e;
   --warning-soft: rgba(211, 138, 46, 0.14);
   --warning-border: rgba(211, 138, 46, 0.4);
+  --seg-track: rgba(255, 255, 255, 0.07);
+  --seg-slab: var(--surface-raised);
+  --seg-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  --bar-glass: rgba(38, 44, 52, 0.86);
   color-scheme: dark;
 }
 
@@ -177,7 +189,7 @@ svg {
   margin: 0 auto;
   /* The bottom clearance keeps the fixed switcher bar off the last of the
      content on narrow screens. */
-  padding: 20px 20px calc(92px + env(safe-area-inset-bottom));
+  padding: 20px 20px calc(100px + env(safe-area-inset-bottom));
 }
 
 /* Header. The bar's background runs the full width of the screen while its
@@ -381,9 +393,9 @@ svg {
   font-size: 14px;
 }
 
-/* Switcher between the Today and Output views. The fixed bottom bar shows
-   below 900px and the tab strip under the header shows at 900px and above,
-   so exactly one of the two is ever visible. */
+/* Screen switcher, iOS style. At 900px and above it is a segmented control
+   under the header; below 900px it is a floating tab bar. Exactly one form
+   is ever visible. */
 .view-tabs {
   display: none;
 }
@@ -391,78 +403,105 @@ svg {
 .view-tabs-inner {
   max-width: 1060px;
   margin: 0 auto;
-  padding: 6px 28px 0;
-  display: flex;
-  gap: 8px;
+  padding: 14px 28px 0;
 }
 
-.view-tab {
-  min-height: 48px;
-  padding: 0 18px;
-  background: transparent;
+.seg-control {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  max-width: 520px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--seg-track);
+}
+
+.seg-slab {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px - 12px) / 4);
+  border-radius: 9px;
+  background: var(--seg-slab);
+  box-shadow: var(--seg-shadow);
+}
+
+.seg-item {
+  position: relative;
+  z-index: 1;
+  min-height: 44px;
+  padding: 0 10px;
   border: none;
-  border-bottom: 3px solid transparent;
+  background: transparent;
+  border-radius: 9px;
   color: var(--text-soft);
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
   white-space: nowrap;
 }
 
-.view-tab.is-active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+.seg-item.is-active {
+  color: var(--text);
   font-weight: 700;
 }
 
 .view-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 10px;
+  right: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
   z-index: 20;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  /* Keeps the bar above the home indicator on phones with a safe area. */
-  padding-bottom: env(safe-area-inset-bottom);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bar-glass);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .view-bar-inner {
+  display: flex;
+  gap: 4px;
   max-width: 1060px;
   margin: 0 auto;
-  display: flex;
+  padding: 6px;
 }
 
 .view-bar-item {
   flex: 1;
   min-width: 0;
-  min-height: 56px;
-  padding: 0 4px;
-  background: transparent;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 2px;
   border: none;
-  color: var(--text-soft);
+  background: transparent;
+  border-radius: 11px;
+  color: var(--text-faint);
   font-weight: 600;
-  font-size: 16px;
-  white-space: nowrap;
 }
 
 .view-bar-item.is-active {
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: 700;
 }
 
-/* Full labels by default; the narrowest phones swap to the short ones so
-   four items never wrap or get cut off. */
-.view-label-short {
-  display: none;
+.bar-item-label {
+  font-size: 10.5px;
+  font-weight: inherit;
+  white-space: nowrap;
 }
 
+/* The narrowest phones get a slightly smaller label rather than any word
+   being truncated or wrapped. */
 @media (max-width: 359px) {
-  .view-bar-item .view-label-full {
-    display: none;
-  }
-
-  .view-bar-item .view-label-short {
-    display: inline;
+  .bar-item-label {
+    font-size: 9.5px;
   }
 }
 
