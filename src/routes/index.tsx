@@ -36,12 +36,25 @@ function Index() {
   const [settingsDirty, setSettingsDirty] = useState(false);
 
   // The Manager unlock window lives in memory only, so switching tabs keeps
-  // it open but a reload or sign out always locks the screen again.
+  // it open but a reload or sign out always locks the screen again. The
+  // locked flag mirrors the window so the switcher's padlock stays current.
   const managerUnlockedUntil = useRef(0);
+  const [managerLocked, setManagerLocked] = useState(true);
   const extendManagerUnlock = useCallback(() => {
     managerUnlockedUntil.current = Date.now() + MANAGER_UNLOCK_MS;
+    setManagerLocked(false);
   }, []);
   const managerUnlockRemaining = useCallback(() => managerUnlockedUntil.current - Date.now(), []);
+
+  useEffect(() => {
+    if (managerLocked) return;
+    const check = () => {
+      if (managerUnlockedUntil.current - Date.now() <= 0) setManagerLocked(true);
+    };
+    check();
+    const timer = window.setInterval(check, 1000);
+    return () => window.clearInterval(timer);
+  }, [managerLocked]);
 
   function handleViewChange(next: AppView) {
     if (next === view) return;
@@ -73,6 +86,7 @@ function Index() {
 
   async function handleSignOut() {
     managerUnlockedUntil.current = 0;
+    setManagerLocked(true);
     await supabase.auth.signOut();
   }
 
@@ -85,7 +99,12 @@ function Index() {
       ) : session ? (
         <>
           <Header theme={theme} onToggleTheme={toggleTheme} onSignOut={handleSignOut} />
-          <ViewSwitcher variant="tabs" view={view} onViewChange={handleViewChange} />
+          <ViewSwitcher
+            variant="tabs"
+            view={view}
+            onViewChange={handleViewChange}
+            managerLocked={managerLocked}
+          />
           <main className="app-main">
             {view === "output" ? (
               <OutputScreen />
@@ -100,7 +119,12 @@ function Index() {
               <TodayScreen />
             )}
           </main>
-          <ViewSwitcher variant="bar" view={view} onViewChange={handleViewChange} />
+          <ViewSwitcher
+            variant="bar"
+            view={view}
+            onViewChange={handleViewChange}
+            managerLocked={managerLocked}
+          />
         </>
       ) : (
         <SignIn />

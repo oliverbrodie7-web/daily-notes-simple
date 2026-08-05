@@ -84,6 +84,17 @@ svg {
     transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
 
+  .view-lock {
+    transition: opacity 150ms ease;
+  }
+
+  .view-lock.is-hidden {
+    transition:
+      opacity 150ms ease,
+      max-width 0ms linear 150ms,
+      margin-right 0ms linear 150ms;
+  }
+
   .app-status-text {
     animation: soft-pulse 1.6s ease-in-out infinite;
   }
@@ -440,6 +451,9 @@ svg {
   font-weight: 600;
   font-size: 15px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .seg-item.is-active {
@@ -495,6 +509,40 @@ svg {
   font-size: 10.5px;
   font-weight: inherit;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The padlock beside Manager shows only while that screen is locked. It
+   keeps the label's own colour in every state and fades over 150ms, with
+   its space collapsing once the fade has finished. */
+.view-lock {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 16px;
+  margin-right: 5px;
+  opacity: 1;
+}
+
+.seg-item .view-lock svg {
+  width: 11px;
+  height: 11px;
+}
+
+.bar-item-label .view-lock {
+  margin-right: 4px;
+}
+
+.bar-item-label .view-lock svg {
+  width: 9px;
+  height: 9px;
+}
+
+.view-lock.is-hidden {
+  opacity: 0;
+  max-width: 0;
+  margin-right: 0;
 }
 
 /* The narrowest phones get a slightly smaller label rather than any word

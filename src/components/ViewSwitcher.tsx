@@ -13,6 +13,7 @@ type ViewSwitcherProps = {
   variant: "tabs" | "bar";
   view: AppView;
   onViewChange: (view: AppView) => void;
+  managerLocked: boolean;
 };
 
 type GlyphProps = {
@@ -81,11 +82,33 @@ const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof CalendarG
   settings: CogGlyph,
 };
 
+// A tiny padlock beside the Manager label while the screen is locked. It
+// stays mounted so it can fade in and out, takes the label's colour in
+// every state, and collapses to nothing once unlocked.
+function ManagerPadlock({ locked }: { locked: boolean }) {
+  return (
+    <span className={`view-lock${locked ? "" : " is-hidden"}`} aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        focusable="false"
+      >
+        <rect x="5" y="10.5" width="14" height="9.5" rx="2.5" />
+        <path d="M8.2 10.5V7.8a3.8 3.8 0 0 1 7.6 0v2.7" />
+      </svg>
+    </span>
+  );
+}
+
 // One switcher, two iOS style forms. At 900px and above it is a segmented
 // control under the header with a raised slab that slides to the selection.
 // Below 900px it is a floating tab bar of icons above labels. CSS keeps
 // exactly one form visible at a time.
-export function ViewSwitcher({ variant, view, onViewChange }: ViewSwitcherProps) {
+export function ViewSwitcher({ variant, view, onViewChange, managerLocked }: ViewSwitcherProps) {
   const activeIndex = Math.max(
     0,
     VIEWS.findIndex((item) => item.key === view),
@@ -107,14 +130,19 @@ export function ViewSwitcher({ variant, view, onViewChange }: ViewSwitcherProps)
             />
             {VIEWS.map((item) => {
               const active = item.key === view;
+              const isManager = item.key === "manager";
               return (
                 <button
                   key={item.key}
                   type="button"
                   className={`seg-item${active ? " is-active" : ""}`}
                   aria-current={active ? "true" : undefined}
+                  aria-label={
+                    isManager ? (managerLocked ? "Manager, locked" : "Manager") : undefined
+                  }
                   onClick={() => onViewChange(item.key)}
                 >
+                  {isManager ? <ManagerPadlock locked={managerLocked} /> : null}
                   {item.label}
                 </button>
               );
@@ -130,6 +158,7 @@ export function ViewSwitcher({ variant, view, onViewChange }: ViewSwitcherProps)
       <div className="view-bar-inner">
         {VIEWS.map((item) => {
           const active = item.key === view;
+          const isManager = item.key === "manager";
           const Glyph = GLYPHS[item.key];
           return (
             <button
@@ -137,10 +166,14 @@ export function ViewSwitcher({ variant, view, onViewChange }: ViewSwitcherProps)
               type="button"
               className={`view-bar-item${active ? " is-active" : ""}`}
               aria-current={active ? "true" : undefined}
+              aria-label={isManager ? (managerLocked ? "Manager, locked" : "Manager") : undefined}
               onClick={() => onViewChange(item.key)}
             >
               <Glyph />
-              <span className="bar-item-label">{item.label}</span>
+              <span className="bar-item-label">
+                {isManager ? <ManagerPadlock locked={managerLocked} /> : null}
+                {item.label}
+              </span>
             </button>
           );
         })}
