@@ -138,6 +138,27 @@ svg {
   --seg-slab: var(--surface);
   --seg-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
   --bar-glass: rgba(255, 255, 255, 0.72);
+  /* Tracker badge tokens: eight visually distinct statuses per theme. */
+  --badge-success-bg: #dcfce7;
+  --badge-success-text: #166534;
+  --badge-calm-bg: #ccfbf1;
+  --badge-calm-text: #0f766e;
+  --badge-sms-bg: #f3e8ff;
+  --badge-sms-text: #7e22ce;
+  --badge-email-bg: #dbeafe;
+  --badge-email-text: #1d4ed8;
+  --badge-report-bg: #bfdbfe;
+  --badge-report-text: #1e3a8a;
+  --badge-attempted-bg: #fef3c7;
+  --badge-attempted-text: #92400e;
+  --badge-neutral-bg: rgba(66, 5, 90, 0.08);
+  --badge-neutral-text: rgba(66, 5, 90, 0.66);
+  --badge-danger-bg: #fee2e2;
+  --badge-danger-text: #b91c1c;
+  --badge-highlight-bg: #ede9fe;
+  --badge-highlight-text: #6d28d9;
+  --row-danger-bg: #fef2f2;
+  --row-highlight-bg: #f5f3ff;
   color-scheme: light;
 }
 
@@ -168,6 +189,29 @@ svg {
   --seg-slab: var(--surface-raised);
   --seg-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   --bar-glass: rgba(38, 44, 52, 0.86);
+  /* Tracker badge tokens. Dark mode keeps its rules: no purple and no
+     yellow, so SMS shifts to cyan and the focus highlight leans on the
+     accent family instead of violet. */
+  --badge-success-bg: rgba(74, 222, 128, 0.16);
+  --badge-success-text: #4ade80;
+  --badge-calm-bg: rgba(45, 212, 191, 0.15);
+  --badge-calm-text: #2dd4bf;
+  --badge-sms-bg: rgba(34, 211, 238, 0.14);
+  --badge-sms-text: #22d3ee;
+  --badge-email-bg: rgba(96, 165, 250, 0.15);
+  --badge-email-text: #60a5fa;
+  --badge-report-bg: rgba(59, 130, 246, 0.24);
+  --badge-report-text: #93c5fd;
+  --badge-attempted-bg: rgba(211, 138, 46, 0.16);
+  --badge-attempted-text: #d38a2e;
+  --badge-neutral-bg: rgba(255, 255, 255, 0.08);
+  --badge-neutral-text: rgba(232, 235, 239, 0.62);
+  --badge-danger-bg: rgba(248, 113, 113, 0.16);
+  --badge-danger-text: #f87171;
+  --badge-highlight-bg: rgba(143, 166, 191, 0.3);
+  --badge-highlight-text: #c6d6e8;
+  --row-danger-bg: rgba(248, 113, 113, 0.07);
+  --row-highlight-bg: rgba(143, 166, 191, 0.1);
   color-scheme: dark;
 }
 
