@@ -33,7 +33,17 @@ Findings from a read only pass of this repo and the old tracker (nimble-list-ai)
 5. The Radix modal landmine does not apply here: no Radix exists and the app already uses inline panels and native confirms.
 6. RLS narrative conflict: the original Touch Points brief said RLS is on for daily_notes; the Janice brief says RLS is disabled everywhere. Phase 4 assumes disabled. Verify in the dashboard before running the runbook.
 
-## Phase 1 plan (awaiting go)
+## Status and deferrals
+
+Phase 1 (read only tracker) and Phase 2 (log contact, history with per
+entry delete, student delete, all behind the P2 unit test) are built.
+Deferred by ruling, 5 August 2026: the old tracker's Parse with AI free
+text button is NOT ported in v1; the log contact panel is structured
+fields only. Still awaiting decisions: export contents (first names only
+versus names with emails as the old code actually did) and the email
+button approach.
+
+## Phase 1 plan (as built)
 
 1. Update AGENTS.md to point at the two migration documents.
 2. Extend AppView and both switcher forms to five items, verified to fit at 320px.
