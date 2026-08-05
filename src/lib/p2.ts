@@ -11,13 +11,7 @@ export type ContactLogEntry = {
 };
 
 export type ContactStatus =
-  | "none"
-  | "p2_complete"
-  | "low_risk"
-  | "attempted"
-  | "sms"
-  | "email"
-  | "report";
+  "none" | "p2_complete" | "low_risk" | "attempted" | "sms" | "email" | "report";
 
 export function deriveStatus(latest: ContactLogEntry | undefined | null): ContactStatus {
   if (!latest) return "none";
