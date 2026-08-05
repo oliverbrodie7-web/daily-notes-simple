@@ -35,6 +35,26 @@ export function isP2Done(status: ContactStatus): boolean {
   return status === "p2_complete" || status === "low_risk";
 }
 
+// The exact vocabulary the old tracker writes to contact_log. The strings
+// matter: deriveStatus, the agents, and old Janice all read these values.
+export const CONTACT_METHODS = [
+  "FULL P2",
+  "Low Risk Parent",
+  "SMS only",
+  "Email No Report",
+  "Email Full Report",
+] as const;
+
+export type ContactMethod = (typeof CONTACT_METHODS)[number];
+
+export const OUTCOMES_BY_METHOD: Record<ContactMethod, readonly string[]> = {
+  "FULL P2": ["Reached", "Voicemail", "No Answer"],
+  "Low Risk Parent": ["Noted"],
+  "SMS only": ["Sent"],
+  "Email No Report": ["Sent"],
+  "Email Full Report": ["Sent"],
+};
+
 // Rows must arrive sorted by logged_at descending; the first row seen per
 // student is their most recent entry.
 export function latestPerStudent<T extends { student_id: number | string }>(
