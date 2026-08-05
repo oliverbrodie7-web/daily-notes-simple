@@ -12,6 +12,7 @@ type OutputNote = {
   created_at: string;
   draft_created: boolean;
   no_match: boolean;
+  added_by: string | null;
 };
 
 // The tidied wording is the note shown and copied when the nightly job has
@@ -56,7 +57,9 @@ export function OutputScreen() {
     setLoadFailed(false);
     const { data, error } = await supabase
       .from("daily_notes")
-      .select("id, student_name, note_text, tidied_text, created_at, draft_created, no_match")
+      .select(
+        "id, student_name, note_text, tidied_text, created_at, draft_created, no_match, added_by",
+      )
       .eq("note_date", date)
       .eq("collated", true)
       .order("created_at", { ascending: false });
@@ -234,6 +237,9 @@ export function OutputScreen() {
                   <p className="output-card-original-text">{note.note_text}</p>
                 </div>
               ) : null}
+              {note.added_by ? (
+                <p className="output-card-by output-card-by-block">Added by {note.added_by}</p>
+              ) : null}
               <div className="output-card-foot">
                 <button
                   type="button"
@@ -242,14 +248,21 @@ export function OutputScreen() {
                 >
                   {copiedKey === note.id ? "Copied" : "Copy"}
                 </button>
-                {note.no_match ? (
-                  <span className="no-match-flag">No match</span>
-                ) : note.draft_created ? (
-                  <span className="draft-flag">
-                    <TickIcon />
-                    Draft created
-                  </span>
-                ) : null}
+                <span className="output-card-foot-right">
+                  {note.added_by ? (
+                    <span className="output-card-by output-card-by-inline">
+                      Added by {note.added_by}
+                    </span>
+                  ) : null}
+                  {note.no_match ? (
+                    <span className="no-match-flag">No match</span>
+                  ) : note.draft_created ? (
+                    <span className="draft-flag">
+                      <TickIcon />
+                      Draft created
+                    </span>
+                  ) : null}
+                </span>
               </div>
             </li>
           ))}

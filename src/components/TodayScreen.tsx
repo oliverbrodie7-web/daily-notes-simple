@@ -10,12 +10,9 @@ type TodayNote = {
   added_by: string | null;
 };
 
-type TodayScreenProps = {
-  displayName: string;
-};
-
-export function TodayScreen({ displayName }: TodayScreenProps) {
+export function TodayScreen() {
   const [studentName, setStudentName] = useState("");
+  const [staffName, setStaffName] = useState("");
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<TodayNote[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -24,6 +21,7 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
   const [listMessage, setListMessage] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
+  const staffRef = useRef<HTMLInputElement | null>(null);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -58,9 +56,10 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
   async function handleAdd() {
     if (saving) return;
     const name = studentName.trim();
+    const staff = staffName.trim();
     const note = noteText.trim();
-    if (!name || !note) {
-      setInputMessage("Add a student name and a note.");
+    if (!name || !staff || !note) {
+      setInputMessage("Add a student name, a staff member, and a note.");
       return;
     }
     setSaving(true);
@@ -74,7 +73,7 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
         collated: false,
         draft_created: false,
         no_match: false,
-        added_by: displayName,
+        added_by: staff,
       })
       .select("id, student_name, note_text, created_at, added_by")
       .single();
@@ -84,16 +83,29 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
       return;
     }
     setNotes((current) => [data as TodayNote, ...(current ?? [])]);
+    // The staff member field keeps its value because the same person usually
+    // adds several notes in a row.
     setStudentName("");
     setNoteText("");
     setSaving(false);
     nameRef.current?.focus();
   }
 
-  // Enter in the name field moves to the note field. Enter in the note field
-  // saves, Shift Enter makes a new line, and Control or Command with Enter
-  // saves from either field. Nothing fires while a save is in progress.
+  // Enter steps from student name to staff member to note, then saves from
+  // the note field. Shift Enter makes a new line in the note, and Control or
+  // Command with Enter saves from any field. Nothing fires mid save.
   function handleNameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (saving) return;
+    if (event.ctrlKey || event.metaKey) {
+      void handleAdd();
+      return;
+    }
+    staffRef.current?.focus();
+  }
+
+  function handleStaffKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") return;
     event.preventDefault();
     if (saving) return;
@@ -154,6 +166,21 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
           }}
           onKeyDown={handleNameKeyDown}
         />
+        <label className="field-label" htmlFor="today-staff">
+          Staff member
+        </label>
+        <input
+          id="today-staff"
+          className="text-field"
+          type="text"
+          ref={staffRef}
+          value={staffName}
+          onChange={(event) => {
+            setStaffName(event.target.value);
+            setInputMessage(null);
+          }}
+          onKeyDown={handleStaffKeyDown}
+        />
         <label className="field-label" htmlFor="today-note">
           Note
         </label>
@@ -183,8 +210,9 @@ export function TodayScreen({ displayName }: TodayScreenProps) {
           {saving ? "Adding..." : "Add note"}
         </button>
         <p className="today-hint">
-          <kbd className="key-chip">Enter</kbd> to save, <kbd className="key-chip">Shift</kbd>{" "}
-          <kbd className="key-chip">Enter</kbd> for a new line
+          <kbd className="key-chip">Enter</kbd> for the next field,{" "}
+          <kbd className="key-chip">Enter</kbd> in the note to save,{" "}
+          <kbd className="key-chip">Shift</kbd> <kbd className="key-chip">Enter</kbd> for a new line
         </p>
       </div>
 

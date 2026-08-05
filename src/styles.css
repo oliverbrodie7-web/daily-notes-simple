@@ -71,7 +71,6 @@ svg {
   .copy-button,
   .copy-all-button,
   .remove-button,
-  .row-action,
   .date-arrow,
   .text-field {
     transition:
@@ -820,6 +819,35 @@ svg {
   gap: 10px;
 }
 
+.output-card-foot-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.output-card-by {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* On narrow screens the added by text sits on its own line above the Copy
+   button instead of crowding the draft status. */
+.output-card-by-block {
+  display: none;
+  margin-top: 10px;
+}
+
+@media (max-width: 479px) {
+  .output-card-by-inline {
+    display: none;
+  }
+
+  .output-card-by-block {
+    display: block;
+  }
+}
+
 .copy-button {
   min-height: 44px;
   padding: 0 18px;
@@ -939,87 +967,6 @@ svg {
   margin-top: 10px;
   color: var(--text-soft);
   white-space: pre-wrap;
-}
-
-/* People card */
-.people-list {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-}
-
-.people-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 0;
-}
-
-.people-row + .people-row {
-  border-top: 1px solid var(--border);
-}
-
-.people-details {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.people-name {
-  font-weight: 600;
-  color: var(--text);
-  overflow-wrap: break-word;
-}
-
-.people-email {
-  color: var(--text-faint);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-.people-edit-field {
-  width: 100%;
-  min-height: 44px;
-  margin-bottom: 6px;
-}
-
-.people-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: none;
-  margin-left: auto;
-}
-
-.row-action {
-  min-height: 44px;
-  padding: 0 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-soft);
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.row-action-accent {
-  color: var(--accent);
-}
-
-.row-action:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.people-add {
-  border-top: 1px solid var(--border);
-  padding-top: 18px;
-}
-
-.people-add-button {
-  width: 100%;
 }
 
 /* Not found and error pages sit outside the themed app root, so they carry

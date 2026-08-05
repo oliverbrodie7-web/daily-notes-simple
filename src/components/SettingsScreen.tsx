@@ -16,28 +16,9 @@ function fillPlaceholders(text: string): string {
 
 type SettingsScreenProps = {
   onDirtyChange: (dirty: boolean) => void;
-  currentEmail: string;
-  onOwnNameChange: (name: string) => void;
 };
 
-type Person = {
-  email: string;
-  display_name: string;
-};
-
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function sortPeople(people: Person[]): Person[] {
-  return [...people].sort((a, b) =>
-    a.display_name.localeCompare(b.display_name, "en", { sensitivity: "base" }),
-  );
-}
-
-export function SettingsScreen({
-  onDirtyChange,
-  currentEmail,
-  onOwnNameChange,
-}: SettingsScreenProps) {
+export function SettingsScreen({ onDirtyChange }: SettingsScreenProps) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [savedSubject, setSavedSubject] = useState("");
@@ -49,15 +30,6 @@ export function SettingsScreen({
   const [justSaved, setJustSaved] = useState(false);
   const savedTimer = useRef<number | undefined>(undefined);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const [people, setPeople] = useState<Person[] | null>(null);
-  const [peopleLoadFailed, setPeopleLoadFailed] = useState(false);
-  const [peopleMessage, setPeopleMessage] = useState<string | null>(null);
-  const [peopleBusy, setPeopleBusy] = useState(false);
-  const [editingEmail, setEditingEmail] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const [addEmail, setAddEmail] = useState("");
-  const [addName, setAddName] = useState("");
 
   const dirty = !loading && !loadFailed && (subject !== savedSubject || body !== savedBody);
 
@@ -108,99 +80,6 @@ export function SettingsScreen({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [body, loading]);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase
-      .from("app_users")
-      .select("email, display_name")
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setPeopleLoadFailed(true);
-          setPeople([]);
-          return;
-        }
-        setPeople(sortPeople((data ?? []) as Person[]));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function handlePersonSave(person: Person) {
-    const name = editingName.trim();
-    if (!name) {
-      setPeopleMessage("Enter a name before saving.");
-      return;
-    }
-    if (peopleBusy) return;
-    setPeopleBusy(true);
-    setPeopleMessage(null);
-    const { error } = await supabase
-      .from("app_users")
-      .update({ display_name: name })
-      .eq("email", person.email);
-    setPeopleBusy(false);
-    if (error) {
-      setPeopleMessage("The change could not be saved. Please try again.");
-      return;
-    }
-    setPeople((current) =>
-      sortPeople(
-        (current ?? []).map((item) =>
-          item.email === person.email ? { ...item, display_name: name } : item,
-        ),
-      ),
-    );
-    if (person.email === currentEmail) onOwnNameChange(name);
-    setEditingEmail(null);
-    setEditingName("");
-  }
-
-  async function handlePersonRemove(person: Person) {
-    if (peopleBusy) return;
-    const sure = window.confirm(`Remove ${person.display_name} from the list?`);
-    if (!sure) return;
-    setPeopleBusy(true);
-    setPeopleMessage(null);
-    const { error } = await supabase.from("app_users").delete().eq("email", person.email);
-    setPeopleBusy(false);
-    if (error) {
-      setPeopleMessage("The change could not be saved. Please try again.");
-      return;
-    }
-    setPeople((current) => (current ?? []).filter((item) => item.email !== person.email));
-  }
-
-  async function handlePersonAdd() {
-    if (peopleBusy) return;
-    const email = addEmail.trim().toLowerCase();
-    const name = addName.trim();
-    if (!email || !name) {
-      setPeopleMessage("Enter both an email and a name.");
-      return;
-    }
-    if (!EMAIL_SHAPE.test(email)) {
-      setPeopleMessage("That does not look like an email address.");
-      return;
-    }
-    if ((people ?? []).some((person) => person.email.toLowerCase() === email)) {
-      setPeopleMessage("That email is already in the list.");
-      return;
-    }
-    setPeopleBusy(true);
-    setPeopleMessage(null);
-    const { error } = await supabase.from("app_users").insert({ email, display_name: name });
-    setPeopleBusy(false);
-    if (error) {
-      setPeopleMessage("The change could not be saved. Please try again.");
-      return;
-    }
-    setPeople((current) => sortPeople([...(current ?? []), { email, display_name: name }]));
-    setAddEmail("");
-    setAddName("");
-  }
 
   async function handleSave() {
     if (saving || !dirty) return;
@@ -302,144 +181,6 @@ export function SettingsScreen({
               <p className="preview-subject">{fillPlaceholders(subject)}</p>
               <p className="preview-body">{fillPlaceholders(body)}</p>
             </div>
-          </>
-        )}
-      </div>
-
-      <div className="settings-card">
-        <h2 className="section-heading">People</h2>
-        <p className="settings-sub">
-          These are the names shown on each note. Adding someone here does not create their login.
-        </p>
-
-        {people === null ? (
-          <p className="settings-message">Loading people</p>
-        ) : peopleLoadFailed ? (
-          <p className="settings-message" role="alert">
-            The people list could not be loaded. Please try again.
-          </p>
-        ) : (
-          <>
-            <ul className="people-list">
-              {people.map((person) => {
-                const editing = editingEmail === person.email;
-                return (
-                  <li key={person.email} className="people-row">
-                    <div className="people-details">
-                      {editing ? (
-                        <input
-                          className="text-field people-edit-field"
-                          type="text"
-                          value={editingName}
-                          aria-label={`Name for ${person.email}`}
-                          onChange={(event) => {
-                            setEditingName(event.target.value);
-                            setPeopleMessage(null);
-                          }}
-                        />
-                      ) : (
-                        <span className="people-name">{person.display_name}</span>
-                      )}
-                      <span className="people-email">{person.email}</span>
-                    </div>
-                    <div className="people-actions">
-                      {editing ? (
-                        <>
-                          <button
-                            type="button"
-                            className="row-action row-action-accent"
-                            disabled={peopleBusy}
-                            onClick={() => handlePersonSave(person)}
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            className="row-action"
-                            onClick={() => {
-                              setEditingEmail(null);
-                              setEditingName("");
-                              setPeopleMessage(null);
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="row-action row-action-accent"
-                            onClick={() => {
-                              setEditingEmail(person.email);
-                              setEditingName(person.display_name);
-                              setPeopleMessage(null);
-                            }}
-                          >
-                            Edit
-                          </button>
-                          {person.email !== currentEmail ? (
-                            <button
-                              type="button"
-                              className="row-action"
-                              disabled={peopleBusy}
-                              onClick={() => handlePersonRemove(person)}
-                            >
-                              Remove
-                            </button>
-                          ) : null}
-                        </>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-
-            <div className="people-add">
-              <label className="field-label" htmlFor="person-email">
-                Email
-              </label>
-              <input
-                id="person-email"
-                className="text-field"
-                type="email"
-                value={addEmail}
-                onChange={(event) => {
-                  setAddEmail(event.target.value);
-                  setPeopleMessage(null);
-                }}
-              />
-              <label className="field-label" htmlFor="person-name">
-                Name
-              </label>
-              <input
-                id="person-name"
-                className="text-field"
-                type="text"
-                value={addName}
-                onChange={(event) => {
-                  setAddName(event.target.value);
-                  setPeopleMessage(null);
-                }}
-              />
-              <button
-                type="button"
-                className="primary-button people-add-button"
-                disabled={peopleBusy}
-                onClick={handlePersonAdd}
-              >
-                Add person
-              </button>
-            </div>
-            {peopleMessage ? (
-              <p className="settings-message" role="alert">
-                {peopleMessage}
-              </p>
-            ) : null}
-            <p className="settings-note">
-              To let this person sign in, add them as a user in the database as well.
-            </p>
           </>
         )}
       </div>
