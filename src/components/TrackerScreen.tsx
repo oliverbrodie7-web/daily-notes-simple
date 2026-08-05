@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PinGate } from "../hooks/usePinGate";
-import { formatSydneyFullDate } from "../lib/dates";
+import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
 import { deriveStatus, isP2Done, latestPerStudent, type ContactStatus } from "../lib/p2";
 import { supabase } from "../lib/supabase";
 import { LockGate } from "./LockGate";
+import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { StarIcon, TickIcon } from "./Icons";
 
 type RosterStudent = {
@@ -16,11 +17,15 @@ type RosterStudent = {
 };
 
 type RosterLog = {
+  id: number | string;
   student_id: number | string;
   method: string | null;
   outcome: string | null;
   logged_at: string | null;
+  date_contacted: string | null;
 };
+
+type RowPanel = { kind: "log" | "history" | "delete"; studentId: string } | null;
 
 type ActiveTerm = {
   term_name: string | null;
@@ -67,6 +72,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
   const [loadFailed, setLoadFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [panel, setPanel] = useState<RowPanel>(null);
+  const [rowMessage, setRowMessage] = useState<string | null>(null);
+  const [entryBusyId, setEntryBusyId] = useState<number | string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deletingStudent, setDeletingStudent] = useState(false);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -79,7 +89,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           .eq("enrolment_status", "Active"),
         supabase
           .from("contact_log")
-          .select("student_id, method, outcome, logged_at")
+          .select("id, student_id, method, outcome, logged_at, date_contacted")
           .order("logged_at", { ascending: false }),
         supabase
           .from("term_settings")
@@ -196,6 +206,67 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     return Math.ceil((deadline.getTime() - today.getTime()) / 86_400_000);
   }, [term]);
 
+  function openPanel(kind: "log" | "history" | "delete", studentId: number | string) {
+    setRowMessage(null);
+    setDeleteConfirm("");
+    setPanel((current) =>
+      current && current.kind === kind && current.studentId === String(studentId)
+        ? null
+        : { kind, studentId: String(studentId) },
+    );
+  }
+
+  function handleLogSaved(log: SavedContactLog) {
+    // Newest first stays true because logged_at is now; badges and stats
+    // recompute from this state immediately.
+    setLogs((current) => [log as RosterLog, ...current]);
+    setPanel(null);
+  }
+
+  async function handleEntryDelete(entry: RosterLog) {
+    if (entryBusyId) return;
+    const sure = window.confirm("Delete this contact entry? This cannot be undone.");
+    if (!sure) return;
+    setEntryBusyId(entry.id);
+    setRowMessage(null);
+    const { error } = await supabase.from("contact_log").delete().eq("id", entry.id);
+    setEntryBusyId(null);
+    if (error) {
+      setRowMessage("The entry could not be removed. Please try again.");
+      return;
+    }
+    setLogs((current) => current.filter((log) => log.id !== entry.id));
+  }
+
+  async function handleStudentDelete(student: RosterStudent) {
+    if (deletingStudent) return;
+    if (deleteConfirm.trim() !== "DELETE") {
+      setRowMessage("Type DELETE to confirm.");
+      return;
+    }
+    setDeletingStudent(true);
+    setRowMessage(null);
+    const { error: logsError } = await supabase
+      .from("contact_log")
+      .delete()
+      .eq("student_id", student.id);
+    if (logsError) {
+      setRowMessage("The student's contact log could not be removed. Please try again.");
+      setDeletingStudent(false);
+      return;
+    }
+    const { error: studentError } = await supabase.from("students").delete().eq("id", student.id);
+    setDeletingStudent(false);
+    if (studentError) {
+      setRowMessage("The student could not be deleted. Please try again.");
+      return;
+    }
+    setStudents((current) => (current ?? []).filter((entry) => entry.id !== student.id));
+    setLogs((current) => current.filter((log) => String(log.student_id) !== String(student.id)));
+    setPanel(null);
+    setDeleteConfirm("");
+  }
+
   if (!unlocked) {
     return <LockGate heading="Parents" gate={pinGate} />;
   }
@@ -286,6 +357,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             <ul className="roster-list">
               {filtered.map(({ student, status, done, overdue, focus }) => {
                 const badge = BADGES[status];
+                const openKind =
+                  panel && panel.studentId === String(student.id) ? panel.kind : null;
+                const historyEntries =
+                  openKind === "history"
+                    ? logs.filter((log) => String(log.student_id) === String(student.id))
+                    : [];
                 return (
                   <li
                     key={student.id}
@@ -322,6 +399,131 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                         </span>
                       ) : null}
                     </div>
+                    <div className="roster-actions">
+                      <button
+                        type="button"
+                        className="row-button row-button-primary"
+                        onClick={() => openPanel("log", student.id)}
+                      >
+                        Log
+                      </button>
+                      <button
+                        type="button"
+                        className="row-button"
+                        onClick={() => openPanel("history", student.id)}
+                      >
+                        History
+                      </button>
+                      <button
+                        type="button"
+                        className="row-button row-button-danger"
+                        onClick={() => openPanel("delete", student.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {openKind === "log" ? (
+                      <LogContactPanel
+                        studentId={student.id}
+                        studentName={student.student_name}
+                        onClose={() => setPanel(null)}
+                        onSaved={handleLogSaved}
+                      />
+                    ) : null}
+                    {openKind === "history" ? (
+                      <div className="roster-panel">
+                        <p className="roster-panel-title">
+                          Contact history for {student.student_name}
+                        </p>
+                        {historyEntries.length === 0 ? (
+                          <p className="roster-panel-text">No contact logged yet.</p>
+                        ) : (
+                          <ul className="history-list">
+                            {historyEntries.map((entry) => (
+                              <li key={entry.id} className="history-entry">
+                                <div className="history-details">
+                                  <p className="history-line">
+                                    {entry.method ?? "Unknown"}, {entry.outcome ?? "unknown"}
+                                  </p>
+                                  <p className="history-when">
+                                    {entry.date_contacted
+                                      ? formatSydneyFullDate(entry.date_contacted)
+                                      : "No date"}
+                                    {entry.logged_at
+                                      ? `, logged ${formatSydneyTime(entry.logged_at)}`
+                                      : ""}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="row-button row-button-danger"
+                                  disabled={entryBusyId === entry.id}
+                                  onClick={() => handleEntryDelete(entry)}
+                                >
+                                  {entryBusyId === entry.id ? "Removing..." : "Delete"}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {rowMessage ? (
+                          <p className="roster-panel-message" role="alert">
+                            {rowMessage}
+                          </p>
+                        ) : null}
+                        <div className="roster-panel-actions">
+                          <button
+                            type="button"
+                            className="row-button"
+                            onClick={() => setPanel(null)}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {openKind === "delete" ? (
+                      <div className="roster-panel">
+                        <p className="roster-panel-title">Delete {student.student_name}?</p>
+                        <p className="roster-panel-text">
+                          This removes the student and their whole contact history. It cannot be
+                          undone.
+                        </p>
+                        <input
+                          className="text-field log-input delete-confirm-field"
+                          type="text"
+                          value={deleteConfirm}
+                          placeholder="Type DELETE to confirm"
+                          aria-label="Type DELETE to confirm"
+                          onChange={(event) => {
+                            setDeleteConfirm(event.target.value);
+                            setRowMessage(null);
+                          }}
+                        />
+                        {rowMessage ? (
+                          <p className="roster-panel-message" role="alert">
+                            {rowMessage}
+                          </p>
+                        ) : null}
+                        <div className="roster-panel-actions">
+                          <button
+                            type="button"
+                            className="row-button"
+                            onClick={() => setPanel(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="primary-button roster-panel-save button-danger"
+                            disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
+                            onClick={() => handleStudentDelete(student)}
+                          >
+                            {deletingStudent ? "Deleting..." : "Delete student"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}
