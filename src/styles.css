@@ -464,9 +464,9 @@ svg {
 .seg-control {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
-  max-width: 520px;
+  max-width: 560px;
   padding: 3px;
   border-radius: 12px;
   background: var(--seg-track);
@@ -477,7 +477,7 @@ svg {
   top: 3px;
   bottom: 3px;
   left: 3px;
-  width: calc((100% - 6px - 12px) / 4);
+  width: calc((100% - 6px - 16px) / 5);
   border-radius: 9px;
   background: var(--seg-slab);
   box-shadow: var(--seg-shadow);
@@ -589,11 +589,29 @@ svg {
   margin-right: 0;
 }
 
-/* The narrowest phones get a slightly smaller label rather than any word
-   being truncated or wrapped. */
-@media (max-width: 359px) {
+/* The narrowest phones get a slightly smaller label, tighter gaps, and a
+   smaller padlock rather than any word being truncated or wrapped. */
+@media (max-width: 379px) {
+  .view-bar-inner {
+    gap: 2px;
+    padding: 6px 4px;
+  }
+
+  .view-bar-item {
+    padding: 6px 0;
+  }
+
   .bar-item-label {
-    font-size: 9.5px;
+    font-size: 9px;
+  }
+
+  .bar-item-label .view-lock {
+    margin-right: 2px;
+  }
+
+  .bar-item-label .view-lock svg {
+    width: 8px;
+    height: 8px;
   }
 }
 
@@ -1116,6 +1134,297 @@ svg {
   white-space: pre-wrap;
 }
 
+/* Parents tracker screen */
+.tracker-message {
+  margin-top: 14px;
+  color: var(--text-soft);
+}
+
+.stats-hero {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.stat-tile {
+  min-width: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-success {
+  color: var(--badge-success-text);
+}
+
+.stat-danger {
+  color: var(--badge-danger-text);
+}
+
+.stat-highlight {
+  color: var(--badge-highlight-text);
+}
+
+.stat-accent {
+  color: var(--accent);
+}
+
+.stat-plain {
+  color: var(--text);
+}
+
+.stat-faint {
+  color: var(--text-faint);
+}
+
+.tracker-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.tracker-term {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+.tracker-countdown {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--badge-attempted-bg);
+  color: var(--badge-attempted-text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tracker-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 220px;
+  justify-content: flex-end;
+}
+
+.tracker-count {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.tracker-search {
+  flex: 1;
+  max-width: 260px;
+}
+
+.tracker-search-field {
+  margin-bottom: 0;
+  min-height: 44px;
+}
+
+.roster-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.roster-item {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 12px 16px 12px 19px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.roster-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+}
+
+.roster-item.is-overdue {
+  background: var(--row-danger-bg);
+  border-color: var(--badge-danger-bg);
+}
+
+.roster-item.is-overdue::before {
+  background: var(--badge-danger-text);
+}
+
+.roster-item.is-focus {
+  background: var(--row-highlight-bg);
+}
+
+.roster-item.is-focus::before {
+  background: var(--badge-highlight-text);
+}
+
+.roster-main {
+  min-width: 0;
+}
+
+.roster-student {
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: break-word;
+}
+
+.roster-star {
+  color: var(--card-stripe);
+  flex: none;
+}
+
+.roster-parent {
+  margin-top: 2px;
+  color: var(--text-soft);
+  font-size: 14px;
+  overflow-wrap: break-word;
+}
+
+.roster-phone {
+  color: var(--text-faint);
+}
+
+.roster-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-success {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.badge-calm {
+  background: var(--badge-calm-bg);
+  color: var(--badge-calm-text);
+}
+
+.badge-sms {
+  background: var(--badge-sms-bg);
+  color: var(--badge-sms-text);
+}
+
+.badge-email {
+  background: var(--badge-email-bg);
+  color: var(--badge-email-text);
+}
+
+.badge-report {
+  background: var(--badge-report-bg);
+  color: var(--badge-report-text);
+}
+
+.badge-attempted {
+  background: var(--badge-attempted-bg);
+  color: var(--badge-attempted-text);
+}
+
+.badge-neutral {
+  background: var(--badge-neutral-bg);
+  color: var(--badge-neutral-text);
+}
+
+.badge-danger {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}
+
+.badge-highlight {
+  background: var(--badge-highlight-bg);
+  color: var(--badge-highlight-text);
+}
+
+.subject-maths {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.subject-english {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.subject-both {
+  background: var(--badge-calm-bg);
+  color: var(--badge-calm-text);
+}
+
+.roster-done {
+  display: flex;
+  align-items: center;
+}
+
+.roster-tick {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--badge-success-text);
+  color: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Manager screen */
 .manager-gate {
   min-height: max(280px, calc(100dvh - 360px));
@@ -1478,5 +1787,23 @@ svg {
     grid-template-columns: 40fr 60fr;
     grid-template-areas: "input list";
     align-items: start;
+  }
+
+  .stats-hero {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .roster-item {
+    grid-template-columns: minmax(220px, 1.1fr) auto 26px;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .roster-badges {
+    justify-content: flex-end;
+  }
+
+  .roster-done {
+    justify-content: center;
   }
 }

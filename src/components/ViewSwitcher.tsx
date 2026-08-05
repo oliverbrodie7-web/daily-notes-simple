@@ -1,8 +1,9 @@
-export type AppView = "today" | "output" | "manager" | "settings";
+export type AppView = "today" | "output" | "parents" | "manager" | "settings";
 
 const VIEWS: { key: AppView; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "output", label: "Output" },
+  { key: "parents", label: "Parents" },
   { key: "manager", label: "Manager" },
   { key: "settings", label: "Settings" },
 ];
@@ -18,7 +19,7 @@ type ViewSwitcherProps = {
   pinLocked: boolean;
 };
 
-const PIN_PROTECTED: AppView[] = ["manager", "settings"];
+const PIN_PROTECTED: AppView[] = ["parents", "manager", "settings"];
 
 type GlyphProps = {
   size?: number;
@@ -61,6 +62,17 @@ function DocumentGlyph(props: GlyphProps) {
   );
 }
 
+function PeopleGlyph(props: GlyphProps) {
+  return (
+    <svg {...glyphProps(props)}>
+      <circle cx="9" cy="8.2" r="3.1" />
+      <path d="M3.6 19.5v-0.7a5.4 5.4 0 0 1 10.8 0v0.7" />
+      <circle cx="17" cy="9.2" r="2.5" />
+      <path d="M16.2 19.5h4.2v-0.6a4.2 4.2 0 0 0-5.3-4.1" />
+    </svg>
+  );
+}
+
 function TickGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
@@ -82,6 +94,7 @@ function CogGlyph(props: GlyphProps) {
 const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof CalendarGlyph>> = {
   today: CalendarGlyph,
   output: DocumentGlyph,
+  parents: PeopleGlyph,
   manager: TickGlyph,
   settings: CogGlyph,
 };
