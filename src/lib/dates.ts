@@ -1,14 +1,37 @@
 const SYDNEY_TIME_ZONE = "Australia/Sydney";
 
-// Today's date in Sydney as a YYYY-MM-DD string, whatever timezone the
+// A date's Sydney calendar day as a YYYY-MM-DD string, whatever timezone the
 // browser itself is in.
-export function sydneyTodayIso(): string {
+export function sydneyDateIso(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: SYDNEY_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(date);
+}
+
+// Today's date in Sydney as a YYYY-MM-DD string.
+export function sydneyTodayIso(): string {
+  return sydneyDateIso(new Date());
+}
+
+// Tomorrow's date in Sydney as a YYYY-MM-DD string.
+export function sydneyTomorrowIso(): string {
+  const [year, month, day] = sydneyTodayIso().split("-").map(Number);
+  const next = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+// The hour of a timestamp on Sydney's clock, 0 to 23.
+export function sydneyHourOf(timestamp: string | Date): number {
+  const hour = new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    hour: "numeric",
+    hour12: false,
+  }).format(new Date(timestamp));
+  return Number(hour) % 24;
 }
 
 // A timestamp as a 12 hour Sydney time like 4:12 pm. Some ICU builds put a

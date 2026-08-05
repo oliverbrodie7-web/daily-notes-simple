@@ -450,6 +450,22 @@ svg {
   font-weight: 700;
 }
 
+/* Full labels by default; the narrowest phones swap to the short ones so
+   four items never wrap or get cut off. */
+.view-label-short {
+  display: none;
+}
+
+@media (max-width: 359px) {
+  .view-bar-item .view-label-full {
+    display: none;
+  }
+
+  .view-bar-item .view-label-short {
+    display: inline;
+  }
+}
+
 /* Today screen. Named grid areas keep one DOM order for both layouts:
    a single column below 900px, and from 900px a left column of about 42
    percent holding the input card with the strip beneath it, with the list
@@ -969,6 +985,239 @@ svg {
   white-space: pre-wrap;
 }
 
+/* Manager screen */
+.manager-gate {
+  min-height: max(280px, calc(100dvh - 360px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.manager-gate-status {
+  color: var(--text-soft);
+  font-weight: 600;
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 24px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.gate-icon {
+  align-self: center;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.gate-heading {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.gate-sub {
+  margin: 6px 0 18px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+.gate-card .field-label {
+  text-align: left;
+}
+
+.pin-field {
+  text-align: center;
+  letter-spacing: 8px;
+  font-size: 20px;
+}
+
+.gate-button {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.gate-message {
+  margin-top: 12px;
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.manager-screen {
+  display: grid;
+  gap: 18px;
+  grid-template-areas:
+    "input"
+    "list";
+}
+
+.manager-input-card {
+  grid-area: input;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.manager-what-entry {
+  min-height: 122px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.5;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.manager-add {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.manager-list-section {
+  grid-area: list;
+  min-width: 0;
+}
+
+.manager-list-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.manager-count {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.manager-message {
+  margin-top: 14px;
+  color: var(--text-soft);
+}
+
+.manager-done-heading {
+  margin-top: 24px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.tp-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tp-item {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 16px 14px 19px;
+}
+
+.tp-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.tp-item.is-overdue {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+}
+
+.tp-item.is-overdue::before {
+  background: var(--warning);
+}
+
+.tp-item.is-done {
+  opacity: 0.6;
+}
+
+.tp-item.is-done::before {
+  background: var(--text-faint);
+}
+
+.tp-item.is-done .tp-name {
+  text-decoration: line-through;
+}
+
+.tp-tick {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--accent-contrast);
+  margin-top: 2px;
+}
+
+.tp-tick.is-ticked {
+  background: var(--accent);
+}
+
+.tp-tick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tp-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.tp-what {
+  margin-top: 2px;
+  color: var(--text-soft);
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.tp-due {
+  margin-top: 6px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.tp-due.is-overdue {
+  color: var(--warning);
+  font-weight: 600;
+}
+
 /* Not found and error pages sit outside the themed app root, so they carry
    their own small variable set and follow the system setting. */
 .page-fallback {
@@ -1092,5 +1341,11 @@ svg {
 
   .today-strip {
     align-self: start;
+  }
+
+  .manager-screen {
+    grid-template-columns: 40fr 60fr;
+    grid-template-areas: "input list";
+    align-items: start;
   }
 }

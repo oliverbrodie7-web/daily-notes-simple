@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Header } from "../components/Header";
+import { ManagerScreen } from "../components/ManagerScreen";
 import { OutputScreen } from "../components/OutputScreen";
 import { SettingsScreen } from "../components/SettingsScreen";
 import { SignIn } from "../components/SignIn";
@@ -9,6 +10,8 @@ import { TodayScreen } from "../components/TodayScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { useTheme } from "../hooks/useTheme";
 import { supabase } from "../lib/supabase";
+
+const MANAGER_UNLOCK_MS = 15 * 60 * 1000;
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -31,6 +34,14 @@ function Index() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<AppView>("today");
   const [settingsDirty, setSettingsDirty] = useState(false);
+
+  // The Manager unlock window lives in memory only, so switching tabs keeps
+  // it open but a reload or sign out always locks the screen again.
+  const managerUnlockedUntil = useRef(0);
+  const extendManagerUnlock = useCallback(() => {
+    managerUnlockedUntil.current = Date.now() + MANAGER_UNLOCK_MS;
+  }, []);
+  const managerUnlockRemaining = useCallback(() => managerUnlockedUntil.current - Date.now(), []);
 
   function handleViewChange(next: AppView) {
     if (next === view) return;
@@ -61,6 +72,7 @@ function Index() {
   }, []);
 
   async function handleSignOut() {
+    managerUnlockedUntil.current = 0;
     await supabase.auth.signOut();
   }
 
@@ -77,6 +89,11 @@ function Index() {
           <main className="app-main">
             {view === "output" ? (
               <OutputScreen />
+            ) : view === "manager" ? (
+              <ManagerScreen
+                onUnlock={extendManagerUnlock}
+                unlockRemainingMs={managerUnlockRemaining}
+              />
             ) : view === "settings" ? (
               <SettingsScreen onDirtyChange={setSettingsDirty} />
             ) : (
