@@ -7,6 +7,7 @@ import { OutputScreen } from "../components/OutputScreen";
 import { SettingsScreen } from "../components/SettingsScreen";
 import { SignIn } from "../components/SignIn";
 import { TodayScreen } from "../components/TodayScreen";
+import { TrackerScreen } from "../components/TrackerScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { usePinGate } from "../hooks/usePinGate";
 import { useTheme } from "../hooks/useTheme";
@@ -88,6 +89,8 @@ function Index() {
           <main className="app-main">
             {view === "output" ? (
               <OutputScreen />
+            ) : view === "parents" ? (
+              <TrackerScreen pinGate={pinGate} />
             ) : view === "manager" ? (
               <ManagerScreen pinGate={pinGate} />
             ) : view === "settings" ? (
