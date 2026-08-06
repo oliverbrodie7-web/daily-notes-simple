@@ -5,7 +5,7 @@ import { deriveStatus, isP2Done, latestPerStudent, type ContactStatus } from "..
 import { supabase } from "../lib/supabase";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
-import { StarIcon, TickIcon } from "./Icons";
+import { HistoryIcon, PlusIcon, StarIcon, TrashIcon } from "./Icons";
 
 type RosterStudent = {
   id: number | string;
@@ -354,180 +354,193 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
               {searchQuery.trim() ? "No students match that search." : "No active students yet."}
             </p>
           ) : (
-            <ul className="roster-list">
-              {filtered.map(({ student, status, done, overdue, focus }) => {
-                const badge = BADGES[status];
-                const openKind =
-                  panel && panel.studentId === String(student.id) ? panel.kind : null;
-                const historyEntries =
-                  openKind === "history"
-                    ? logs.filter((log) => String(log.student_id) === String(student.id))
-                    : [];
-                return (
-                  <li
-                    key={student.id}
-                    className={`roster-item${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
-                  >
-                    <div className="roster-main">
-                      <p className="roster-student">
+            <div className="roster-table">
+              <div className="roster-head" aria-hidden="true">
+                <span className="cell-student">Student</span>
+                <span className="cell-parent">Parent</span>
+                <span className="cell-subject">Subject</span>
+                <span className="cell-status">Status</span>
+                <span className="cell-actions">Actions</span>
+              </div>
+              <ul className="roster-body">
+                {filtered.map(({ student, status, overdue, focus }) => {
+                  const badge = BADGES[status];
+                  const openKind =
+                    panel && panel.studentId === String(student.id) ? panel.kind : null;
+                  const historyEntries =
+                    openKind === "history"
+                      ? logs.filter((log) => String(log.student_id) === String(student.id))
+                      : [];
+                  return (
+                    <li
+                      key={student.id}
+                      className={`roster-row${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
+                    >
+                      <p className="cell-student">
                         {student.is_priority ? (
-                          <StarIcon className="roster-star" size={13} />
+                          <StarIcon className="roster-star" size={12} />
                         ) : null}
-                        {student.student_name}
+                        <span className="cell-student-name">{student.student_name}</span>
                       </p>
-                      <p className="roster-parent">
-                        {student.parent_name ?? "No parent name"}
-                        {student.parent_phone ? (
-                          <span className="roster-phone"> {student.parent_phone}</span>
-                        ) : null}
-                      </p>
-                    </div>
-                    <div className="roster-badges">
-                      <span className={`badge ${subjectClass(student.subject)}`}>
-                        {student.subject ?? "No subject"}
-                      </span>
-                      <span className={`badge ${badge.cls}`}>{badge.label}</span>
-                      {overdue ? <span className="badge badge-danger">Overdue</span> : null}
-                      {focus ? (
-                        <span className="badge badge-highlight">Contact This Week</span>
-                      ) : null}
-                    </div>
-                    <div className="roster-done">
-                      {done ? (
-                        <span className="roster-tick" aria-label="P2 done">
-                          <TickIcon size={12} />
+                      <p className="cell-parent">
+                        <span className="cell-parent-name">
+                          {student.parent_name ?? "No parent name"}
                         </span>
-                      ) : null}
-                    </div>
-                    <div className="roster-actions">
-                      <button
-                        type="button"
-                        className="row-button row-button-primary"
-                        onClick={() => openPanel("log", student.id)}
-                      >
-                        Log
-                      </button>
-                      <button
-                        type="button"
-                        className="row-button"
-                        onClick={() => openPanel("history", student.id)}
-                      >
-                        History
-                      </button>
-                      <button
-                        type="button"
-                        className="row-button row-button-danger"
-                        onClick={() => openPanel("delete", student.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                    {openKind === "log" ? (
-                      <LogContactPanel
-                        studentId={student.id}
-                        studentName={student.student_name}
-                        onClose={() => setPanel(null)}
-                        onSaved={handleLogSaved}
-                      />
-                    ) : null}
-                    {openKind === "history" ? (
-                      <div className="roster-panel">
-                        <p className="roster-panel-title">
-                          Contact history for {student.student_name}
-                        </p>
-                        {historyEntries.length === 0 ? (
-                          <p className="roster-panel-text">No contact logged yet.</p>
-                        ) : (
-                          <ul className="history-list">
-                            {historyEntries.map((entry) => (
-                              <li key={entry.id} className="history-entry">
-                                <div className="history-details">
-                                  <p className="history-line">
-                                    {entry.method ?? "Unknown"}, {entry.outcome ?? "unknown"}
-                                  </p>
-                                  <p className="history-when">
-                                    {entry.date_contacted
-                                      ? formatSydneyFullDate(entry.date_contacted)
-                                      : "No date"}
-                                    {entry.logged_at
-                                      ? `, logged ${formatSydneyTime(entry.logged_at)}`
-                                      : ""}
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="row-button row-button-danger"
-                                  disabled={entryBusyId === entry.id}
-                                  onClick={() => handleEntryDelete(entry)}
-                                >
-                                  {entryBusyId === entry.id ? "Removing..." : "Delete"}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {rowMessage ? (
-                          <p className="roster-panel-message" role="alert">
-                            {rowMessage}
-                          </p>
+                        {student.parent_phone ? (
+                          <span className="cell-phone">{student.parent_phone}</span>
                         ) : null}
-                        <div className="roster-panel-actions">
-                          <button
-                            type="button"
-                            className="row-button"
-                            onClick={() => setPanel(null)}
-                          >
-                            Close
-                          </button>
-                        </div>
+                      </p>
+                      <p className="cell-subject">
+                        <span className={`badge ${subjectClass(student.subject)}`}>
+                          {student.subject ?? "None"}
+                        </span>
+                      </p>
+                      <div className="cell-status">
+                        <span
+                          className={`badge subject-in-status ${subjectClass(student.subject)}`}
+                        >
+                          {student.subject ?? "None"}
+                        </span>
+                        <span className={`badge ${badge.cls}`}>{badge.label}</span>
+                        {overdue ? <span className="badge badge-danger">Overdue</span> : null}
+                        {focus ? <span className="badge badge-highlight">This Week</span> : null}
                       </div>
-                    ) : null}
-                    {openKind === "delete" ? (
-                      <div className="roster-panel">
-                        <p className="roster-panel-title">Delete {student.student_name}?</p>
-                        <p className="roster-panel-text">
-                          This removes the student and their whole contact history. It cannot be
-                          undone.
-                        </p>
-                        <input
-                          className="text-field log-input delete-confirm-field"
-                          type="text"
-                          value={deleteConfirm}
-                          placeholder="Type DELETE to confirm"
-                          aria-label="Type DELETE to confirm"
-                          onChange={(event) => {
-                            setDeleteConfirm(event.target.value);
-                            setRowMessage(null);
-                          }}
+                      <div className="cell-actions">
+                        <button
+                          type="button"
+                          className="icon-button icon-button-primary"
+                          aria-label={`Log contact for ${student.student_name}`}
+                          title="Log contact"
+                          onClick={() => openPanel("log", student.id)}
+                        >
+                          <PlusIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button icon-button-quiet"
+                          aria-label={`Contact history for ${student.student_name}`}
+                          title="History"
+                          onClick={() => openPanel("history", student.id)}
+                        >
+                          <HistoryIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button icon-button-danger"
+                          aria-label={`Delete ${student.student_name}`}
+                          title="Delete student"
+                          onClick={() => openPanel("delete", student.id)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                      {openKind === "log" ? (
+                        <LogContactPanel
+                          studentId={student.id}
+                          studentName={student.student_name}
+                          onClose={() => setPanel(null)}
+                          onSaved={handleLogSaved}
                         />
-                        {rowMessage ? (
-                          <p className="roster-panel-message" role="alert">
-                            {rowMessage}
+                      ) : null}
+                      {openKind === "history" ? (
+                        <div className="roster-panel">
+                          <p className="roster-panel-title">
+                            Contact history for {student.student_name}
                           </p>
-                        ) : null}
-                        <div className="roster-panel-actions">
-                          <button
-                            type="button"
-                            className="row-button"
-                            onClick={() => setPanel(null)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            className="primary-button roster-panel-save button-danger"
-                            disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
-                            onClick={() => handleStudentDelete(student)}
-                          >
-                            {deletingStudent ? "Deleting..." : "Delete student"}
-                          </button>
+                          {historyEntries.length === 0 ? (
+                            <p className="roster-panel-text">No contact logged yet.</p>
+                          ) : (
+                            <ul className="history-list">
+                              {historyEntries.map((entry) => (
+                                <li key={entry.id} className="history-entry">
+                                  <div className="history-details">
+                                    <p className="history-line">
+                                      {entry.method ?? "Unknown"}, {entry.outcome ?? "unknown"}
+                                    </p>
+                                    <p className="history-when">
+                                      {entry.date_contacted
+                                        ? formatSydneyFullDate(entry.date_contacted)
+                                        : "No date"}
+                                      {entry.logged_at
+                                        ? `, logged ${formatSydneyTime(entry.logged_at)}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="row-button row-button-danger"
+                                    disabled={entryBusyId === entry.id}
+                                    onClick={() => handleEntryDelete(entry)}
+                                  >
+                                    {entryBusyId === entry.id ? "Removing..." : "Delete"}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {rowMessage ? (
+                            <p className="roster-panel-message" role="alert">
+                              {rowMessage}
+                            </p>
+                          ) : null}
+                          <div className="roster-panel-actions">
+                            <button
+                              type="button"
+                              className="row-button"
+                              onClick={() => setPanel(null)}
+                            >
+                              Close
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+                      ) : null}
+                      {openKind === "delete" ? (
+                        <div className="roster-panel">
+                          <p className="roster-panel-title">Delete {student.student_name}?</p>
+                          <p className="roster-panel-text">
+                            This removes the student and their whole contact history. It cannot be
+                            undone.
+                          </p>
+                          <input
+                            className="text-field log-input delete-confirm-field"
+                            type="text"
+                            value={deleteConfirm}
+                            placeholder="Type DELETE to confirm"
+                            aria-label="Type DELETE to confirm"
+                            onChange={(event) => {
+                              setDeleteConfirm(event.target.value);
+                              setRowMessage(null);
+                            }}
+                          />
+                          {rowMessage ? (
+                            <p className="roster-panel-message" role="alert">
+                              {rowMessage}
+                            </p>
+                          ) : null}
+                          <div className="roster-panel-actions">
+                            <button
+                              type="button"
+                              className="row-button"
+                              onClick={() => setPanel(null)}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="primary-button roster-panel-save button-danger"
+                              disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
+                              onClick={() => handleStudentDelete(student)}
+                            >
+                              {deletingStudent ? "Deleting..." : "Delete student"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </>
       )}
