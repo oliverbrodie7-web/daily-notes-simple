@@ -60,6 +60,21 @@ describe("the strict P2 completion rule", () => {
     expect(deriveStatus({ method: "LOW RISK PARENT", outcome: "noted" })).toBe("low_risk");
   });
 
+  it("flips a previously done student back for a newer entry of every other kind", () => {
+    for (const method of CONTACT_METHODS) {
+      for (const outcome of OUTCOMES_BY_METHOD[method]) {
+        const newerStatus = deriveStatus({ method, outcome });
+        if (isP2Done(newerStatus)) continue;
+        const logs = [
+          { student_id: 1, method, outcome },
+          { student_id: 1, method: "FULL P2", outcome: "Reached" },
+        ];
+        const latest = latestPerStudent(logs);
+        expect(isP2Done(deriveStatus(latest.get("1")))).toBe(false);
+      }
+    }
+  });
+
   it("lets the most recent entry win: a newer SMS flips a done student back", () => {
     const logs = [
       { student_id: 1, method: "SMS only", outcome: "Sent" },
