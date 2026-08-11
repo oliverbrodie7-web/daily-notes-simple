@@ -163,6 +163,28 @@ export function TrashIcon({ className, size = 15 }: IconProps) {
   );
 }
 
+export function HelpIcon({ className, size = 14 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.3 9.3a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 2.3-2.7 4" />
+      <path d="M12 17.3v.1" />
+    </svg>
+  );
+}
+
 export function LockIcon({ className, size = 22 }: IconProps) {
   return (
     <svg
