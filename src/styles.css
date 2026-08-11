@@ -1233,6 +1233,7 @@ svg {
 .tracker-tools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   flex: 1;
   min-width: 220px;
@@ -1246,8 +1247,11 @@ svg {
   white-space: nowrap;
 }
 
+/* The basis and the floor together stop the field collapsing to a sliver
+   when the export buttons crowd the row. */
 .tracker-search {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 160px;
   max-width: 260px;
 }
 
@@ -1783,6 +1787,100 @@ svg {
 
 .help-link:hover {
   color: var(--accent);
+}
+
+.tracker-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 16px;
+}
+
+/* Template manager */
+.template-count {
+  margin-left: 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.template-manager-form {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.template-manager-form .field-label {
+  margin-top: 10px;
+}
+
+.template-manager-form .help-example-label {
+  margin-top: 0;
+}
+
+.template-textarea {
+  margin-bottom: 0;
+  min-height: 88px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.template-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.template-item {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.template-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.template-item-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.template-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.template-item-subject {
+  margin-top: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.template-item-body {
+  margin-top: 6px;
+  color: var(--text-faint);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .help-panel {

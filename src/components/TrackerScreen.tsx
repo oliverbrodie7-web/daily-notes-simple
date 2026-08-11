@@ -3,11 +3,12 @@ import type { PinGate } from "../hooks/usePinGate";
 import { copyText } from "../lib/clipboard";
 import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
 import { deriveStatus, isP2Done, latestPerStudent, type ContactStatus } from "../lib/p2";
-import { parentFirstNames, type MessageTemplate } from "../lib/templates";
+import { parentEmailPairs, parentFirstNames, type MessageTemplate } from "../lib/templates";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
+import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
 import {
   HelpIcon,
@@ -96,7 +97,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletingStudent, setDeletingStudent] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
-  const [helpOpen, setHelpOpen] = useState(false);
+  const [toolPanel, setToolPanel] = useState<"help" | "sms" | "email" | null>(null);
 
   const liveRef = useRef(true);
   useEffect(() => {
@@ -301,8 +302,24 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     const copied = await copyText(names.join(", "));
     showExportMessage(
       copied
-        ? `Copied ${names.length} ${names.length === 1 ? "name" : "names"}.`
+        ? `Copied ${names.length} first ${names.length === 1 ? "name" : "names"}.`
         : "The names could not be copied. Please try again.",
+    );
+  }
+
+  // The BCC export: one "First <email>;" per line, which is what Gmail and
+  // Outlook parse when it is pasted into a BCC field.
+  async function handleExportEmails() {
+    const pairs = parentEmailPairs(decorated.filter((row) => !row.done).map((row) => row.student));
+    if (pairs.length === 0) {
+      showExportMessage("No parents left to contact, or none of them have an email address.");
+      return;
+    }
+    const copied = await copyText(pairs.join("\n"));
+    showExportMessage(
+      copied
+        ? `Copied ${pairs.length} email ${pairs.length === 1 ? "address" : "addresses"} for a BCC field.`
+        : "The addresses could not be copied. Please try again.",
     );
   }
 
@@ -443,16 +460,38 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
               ) : (
                 <p className="tracker-term">No active term set</p>
               )}
-              <button
-                type="button"
-                className="help-link"
-                aria-expanded={helpOpen}
-                aria-controls="import-help"
-                onClick={() => setHelpOpen((current) => !current)}
-              >
-                <HelpIcon />
-                How do I import students?
-              </button>
+              <div className="tracker-quick-links">
+                <button
+                  type="button"
+                  className="help-link"
+                  aria-expanded={toolPanel === "help"}
+                  aria-controls="tracker-tool-panel"
+                  onClick={() => setToolPanel((current) => (current === "help" ? null : "help"))}
+                >
+                  <HelpIcon />
+                  How do I import students?
+                </button>
+                <button
+                  type="button"
+                  className="help-link"
+                  aria-expanded={toolPanel === "sms"}
+                  aria-controls="tracker-tool-panel"
+                  onClick={() => setToolPanel((current) => (current === "sms" ? null : "sms"))}
+                >
+                  <MessageIcon size={13} />
+                  SMS templates
+                </button>
+                <button
+                  type="button"
+                  className="help-link"
+                  aria-expanded={toolPanel === "email"}
+                  aria-controls="tracker-tool-panel"
+                  onClick={() => setToolPanel((current) => (current === "email" ? null : "email"))}
+                >
+                  <MailIcon size={13} />
+                  Email templates
+                </button>
+              </div>
             </div>
             <div className="tracker-tools">
               <span className="tracker-count">{sorted.length} active</span>
@@ -470,9 +509,17 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                 type="button"
                 className="row-button tracker-export"
                 onClick={handleExport}
-                title="Copy the first names of parents still to contact"
+                title="Copy the first names only of parents still to contact"
               >
-                Export names
+                Export first names
+              </button>
+              <button
+                type="button"
+                className="row-button tracker-export"
+                onClick={handleExportEmails}
+                title="Copy Name and email pairs of parents still to contact, ready to paste into a BCC field"
+              >
+                Export emails for BCC
               </button>
             </div>
           </div>
@@ -483,9 +530,25 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </p>
           ) : null}
 
-          {helpOpen ? (
-            <div id="import-help">
-              <ImportHelpPanel onClose={() => setHelpOpen(false)} />
+          {toolPanel ? (
+            <div id="tracker-tool-panel">
+              {toolPanel === "help" ? (
+                <ImportHelpPanel onClose={() => setToolPanel(null)} />
+              ) : toolPanel === "sms" ? (
+                <TemplateManagerPanel
+                  mode="sms"
+                  templates={smsTemplates}
+                  onTemplatesChange={setSmsTemplates}
+                  onClose={() => setToolPanel(null)}
+                />
+              ) : (
+                <TemplateManagerPanel
+                  mode="email"
+                  templates={emailTemplates}
+                  onTemplatesChange={setEmailTemplates}
+                  onClose={() => setToolPanel(null)}
+                />
+              )}
             </div>
           ) : null}
 
