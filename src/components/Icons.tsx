@@ -99,6 +99,47 @@ export function HistoryIcon({ className, size = 15 }: IconProps) {
   );
 }
 
+export function MessageIcon({ className, size = 15 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M20.5 12.5a7.5 6.5 0 0 1-7.5 6.5 8.6 8.6 0 0 1-2.6-.4L5.5 20.5l1.2-3.2A6.4 6.4 0 0 1 5.5 12.5a7.5 6.5 0 0 1 7.5-6.5 7.5 6.5 0 0 1 7.5 6.5Z" />
+    </svg>
+  );
+}
+
+export function MailIcon({ className, size = 15 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+      <path d="m3.8 7 7.1 5.2a2 2 0 0 0 2.2 0L20.2 7" />
+    </svg>
+  );
+}
+
 export function TrashIcon({ className, size = 15 }: IconProps) {
   return (
     <svg
