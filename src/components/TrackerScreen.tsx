@@ -5,10 +5,19 @@ import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
 import { deriveStatus, isP2Done, latestPerStudent, type ContactStatus } from "../lib/p2";
 import { parentFirstNames, type MessageTemplate } from "../lib/templates";
 import { supabase } from "../lib/supabase";
+import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { TemplatePanel } from "./TemplatePanel";
-import { HistoryIcon, MailIcon, MessageIcon, PlusIcon, StarIcon, TrashIcon } from "./Icons";
+import {
+  HelpIcon,
+  HistoryIcon,
+  MailIcon,
+  MessageIcon,
+  PlusIcon,
+  StarIcon,
+  TrashIcon,
+} from "./Icons";
 
 type RosterStudent = {
   id: number | string;
@@ -87,6 +96,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletingStudent, setDeletingStudent] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const liveRef = useRef(true);
   useEffect(() => {
@@ -433,6 +443,16 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
               ) : (
                 <p className="tracker-term">No active term set</p>
               )}
+              <button
+                type="button"
+                className="help-link"
+                aria-expanded={helpOpen}
+                aria-controls="import-help"
+                onClick={() => setHelpOpen((current) => !current)}
+              >
+                <HelpIcon />
+                How do I import students?
+              </button>
             </div>
             <div className="tracker-tools">
               <span className="tracker-count">{sorted.length} active</span>
@@ -461,6 +481,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             <p className="tracker-export-message" role="status">
               {exportMessage}
             </p>
+          ) : null}
+
+          {helpOpen ? (
+            <div id="import-help">
+              <ImportHelpPanel onClose={() => setHelpOpen(false)} />
+            </div>
           ) : null}
 
           {filtered.length === 0 ? (
