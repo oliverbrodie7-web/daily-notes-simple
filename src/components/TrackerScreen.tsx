@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PinGate } from "../hooks/usePinGate";
+import { copyText } from "../lib/clipboard";
 import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
 import { deriveStatus, isP2Done, latestPerStudent, type ContactStatus } from "../lib/p2";
+import { parentFirstNames, type MessageTemplate } from "../lib/templates";
 import { supabase } from "../lib/supabase";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
-import { HistoryIcon, PlusIcon, StarIcon, TrashIcon } from "./Icons";
+import { TemplatePanel } from "./TemplatePanel";
+import { HistoryIcon, MailIcon, MessageIcon, PlusIcon, StarIcon, TrashIcon } from "./Icons";
 
 type RosterStudent = {
   id: number | string;
   student_name: string;
   parent_name: string | null;
   parent_phone: string | null;
+  parent_email: string | null;
   subject: string | null;
   is_priority: boolean | null;
 };
@@ -25,7 +29,10 @@ type RosterLog = {
   date_contacted: string | null;
 };
 
-type RowPanel = { kind: "log" | "history" | "delete"; studentId: string } | null;
+type RowPanel = {
+  kind: "log" | "history" | "delete" | "sms" | "email";
+  studentId: string;
+} | null;
 
 type ActiveTerm = {
   term_name: string | null;
@@ -70,6 +77,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [logs, setLogs] = useState<RosterLog[]>([]);
   const [term, setTerm] = useState<ActiveTerm | null>(null);
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
+  const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<MessageTemplate[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [panel, setPanel] = useState<RowPanel>(null);
@@ -77,60 +86,106 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [entryBusyId, setEntryBusyId] = useState<number | string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletingStudent, setDeletingStudent] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  const liveRef = useRef(true);
+  useEffect(() => {
+    liveRef.current = true;
+    return () => {
+      liveRef.current = false;
+    };
+  }, []);
+
+  const loadRoster = useCallback(async () => {
+    const [studentsRes, logsRes, termRes, focusRes] = await Promise.all([
+      supabase
+        .from("students")
+        .select("id, student_name, parent_name, parent_phone, parent_email, subject, is_priority")
+        .eq("enrolment_status", "Active"),
+      supabase
+        .from("contact_log")
+        .select("id, student_id, method, outcome, logged_at, date_contacted")
+        .order("logged_at", { ascending: false }),
+      supabase
+        .from("term_settings")
+        .select("term_name, term_start_date, p2_deadline")
+        .eq("is_active", true)
+        .order("p2_deadline", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("weekly_focus").select("parent_name, week_start"),
+    ]);
+    if (!liveRef.current) return;
+    if (studentsRes.error || logsRes.error || termRes.error || focusRes.error) {
+      setLoadFailed(true);
+      setStudents([]);
+      return;
+    }
+    setLoadFailed(false);
+    setStudents((studentsRes.data ?? []) as RosterStudent[]);
+    setLogs((logsRes.data ?? []) as RosterLog[]);
+    setTerm((termRes.data ?? null) as ActiveTerm | null);
+
+    // Focus rows for the latest week only, matched by normalised parent name.
+    const focusRows = (focusRes.data ?? []) as {
+      parent_name: string | null;
+      week_start: string | null;
+    }[];
+    const latestWeek = focusRows.reduce<string | null>(
+      (max, row) => (row.week_start && (!max || row.week_start > max) ? row.week_start : max),
+      null,
+    );
+    const names = new Set<string>();
+    for (const row of focusRows) {
+      if (!latestWeek || row.week_start !== latestWeek) continue;
+      const name = normaliseParentName(row.parent_name);
+      if (name) names.add(name);
+    }
+    setFocusNames(names);
+  }, []);
 
   useEffect(() => {
     if (!unlocked) return;
-    let cancelled = false;
-    (async () => {
-      const [studentsRes, logsRes, termRes, focusRes] = await Promise.all([
-        supabase
-          .from("students")
-          .select("id, student_name, parent_name, parent_phone, subject, is_priority")
-          .eq("enrolment_status", "Active"),
-        supabase
-          .from("contact_log")
-          .select("id, student_id, method, outcome, logged_at, date_contacted")
-          .order("logged_at", { ascending: false }),
-        supabase
-          .from("term_settings")
-          .select("term_name, term_start_date, p2_deadline")
-          .eq("is_active", true)
-          .order("p2_deadline", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase.from("weekly_focus").select("parent_name, week_start"),
-      ]);
-      if (cancelled) return;
-      if (studentsRes.error || logsRes.error || termRes.error || focusRes.error) {
-        setLoadFailed(true);
-        setStudents([]);
-        return;
-      }
-      setStudents((studentsRes.data ?? []) as RosterStudent[]);
-      setLogs((logsRes.data ?? []) as RosterLog[]);
-      setTerm((termRes.data ?? null) as ActiveTerm | null);
+    void loadRoster();
+  }, [unlocked, loadRoster]);
 
-      // Focus rows for the latest week only, matched by normalised parent name.
-      const focusRows = (focusRes.data ?? []) as {
-        parent_name: string | null;
-        week_start: string | null;
-      }[];
-      const latestWeek = focusRows.reduce<string | null>(
-        (max, row) => (row.week_start && (!max || row.week_start > max) ? row.week_start : max),
-        null,
-      );
-      const names = new Set<string>();
-      for (const row of focusRows) {
-        if (!latestWeek || row.week_start !== latestWeek) continue;
-        const name = normaliseParentName(row.parent_name);
-        if (name) names.add(name);
-      }
-      setFocusNames(names);
+  // Templates change rarely, so they load once rather than on every refresh.
+  useEffect(() => {
+    if (!unlocked) return;
+    (async () => {
+      const [smsRes, emailRes] = await Promise.all([
+        supabase.from("sms_templates").select("id, template_name, body").order("template_name"),
+        supabase
+          .from("email_templates")
+          .select("id, template_name, subject, body")
+          .order("template_name"),
+      ]);
+      if (!liveRef.current) return;
+      setSmsTemplates((smsRes.data ?? []) as MessageTemplate[]);
+      setEmailTemplates((emailRes.data ?? []) as MessageTemplate[]);
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [unlocked]);
+
+  // Realtime: an agent write or a change on the other device refreshes the
+  // roster in place, so badges, the stat strip and the progress bar all
+  // recompute without a reload. The old tracker also watched
+  // calendly_mismatches, which has no surface here yet.
+  useEffect(() => {
+    if (!unlocked) return;
+    const refresh = () => {
+      void loadRoster();
+    };
+    const channel = supabase
+      .channel("touch-points-tracker")
+      .on("postgres_changes", { event: "*", schema: "public", table: "contact_log" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "students" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_focus" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "term_settings" }, refresh)
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [unlocked, loadRoster]);
 
   const latestByStudent = useMemo(() => latestPerStudent(logs), [logs]);
 
@@ -194,7 +249,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       const diff = Math.floor((today.getTime() - start.getTime()) / 86_400_000);
       week = diff >= 0 ? Math.floor(diff / 7) + 1 : null;
     }
-    return { complete, outstanding, overdue, rate, focus, week };
+    return { total, complete, outstanding, overdue, rate, focus, week };
   }, [decorated, deadlinePassed, term]);
 
   const daysToDeadline = useMemo(() => {
@@ -206,13 +261,38 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     return Math.ceil((deadline.getTime() - today.getTime()) / 86_400_000);
   }, [term]);
 
-  function openPanel(kind: "log" | "history" | "delete", studentId: number | string) {
+  function openPanel(kind: NonNullable<RowPanel>["kind"], studentId: number | string) {
     setRowMessage(null);
     setDeleteConfirm("");
     setPanel((current) =>
       current && current.kind === kind && current.studentId === String(studentId)
         ? null
         : { kind, studentId: String(studentId) },
+    );
+  }
+
+  // Export: parent first names only for everyone not yet P2 done, one entry
+  // per parent, no email addresses at all.
+  function showExportMessage(text: string) {
+    setExportMessage(text);
+    window.setTimeout(() => {
+      if (liveRef.current) setExportMessage(null);
+    }, 4000);
+  }
+
+  async function handleExport() {
+    const names = parentFirstNames(
+      decorated.filter((row) => !row.done).map((row) => row.student.parent_name),
+    );
+    if (names.length === 0) {
+      showExportMessage("No parents left to contact.");
+      return;
+    }
+    const copied = await copyText(names.join(", "));
+    showExportMessage(
+      copied
+        ? `Copied ${names.length} ${names.length === 1 ? "name" : "names"}.`
+        : "The names could not be copied. Please try again.",
     );
   }
 
@@ -317,6 +397,26 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             ))}
           </ul>
 
+          <div className="p2-progress">
+            <div className="p2-progress-head">
+              <span className="p2-progress-label">P2 progress this term</span>
+              <span className="p2-progress-value">
+                {stats.complete} of {stats.total} done
+              </span>
+            </div>
+            <div
+              className="p2-progress-track"
+              role="progressbar"
+              aria-label="P2 progress this term"
+              aria-valuenow={stats.rate}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuetext={`${stats.rate} percent of active students are P2 done`}
+            >
+              <div className="p2-progress-fill" style={{ width: `${stats.rate}%` }} />
+            </div>
+          </div>
+
           <div className="tracker-toolbar">
             <div className="tracker-title-block">
               <h2 className="section-heading">Parents</h2>
@@ -346,8 +446,22 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                   onChange={(event) => setSearchQuery(event.target.value)}
                 />
               </div>
+              <button
+                type="button"
+                className="row-button tracker-export"
+                onClick={handleExport}
+                title="Copy the first names of parents still to contact"
+              >
+                Export names
+              </button>
             </div>
           </div>
+
+          {exportMessage ? (
+            <p className="tracker-export-message" role="status">
+              {exportMessage}
+            </p>
+          ) : null}
 
           {filtered.length === 0 ? (
             <p className="tracker-message">
@@ -418,6 +532,34 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                         <button
                           type="button"
                           className="icon-button icon-button-quiet"
+                          aria-label={
+                            student.parent_phone
+                              ? `Send an SMS about ${student.student_name}`
+                              : `No phone number for ${student.student_name}`
+                          }
+                          title={student.parent_phone ? "Send SMS" : "No phone number"}
+                          disabled={!student.parent_phone}
+                          onClick={() => openPanel("sms", student.id)}
+                        >
+                          <MessageIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button icon-button-quiet"
+                          aria-label={
+                            student.parent_email
+                              ? `Email about ${student.student_name}`
+                              : `No email address for ${student.student_name}`
+                          }
+                          title={student.parent_email ? "Send email" : "No email address"}
+                          disabled={!student.parent_email}
+                          onClick={() => openPanel("email", student.id)}
+                        >
+                          <MailIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button icon-button-quiet"
                           aria-label={`Contact history for ${student.student_name}`}
                           title="History"
                           onClick={() => openPanel("history", student.id)}
@@ -440,6 +582,26 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                           studentName={student.student_name}
                           onClose={() => setPanel(null)}
                           onSaved={handleLogSaved}
+                        />
+                      ) : null}
+                      {openKind === "sms" && student.parent_phone ? (
+                        <TemplatePanel
+                          mode="sms"
+                          studentName={student.student_name}
+                          parentName={student.parent_name}
+                          target={student.parent_phone}
+                          templates={smsTemplates}
+                          onClose={() => setPanel(null)}
+                        />
+                      ) : null}
+                      {openKind === "email" && student.parent_email ? (
+                        <TemplatePanel
+                          mode="email"
+                          studentName={student.student_name}
+                          parentName={student.parent_name}
+                          target={student.parent_email}
+                          templates={emailTemplates}
+                          onClose={() => setPanel(null)}
                         />
                       ) : null}
                       {openKind === "history" ? (

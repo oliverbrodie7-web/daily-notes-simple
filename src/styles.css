@@ -1260,7 +1260,7 @@ svg {
    header, hairline separators, and defined column widths so nothing gets
    pushed apart. Below 900px the same cells stack compactly instead. */
 .roster-table {
-  --roster-cols: minmax(150px, 180px) minmax(170px, 1fr) 86px minmax(200px, 330px) 152px;
+  --roster-cols: minmax(118px, 165px) minmax(136px, 1fr) 72px minmax(160px, 280px) 232px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1412,7 +1412,7 @@ svg {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .badge {
@@ -1645,6 +1645,131 @@ svg {
   margin-top: 2px;
   color: var(--text-faint);
   font-size: 13px;
+}
+
+/* Template panels: pick a saved message, read exactly what will be sent. */
+.template-chips {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.template-chip {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.template-chip-active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.template-preview {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.template-subject {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.template-body {
+  color: var(--text-soft);
+  font-size: 13.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.template-target {
+  margin-top: 10px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.template-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* The P2 progress bar sits with the stat strip as a one line summary. */
+.p2-progress {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.p2-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.p2-progress-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.p2-progress-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.p2-progress-track {
+  margin-top: 7px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--badge-neutral-bg);
+  overflow: hidden;
+}
+
+.p2-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--badge-success-text);
+  transition: width 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p2-progress-fill {
+    transition: none;
+  }
+}
+
+.tracker-export {
+  min-height: 44px;
+}
+
+.tracker-export-message {
+  margin-top: 8px;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13.5px;
 }
 
 /* Manager screen */
@@ -1975,17 +2100,25 @@ svg {
     border-radius: 14px;
   }
 
+  /* Five actions no longer fit beside the name, so they take their own line
+     and spread across it, keeping full size tap targets. */
   .roster-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "student actions" "parent actions" "status status";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "student" "parent" "status" "actions";
     align-items: center;
-    gap: 2px 8px;
+    gap: 2px 0;
     min-height: 0;
     padding: 8px 12px 8px 15px;
   }
 
   .roster-row:first-child {
     border-radius: 14px 14px 0 0;
+  }
+
+  .cell-actions {
+    justify-content: flex-start;
+    gap: 6px;
+    margin-top: 4px;
   }
 
   .cell-subject {
