@@ -6,7 +6,7 @@ type HelpTab = "bulk" | "single";
 // not in this repo. Drop the PNG into public/help/ and set this to
 // "/help/timetable-extract-emails.png" and the figure below renders it,
 // already sized to the panel.
-const SCREENSHOT_SRC: string | null = null;
+const SCREENSHOT_SRC: string | null = "/help/timetable-extract-emails.png";
 const SCREENSHOT_ALT =
   "Extract Email and Addresses tab in TimeTable Reports with correct settings configured and arrow pointing to Save Addresses to CSV button";
 
