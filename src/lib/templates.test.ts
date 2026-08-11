@@ -3,6 +3,7 @@ import {
   firstName,
   greetingName,
   mailtoHref,
+  parentEmailPairs,
   parentFirstNames,
   populateTemplate,
   smsHref,
@@ -80,5 +81,65 @@ describe("the export list", () => {
 
   it("skips students with no parent name recorded", () => {
     expect(parentFirstNames([null, "", "   ", "Abena Osei"])).toEqual(["Abena"]);
+  });
+});
+
+describe("the BCC email export", () => {
+  it("builds the Name <email>; pairs mail clients parse", () => {
+    expect(
+      parentEmailPairs([{ parent_name: "Grace Chen", parent_email: "grace@example.com" }]),
+    ).toEqual(["Grace <grace@example.com>;"]);
+  });
+
+  it("collapses siblings onto one parent by email address", () => {
+    const pairs = parentEmailPairs([
+      { parent_name: "Grace Chen", parent_email: "grace@example.com" },
+      { parent_name: "Grace Chen", parent_email: "GRACE@example.com" },
+    ]);
+    expect(pairs).toEqual(["Grace <grace@example.com>;"]);
+  });
+
+  it("keeps the first spelling of an address that differs only by case", () => {
+    const pairs = parentEmailPairs([
+      { parent_name: "Grace Chen", parent_email: "Grace@Example.com" },
+      { parent_name: "Grace Chen", parent_email: "grace@example.com" },
+    ]);
+    expect(pairs).toEqual(["Grace <Grace@Example.com>;"]);
+  });
+
+  it("drops parents with no email rather than emitting empty brackets", () => {
+    const pairs = parentEmailPairs([
+      { parent_name: "Grace Chen", parent_email: null },
+      { parent_name: "Thao Nguyen Vandenberg", parent_email: "  " },
+      { parent_name: "Abena Osei", parent_email: "abena@example.com" },
+    ]);
+    expect(pairs).toEqual(["Abena <abena@example.com>;"]);
+  });
+
+  it("uses the first name only, never the surname", () => {
+    const pairs = parentEmailPairs([
+      { parent_name: "Thao Nguyen Vandenberg", parent_email: "thao@example.com" },
+    ]);
+    expect(pairs).toEqual(["Thao <thao@example.com>;"]);
+    expect(pairs.join("")).not.toContain("Vandenberg");
+  });
+
+  it("sorts by first name", () => {
+    const pairs = parentEmailPairs([
+      { parent_name: "Zoe Ward", parent_email: "zoe@example.com" },
+      { parent_name: "Abena Osei", parent_email: "abena@example.com" },
+      { parent_name: "Miles Reid", parent_email: "miles@example.com" },
+    ]);
+    expect(pairs).toEqual([
+      "Abena <abena@example.com>;",
+      "Miles <miles@example.com>;",
+      "Zoe <zoe@example.com>;",
+    ]);
+  });
+
+  it("still emits the address when the parent name is missing", () => {
+    expect(parentEmailPairs([{ parent_name: null, parent_email: "x@example.com" }])).toEqual([
+      " <x@example.com>;",
+    ]);
   });
 });
