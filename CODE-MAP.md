@@ -35,13 +35,33 @@ Findings from a read only pass of this repo and the old tracker (nimble-list-ai)
 
 ## Status and deferrals
 
-Phase 1 (read only tracker) and Phase 2 (log contact, history with per
-entry delete, student delete, all behind the P2 unit test) are built.
+Phase 1 (read only tracker), Phase 2 (log contact, history with per
+entry delete, student delete, all behind the P2 unit test) and Phase 3
+(SMS and email buttons, export, weekly focus, realtime, P2 progress bar)
+are built.
+
 Deferred by ruling, 5 August 2026: the old tracker's Parse with AI free
 text button is NOT ported in v1; the log contact panel is structured
-fields only. Still awaiting decisions: export contents (first names only
-versus names with emails as the old code actually did) and the email
-button approach.
+fields only.
+
+Deferred by ruling, 11 August 2026: the old tracker's Gmail draft server
+function is NOT ported in v1. The email button opens a mailto prefilled
+from email_templates instead. A Gmail draft flow can return later as a
+skill, which is where the roadmap already points it.
+
+Decided, 11 August 2026: the export copies parent FIRST NAMES ONLY,
+comma separated, for students not yet P2 done, with no email addresses.
+The old tracker's "First <email>;" behaviour is deliberately dropped.
+Parents are deduplicated by trimmed lowercased full name, so a parent
+with two children is copied once, matching the way the weekly focus
+matches names and the way the Monday agent picks 18 parents rather than
+18 students.
+
+Realtime covers contact_log, students, weekly_focus and term_settings
+through the signed in client. The old tracker also watched
+calendly_mismatches, which is not subscribed here because the Calendly
+mismatch banner it fed has no surface in Touch Points yet. If that
+banner is ever ported, the fifth subscription goes back with it.
 
 ## Phase 1 plan (as built)
 
