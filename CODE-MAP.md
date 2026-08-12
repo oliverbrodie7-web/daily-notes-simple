@@ -63,6 +63,86 @@ calendly_mismatches, which is not subscribed here because the Calendly
 mismatch banner it fed has no surface in Touch Points yet. If that
 banner is ever ported, the fifth subscription goes back with it.
 
+## Calendly display verification, 12 August 2026
+
+The Calendly sync is a Google Apps Script (syncCalendlyP2s) outside both
+repos. It writes a FULL P2 with Reached row to contact_log when a parent
+books a feedback meeting, or a calendly_mismatches row when it cannot
+match the booking. Touch Points only displays the result. Traced end to
+end and confirmed working: the contact_log subscription listens on every
+event type, so an external insert refreshes the roster exactly like a UI
+write, and badges, the six stat tiles and the P2 progress bar all derive
+from the one refetched logs value in a single render, so they cannot
+disagree or lag. calendly_event_id is safe because every contact_log
+query names its columns explicitly, the app never runs an UPDATE against
+contact_log, and the realtime handler ignores the event payload and
+refetches instead, so nothing is coupled to the row shape. Externally
+written rows render correctly in the history panel, which falls back
+cleanly on a missing method, outcome or date.
+
+Two ordering and formatting risks were found and tested against the live
+database on 12 August 2026. Neither is live:
+
+1. NULL logged_at. supabase-js emits no nulls directive when nullsFirst
+   is unset (postgrest-js PostgrestTransformBuilder, the ternary that
+   returns an empty string), so Postgres applies its default, which for
+   DESC is NULLS FIRST. A contact_log row with no logged_at would
+   therefore outrank every real entry, and latestPerStudent takes the
+   first row seen per student, so that row would become their most
+   recent entry permanently. A FULL P2 with Reached row would pin the
+   student as P2 Complete forever, and no later contact would flip them
+   back. Old Janice's own mismatch resolution inserts contact_log
+   without logged_at, so such rows were plausible. VERIFIED NOT LIVE:
+   contact_log.logged_at has DEFAULT now() and there are currently zero
+   NULL logged_at rows. Hardened anyway on 12 August 2026, because the
+   failure mode is silent and permanent: the query now orders logged_at
+   descending with nulls last, then date_contacted descending with nulls
+   last, then id descending, so a timestamp-less row can never be
+   treated as the newest and ties are deterministic.
+
+2. Timestamp shaped date_contacted. formatSydneyFullDate builds
+   new Date(value + "T00:00:00Z"), which is correct for a plain date but
+   produces an invalid date for a full timestamp, and Intl then throws
+   RangeError rather than degrading, which would crash the history panel
+   render. VERIFIED NOT LIVE: date_contacted is a DATE column, so the
+   value is always a plain date. Left alone by ruling. The same latent
+   throw exists on the term line if a term row ever carries a null
+   p2_deadline.
+
+## calendly_mismatches: porting notes, not built
+
+Mismatched bookings are currently invisible in Touch Points. Old Janice
+selected id, invitee_name, student_name_given, event_start_time and
+reviewed from calendly_mismatches filtered to reviewed false, ordered by
+event time ascending, kept it live with a realtime subscription, and
+showed a red banner above the roster reading "N unmatched Calendly
+booking(s) need review" with a Review button and a dismiss X whose
+dismissal was session only and never persisted. Review opened a modal
+listing each booking with the invitee name, the student name the parent
+typed and the event time; you searched active students by student or
+parent name, picked one, and Confirm Match inserted a FULL P2 with
+Reached contact_log row dated from the event start, then set reviewed
+true. Dismiss set reviewed true with no log row.
+
+Porting is roughly one focused session, comparable to the template
+manager work. It needs the fifth realtime subscription, a fetch added to
+loadRoster, a banner strip sitting naturally between the progress bar
+and the search pill using the existing badge danger and row danger
+tokens, and the modal rebuilt as an inline panel. The tool panel slot
+already takes a fourth kind, though the banner rather than the overflow
+menu should open it, since it is a state driven alert and not a standing
+action. The only genuinely new interface is the student picker with
+search.
+
+Two improvements on the old behaviour when it is built:
+
+1. Set logged_at explicitly on the match insert. The old code omitted
+   it, which is exactly the pattern that made risk 1 above possible.
+2. Reconsider the dismiss button. A booking dismissed from the banner
+   without being reviewed is a parent meeting that silently never lands
+   in the tracker, which is the opposite of making the gaps impossible
+   to miss.
+
 ## Phase 1 plan (as built)
 
 1. Update AGENTS.md to point at the two migration documents.

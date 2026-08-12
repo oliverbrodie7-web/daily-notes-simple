@@ -137,10 +137,16 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         .from("students")
         .select("id, student_name, parent_name, parent_phone, parent_email, subject, is_priority")
         .eq("enrolment_status", "Active"),
+      // Nulls last, then a deterministic tiebreaker. Postgres sorts nulls
+      // FIRST for a plain DESC, so a row written without a logged_at would
+      // otherwise outrank every real entry and pin that student as P2
+      // Complete forever. The column has a default, so this is insurance.
       supabase
         .from("contact_log")
         .select("id, student_id, method, outcome, logged_at, date_contacted")
-        .order("logged_at", { ascending: false }),
+        .order("logged_at", { ascending: false, nullsFirst: false })
+        .order("date_contacted", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false }),
       supabase
         .from("term_settings")
         .select("term_name, term_start_date, p2_deadline")
