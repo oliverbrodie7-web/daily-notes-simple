@@ -11,11 +11,15 @@ import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
 import {
+  AtIcon,
   HelpIcon,
   HistoryIcon,
   MailIcon,
   MessageIcon,
+  MoreIcon,
+  PeopleIcon,
   PlusIcon,
+  SearchIcon,
   StarIcon,
   TrashIcon,
 } from "./Icons";
@@ -98,6 +102,26 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [deletingStudent, setDeletingStudent] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [toolPanel, setToolPanel] = useState<"help" | "sms" | "email" | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // The overflow menu closes on a tap outside or on escape, the way an iOS
+  // popover does. It is anchored inline, never a dialog.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   const liveRef = useRef(true);
   useEffect(() => {
@@ -444,84 +468,125 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </div>
           </div>
 
-          <div className="tracker-toolbar">
-            <div className="tracker-title-block">
+          <div className="tracker-header">
+            <div className="tracker-header-main">
               <h2 className="section-heading">Parents</h2>
-              {term ? (
-                <p className="tracker-term">
-                  {term.term_name}, P2 by {formatSydneyFullDate(term.p2_deadline ?? "")}
-                  {daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 14 ? (
-                    <span className="tracker-countdown">
-                      {daysToDeadline} {daysToDeadline === 1 ? "day" : "days"}, {stats.outstanding}{" "}
-                      outstanding
-                    </span>
-                  ) : null}
-                </p>
-              ) : (
-                <p className="tracker-term">No active term set</p>
-              )}
-              <div className="tracker-quick-links">
-                <button
-                  type="button"
-                  className="help-link"
-                  aria-expanded={toolPanel === "help"}
-                  aria-controls="tracker-tool-panel"
-                  onClick={() => setToolPanel((current) => (current === "help" ? null : "help"))}
-                >
-                  <HelpIcon />
-                  How do I import students?
-                </button>
-                <button
-                  type="button"
-                  className="help-link"
-                  aria-expanded={toolPanel === "sms"}
-                  aria-controls="tracker-tool-panel"
-                  onClick={() => setToolPanel((current) => (current === "sms" ? null : "sms"))}
-                >
-                  <MessageIcon size={13} />
-                  SMS templates
-                </button>
-                <button
-                  type="button"
-                  className="help-link"
-                  aria-expanded={toolPanel === "email"}
-                  aria-controls="tracker-tool-panel"
-                  onClick={() => setToolPanel((current) => (current === "email" ? null : "email"))}
-                >
-                  <MailIcon size={13} />
-                  Email templates
-                </button>
-              </div>
+              <p className="tracker-subtitle">
+                {sorted.length} active
+                <span className="tracker-subtitle-dot" aria-hidden="true">
+                  {"·"}
+                </span>
+                {term ? (
+                  <>
+                    {term.term_name}, P2 by {formatSydneyFullDate(term.p2_deadline ?? "")}
+                    {daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 14 ? (
+                      <span className="tracker-countdown">
+                        {daysToDeadline} {daysToDeadline === 1 ? "day" : "days"},{" "}
+                        {stats.outstanding} outstanding
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  "no active term set"
+                )}
+              </p>
             </div>
-            <div className="tracker-tools">
-              <span className="tracker-count">{sorted.length} active</span>
-              <div className="tracker-search">
-                <input
-                  type="search"
-                  className="text-field tracker-search-field"
-                  placeholder="Search student or parent"
-                  aria-label="Search student or parent"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
-              </div>
+
+            <div className="tracker-menu-wrap" ref={menuRef}>
               <button
                 type="button"
-                className="row-button tracker-export"
-                onClick={handleExport}
-                title="Copy the first names only of parents still to contact"
+                className="more-button"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="More actions"
+                title="More actions"
+                onClick={() => setMenuOpen((current) => !current)}
               >
-                Export first names
+                <MoreIcon />
               </button>
-              <button
-                type="button"
-                className="row-button tracker-export"
-                onClick={handleExportEmails}
-                title="Copy Name and email pairs of parents still to contact, ready to paste into a BCC field"
-              >
-                Export emails for BCC
-              </button>
+              {menuOpen ? (
+                <div className="action-menu" role="menu" aria-label="More actions">
+                  <div className="action-menu-group">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void handleExport();
+                      }}
+                    >
+                      Export first names
+                      <PeopleIcon className="action-menu-icon" />
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void handleExportEmails();
+                      }}
+                    >
+                      Export emails for BCC
+                      <AtIcon className="action-menu-icon" />
+                    </button>
+                  </div>
+                  <div className="action-menu-group">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setToolPanel((current) => (current === "sms" ? null : "sms"));
+                      }}
+                    >
+                      SMS templates
+                      <MessageIcon className="action-menu-icon" />
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setToolPanel((current) => (current === "email" ? null : "email"));
+                      }}
+                    >
+                      Email templates
+                      <MailIcon className="action-menu-icon" />
+                    </button>
+                  </div>
+                  <div className="action-menu-group">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="action-menu-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setToolPanel((current) => (current === "help" ? null : "help"));
+                      }}
+                    >
+                      How do I import students?
+                      <HelpIcon className="action-menu-icon" size={15} />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
+          </div>
+
+          <div className="search-pill">
+            <SearchIcon className="search-pill-icon" />
+            <input
+              type="search"
+              className="search-pill-input"
+              placeholder="Search"
+              aria-label="Search student or parent"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
           </div>
 
           {exportMessage ? (

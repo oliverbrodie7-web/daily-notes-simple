@@ -1203,24 +1203,160 @@ svg {
   color: var(--text-faint);
 }
 
-.tracker-toolbar {
+/* Page header: heading, one quiet subtitle line, and a single overflow
+   button holding every secondary action. */
+.tracker-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
-.tracker-term {
-  margin-top: 4px;
+.tracker-header-main {
+  min-width: 0;
+}
+
+.tracker-subtitle {
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.tracker-subtitle-dot {
+  color: var(--text-faint);
+}
+
+.tracker-menu-wrap {
+  position: relative;
+  flex: none;
+}
+
+.more-button {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--text-soft);
+}
+
+.more-button:hover {
+  color: var(--accent);
+}
+
+/* An inline anchored popover, never a dialog. It hangs from the button and
+   is capped so it cannot reach past the viewport at narrow widths. */
+.action-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  min-width: 226px;
+  max-width: min(300px, calc(100vw - 40px));
+  padding: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+.action-menu-group {
+  border-radius: 11px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.action-menu-group + .action-menu-group {
+  margin-top: 8px;
+}
+
+.action-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
   font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.action-menu-item + .action-menu-item {
+  border-top: 1px solid var(--border);
+}
+
+.action-menu-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.action-menu-icon {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.action-menu-item:hover .action-menu-icon {
+  color: var(--accent);
+}
+
+/* Search sits on its own full width row and never truncates. */
+.search-pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 14px;
+  padding: 0 15px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.search-pill:focus-within {
+  border-color: var(--accent);
+}
+
+.search-pill-icon {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.search-pill-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.search-pill-input:focus {
+  outline: none;
+}
+
+.search-pill-input::placeholder {
+  color: var(--text-faint);
 }
 
 .tracker-countdown {
   display: inline-block;
-  margin-left: 8px;
   padding: 2px 10px;
   border-radius: 999px;
   background: var(--badge-attempted-bg);
@@ -1228,36 +1364,6 @@ svg {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.tracker-tools {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  flex: 1;
-  min-width: 220px;
-  justify-content: flex-end;
-}
-
-.tracker-count {
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-/* The basis and the floor together stop the field collapsing to a sliver
-   when the export buttons crowd the row. */
-.tracker-search {
-  flex: 1 1 180px;
-  min-width: 160px;
-  max-width: 260px;
-}
-
-.tracker-search-field {
-  margin-bottom: 0;
-  min-height: 44px;
 }
 
 /* The roster as a dense table: one compact row per student, a sticky
@@ -1763,37 +1869,6 @@ svg {
   .p2-progress-fill {
     transition: none;
   }
-}
-
-.tracker-export {
-  min-height: 44px;
-}
-
-/* A quiet text control near the roster header, not a button competing with
-   the row actions. The tap target is full size, the paint is not. */
-.help-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-faint);
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.help-link:hover {
-  color: var(--accent);
-}
-
-.tracker-quick-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 16px;
 }
 
 /* Template manager */
