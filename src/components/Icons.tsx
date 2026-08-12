@@ -163,6 +163,88 @@ export function TrashIcon({ className, size = 15 }: IconProps) {
   );
 }
 
+export function MoreIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="5.5" cy="12" r="1.9" />
+      <circle cx="12" cy="12" r="1.9" />
+      <circle cx="18.5" cy="12" r="1.9" />
+    </svg>
+  );
+}
+
+export function SearchIcon({ className, size = 16 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.4 15.4 4.1 4.1" />
+    </svg>
+  );
+}
+
+export function PeopleIcon({ className, size = 15 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="9" cy="8" r="3.4" />
+      <path d="M3.5 19.5a5.5 5.5 0 0 1 11 0" />
+      <path d="M16 5.2a3.4 3.4 0 0 1 0 6.6" />
+      <path d="M17.5 14.6a5.5 5.5 0 0 1 3 4.9" />
+    </svg>
+  );
+}
+
+export function AtIcon({ className, size = 15 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="3.6" />
+      <path d="M15.6 8.4v4.8a2.9 2.9 0 0 0 5.2 1.7A9 9 0 1 0 17 20" />
+    </svg>
+  );
+}
+
 export function HelpIcon({ className, size = 14 }: IconProps) {
   return (
     <svg
