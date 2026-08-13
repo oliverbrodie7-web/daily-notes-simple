@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PinGate } from "../hooks/usePinGate";
 import { copyText } from "../lib/clipboard";
 import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
-import { deriveStatus, isP2Done, latestPerStudent, type ContactStatus } from "../lib/p2";
+import { deriveStatus, isP2Done, latestStatusEntryPerStudent, type ContactStatus } from "../lib/p2";
 import { parentEmailPairs, parentFirstNames, type MessageTemplate } from "../lib/templates";
+import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
@@ -44,9 +45,20 @@ type RosterLog = {
 };
 
 type RowPanel = {
-  kind: "log" | "history" | "delete" | "sms" | "email";
+  kind: "log" | "history" | "delete" | "sms" | "email" | "touch";
   studentId: string;
 } | null;
+
+// With no active term row there is no term start to scope to, so the touch
+// point read falls back to a rolling ninety day window, which is close
+// enough to one term that the indicator means the same thing either way.
+const TOUCH_POINT_FALLBACK_DAYS = 90;
+
+function fallbackWindowStart(): string {
+  const start = new Date();
+  start.setDate(start.getDate() - TOUCH_POINT_FALLBACK_DAYS);
+  return start.toISOString().slice(0, 10);
+}
 
 type ActiveTerm = {
   term_name: string | null;
@@ -91,6 +103,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [logs, setLogs] = useState<RosterLog[]>([]);
   const [term, setTerm] = useState<ActiveTerm | null>(null);
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
+  const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
   const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<MessageTemplate[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -183,6 +196,18 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       if (name) names.add(name);
     }
     setFocusNames(names);
+
+    // Touch points are read, never written. Scoped to the current term when
+    // one is set, otherwise to a rolling window.
+    const term = (termRes.data ?? null) as ActiveTerm | null;
+    const windowStart = term?.term_start_date ?? fallbackWindowStart();
+    const notesRes = await supabase
+      .from("daily_notes")
+      .select("student_name, note_date, note_text, added_by")
+      .gte("note_date", windowStart)
+      .order("note_date", { ascending: false });
+    if (!liveRef.current) return;
+    setTouchNotes((notesRes.data ?? []) as TouchPointNote[]);
   }, []);
 
   useEffect(() => {
@@ -228,7 +253,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     };
   }, [unlocked, loadRoster]);
 
-  const latestByStudent = useMemo(() => latestPerStudent(logs), [logs]);
+  // Touch points are filtered out here, so a badge only ever derives from
+  // the most recent entry that is not a touch point.
+  const latestByStudent = useMemo(() => latestStatusEntryPerStudent(logs), [logs]);
+
+  const touchPointsByStudent = useMemo(
+    () => matchTouchPoints(touchNotes, students ?? []),
+    [touchNotes, students],
+  );
 
   // Overdue mirrors the old tracker: no active term means nothing is overdue.
   const deadlinePassed = useMemo(() => {
@@ -645,6 +677,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                     openKind === "history"
                       ? logs.filter((log) => String(log.student_id) === String(student.id))
                       : [];
+                  const touch = touchPointsByStudent.get(String(student.id));
+                  const touchLabel = touch
+                    ? `${touch.count} touch ${touch.count === 1 ? "point" : "points"}${
+                        touch.latestDate ? `, latest ${formatSydneyFullDate(touch.latestDate)}` : ""
+                      }`
+                    : "";
                   return (
                     <li
                       key={student.id}
@@ -655,6 +693,17 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                           <StarIcon className="roster-star" size={12} />
                         ) : null}
                         <span className="cell-student-name">{student.student_name}</span>
+                        {touch ? (
+                          <button
+                            type="button"
+                            className="touch-chip"
+                            aria-label={touchLabel}
+                            title={touchLabel}
+                            onClick={() => openPanel("touch", student.id)}
+                          >
+                            <span className="touch-chip-pill">{touch.count}</span>
+                          </button>
+                        ) : null}
                       </p>
                       <p className="cell-parent">
                         <span className="cell-parent-name">
@@ -743,6 +792,39 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                           onClose={() => setPanel(null)}
                           onSaved={handleLogSaved}
                         />
+                      ) : null}
+                      {openKind === "touch" && touch ? (
+                        <div className="roster-panel">
+                          <p className="roster-panel-title">
+                            Touch points for {student.student_name}
+                          </p>
+                          <p className="roster-panel-text">
+                            Notes taken on the Today screen. These do not count towards P2 and never
+                            change the status badge.
+                          </p>
+                          <ul className="history-list">
+                            {touch.entries.map((entry, index) => (
+                              <li key={`${entry.date}-${index}`} className="history-entry">
+                                <div className="history-details">
+                                  <p className="history-line">
+                                    {entry.date ? formatSydneyFullDate(entry.date) : "No date"}
+                                    {entry.addedBy ? `, ${entry.addedBy}` : ""}
+                                  </p>
+                                  <p className="history-when">{entry.text}</p>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="roster-panel-actions">
+                            <button
+                              type="button"
+                              className="row-button"
+                              onClick={() => setPanel(null)}
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
                       ) : null}
                       {openKind === "sms" && student.parent_phone ? (
                         <TemplatePanel

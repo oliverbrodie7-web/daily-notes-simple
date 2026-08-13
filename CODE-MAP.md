@@ -109,6 +109,49 @@ database on 12 August 2026. Neither is live:
    throw exists on the term line if a term row ever carries a null
    p2_deadline.
 
+## Touch points on the tracker row, 12 August 2026
+
+A touch point is a lighter contact taken from the notes screen. It is NOT a
+completed P2 and it must never displace a status badge, so it runs on a
+parallel track and is excluded from status derivation entirely.
+
+Built as Option B: daily_notes is read at display time and matched to
+students by name, and nothing is ever written to contact_log. Matching
+mirrors the no_match convention. Names are normalised with trim, lowercase
+and collapsed internal whitespace, and a note is attributed only when
+exactly one ACTIVE student matches. A note matching nobody, or matching two
+enrolled students who share a name, is recorded against nobody rather than
+guessed at.
+
+The read is scoped to the current term via term_start_date. With no active
+term row there is no term start to scope to, so it falls back to a rolling
+ninety day window, which is close enough to one term that the indicator
+means roughly the same thing either way.
+
+The guard against a status being displaced lives in p2.ts.
+TOUCH_POINT_METHOD is deliberately NOT in CONTACT_METHODS, so it never
+reaches the log contact dropdown and, more importantly, never trips the two
+vocabulary tests. Adding it to that constant would have broken the test that
+asserts every pair derives something other than "none", and would have made
+the flip-back test assert that a touch point flips a done student back,
+which is the opposite of the ruling and would have passed while doing it.
+latestStatusEntryPerStudent filters touch points out before delegating to
+latestPerStudent, which is left untouched so every existing test still
+exercises the same function.
+
+Option A, writing a Touch Point contact_log row when a note is saved, was
+considered and deferred. Option B needs no new rows, no dedup rule, no
+migration, and is reversible by deleting one module. Option A would put
+touch points in the contact history panel and make them visible to old
+Janice and to the agents, which Option B does not. If that is ever wanted,
+Option A needs: a students fetch on the Today screen, which does not load
+the roster today, an insert after the note insert that sets logged_at
+explicitly, a dedup rule of one row per student per day enforced client side
+first and later by a unique partial index on student_id and date_contacted
+where method is Touch Point, and the same exactly-one-active-match rule
+applied at write time instead of read time. The p2.ts guard already built
+here is what makes Option A safe to add later.
+
 ## calendly_mismatches: porting notes, not built
 
 Mismatched bookings are currently invisible in Touch Points. Old Janice
