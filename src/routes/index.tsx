@@ -29,7 +29,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, selectTheme } = useTheme();
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<AppView>("today");
@@ -71,6 +71,14 @@ function Index() {
     await supabase.auth.signOut();
   }
 
+  // One tap, no confirmation. Any unsaved Settings edit is discarded with
+  // the screen, so the stale dirty flag is cleared too; leaving it set
+  // would warn about changes that no longer exist.
+  function handleLockNow() {
+    setSettingsDirty(false);
+    pinGate.lockNow();
+  }
+
   return (
     <div className={`app-root theme-${theme}`}>
       {checkingSession ? (
@@ -79,7 +87,13 @@ function Index() {
         </div>
       ) : session ? (
         <>
-          <Header theme={theme} onToggleTheme={toggleTheme} onSignOut={handleSignOut} />
+          <Header
+            theme={theme}
+            onSelectTheme={selectTheme}
+            showLock={!pinGate.locked}
+            onLock={handleLockNow}
+            onSignOut={handleSignOut}
+          />
           <ViewSwitcher
             variant="tabs"
             view={view}

@@ -351,6 +351,26 @@ export function WarningIcon({ className, size = 18 }: IconProps) {
   );
 }
 
+export function DropletIcon({ className, size = 16 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 3.2 6.8 10a6.6 6.6 0 1 0 10.4 0Z" />
+    </svg>
+  );
+}
+
 export function MoonIcon({ className, size = 16 }: IconProps) {
   return (
     <svg

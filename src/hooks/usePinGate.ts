@@ -10,6 +10,7 @@ export type PinGate = {
   storedHash: string | null;
   locked: boolean;
   touch: () => void;
+  lockNow: () => void;
   verify: (pin: string) => Promise<boolean>;
   saveNewPin: (pin: string) => Promise<boolean>;
   notePinChanged: (hash: string) => void;
@@ -64,6 +65,18 @@ export function usePinGate(enabled: boolean): PinGate {
     untilRef.current = Date.now() + UNLOCK_MS;
   }, []);
 
+  // Lock both screens at once, right now. The window is cancelled so the
+  // relock watcher has nothing left to count down, and the gate goes
+  // straight to its lock panel rather than back through a fetch, so the
+  // screen behind it is hidden in the same frame as the tap.
+  const lockNow = useCallback(() => {
+    untilRef.current = 0;
+    setState((current) => {
+      if (current !== "unlocked") return current;
+      return storedHash ? "locked" : "checking";
+    });
+  }, [storedHash]);
+
   const verify = useCallback(
     async (pin: string) => {
       if (!storedHash) return false;
@@ -95,6 +108,7 @@ export function usePinGate(enabled: boolean): PinGate {
     storedHash,
     locked: state !== "unlocked",
     touch,
+    lockNow,
     verify,
     saveNewPin,
     notePinChanged,

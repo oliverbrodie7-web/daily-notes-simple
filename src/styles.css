@@ -162,6 +162,79 @@ svg {
   color-scheme: light;
 }
 
+/* Mist: a soft cool light scheme in the style of a native iOS app. A barely
+   there grey blue background, white cards floating on it, a white header
+   rather than a coloured block, and colour saved for what can be tapped.
+   Same variable names as the other two, so no layout rule is repeated. */
+.theme-mist {
+  --app-background: #eef1f5;
+  --surface: #ffffff;
+  --surface-raised: #f7f9fb;
+  --header-background: #ffffff;
+  --header-text: #1f2933;
+  --header-accent: #77838f;
+  --header-control-border: rgba(31, 41, 51, 0.14);
+  --header-control-active: #5b4b9e;
+  --header-control-active-icon: #ffffff;
+  --border: rgba(31, 41, 51, 0.1);
+  --text: #1f2933;
+  --text-soft: rgba(31, 41, 51, 0.62);
+  --text-faint: rgba(31, 41, 51, 0.4);
+  --accent: #5b4b9e;
+  --accent-contrast: #ffffff;
+  --accent-soft: #edebf7;
+  --card-stripe: #5b4b9e;
+  --card-shadow: 0 10px 30px rgba(31, 41, 51, 0.1);
+  --accent-border: rgba(91, 75, 158, 0.35);
+  /* The warning colours match the existing light scheme exactly. */
+  --warning: #d38a2e;
+  --warning-soft: #fff4e5;
+  --warning-border: rgba(211, 138, 46, 0.45);
+  --seg-track: rgba(31, 41, 51, 0.07);
+  --seg-slab: var(--surface);
+  --seg-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
+  --bar-glass: rgba(255, 255, 255, 0.72);
+  /* Badge tokens match the light scheme: both are light schemes, and the
+     pills already read correctly on white. */
+  --badge-success-bg: #dcfce7;
+  --badge-success-text: #166534;
+  --badge-calm-bg: #ccfbf1;
+  --badge-calm-text: #0f766e;
+  --badge-sms-bg: #f3e8ff;
+  --badge-sms-text: #7e22ce;
+  --badge-email-bg: #dbeafe;
+  --badge-email-text: #1d4ed8;
+  --badge-report-bg: #bfdbfe;
+  --badge-report-text: #1e3a8a;
+  --badge-attempted-bg: #fef3c7;
+  --badge-attempted-text: #92400e;
+  --badge-neutral-bg: rgba(31, 41, 51, 0.08);
+  --badge-neutral-text: rgba(31, 41, 51, 0.66);
+  --badge-danger-bg: #fee2e2;
+  --badge-danger-text: #b91c1c;
+  --badge-highlight-bg: #ede9fe;
+  --badge-highlight-text: #6d28d9;
+  --row-danger-bg: #fef2f2;
+  --row-highlight-bg: #f5f3ff;
+  color-scheme: light;
+}
+
+/* Mist alone has a white header, so it needs a hairline to separate it from
+   the content. The other two schemes are solid colour blocks and must not
+   get one. The star and the focus ring take the accent there, since the
+   header is no longer a coloured field to stand out against. */
+.theme-mist .app-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.theme-mist .app-title-star {
+  color: var(--accent);
+}
+
+.theme-mist .app-header :focus-visible {
+  outline-color: var(--accent);
+}
+
 .theme-dark {
   --app-background: #14171c;
   --surface: #1e232a;
@@ -290,6 +363,7 @@ svg {
 .app-header-controls {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 10px;
 }
 
@@ -310,7 +384,9 @@ svg {
   justify-content: center;
   width: 34px;
   height: 34px;
+  border: none;
   border-radius: 999px;
+  background: transparent;
   color: var(--header-text);
   opacity: 0.55;
 }
@@ -329,6 +405,83 @@ svg {
   background: transparent;
   color: var(--header-text);
   font-weight: 600;
+}
+
+/* Lock sits beside Sign out and is styled to match it, so the two read as a
+   pair. It appears only while the shared lock is open. */
+.lock-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--header-control-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--header-text);
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lock-button {
+    animation: lock-fade-in 150ms ease;
+    transition: opacity 150ms ease;
+  }
+
+  .lock-button.is-leaving {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @keyframes lock-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Phones: the Lock button drops to its padlock alone, still a full 44px
+   square, and the scheme icons shrink a little, so the three controls stay
+   on one line rather than wrapping. */
+@media (max-width: 599px) {
+  .app-header-controls {
+    gap: 8px;
+  }
+
+  .lock-button {
+    width: 44px;
+    padding: 0;
+  }
+
+  .lock-button-word {
+    display: none;
+  }
+}
+
+@media (max-width: 429px) {
+  .app-header-controls {
+    gap: 6px;
+  }
+
+  .theme-toggle {
+    padding: 3px;
+    gap: 1px;
+  }
+
+  .theme-toggle-option {
+    width: 30px;
+    height: 30px;
+  }
+
+  .signout-button {
+    padding: 0 12px;
+  }
 }
 
 /* Loading state */
