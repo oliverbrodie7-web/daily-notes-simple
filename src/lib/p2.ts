@@ -55,6 +55,16 @@ export const OUTCOMES_BY_METHOD: Record<ContactMethod, readonly string[]> = {
   "Email Full Report": ["Sent"],
 };
 
+// A touch point is a lighter contact taken from the notes screen. It runs on
+// a parallel track: deliberately NOT part of CONTACT_METHODS, never offered
+// in the log contact dropdown, and never allowed to reach deriveStatus,
+// which reads an unknown method as "none" and would wipe a completed badge.
+export const TOUCH_POINT_METHOD = "Touch Point";
+
+export function isTouchPointEntry(entry: { method?: string | null } | null | undefined): boolean {
+  return (entry?.method ?? "").trim().toLowerCase() === TOUCH_POINT_METHOD.toLowerCase();
+}
+
 // Rows must arrive sorted by logged_at descending; the first row seen per
 // student is their most recent entry.
 export function latestPerStudent<T extends { student_id: number | string }>(
@@ -66,4 +76,13 @@ export function latestPerStudent<T extends { student_id: number | string }>(
     if (!map.has(key)) map.set(key, log);
   }
   return map;
+}
+
+// The entry a badge derives from: the most recent entry that is NOT a touch
+// point. This is the guard that keeps a student on P2 Complete when a
+// lighter contact lands after it.
+export function latestStatusEntryPerStudent<
+  T extends { student_id: number | string; method?: string | null },
+>(logsNewestFirst: T[]): Map<string, T> {
+  return latestPerStudent(logsNewestFirst.filter((log) => !isTouchPointEntry(log)));
 }

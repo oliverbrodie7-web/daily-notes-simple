@@ -2,9 +2,12 @@ import { describe, expect, it } from "bun:test";
 import {
   CONTACT_METHODS,
   OUTCOMES_BY_METHOD,
+  TOUCH_POINT_METHOD,
   deriveStatus,
   isP2Done,
+  isTouchPointEntry,
   latestPerStudent,
+  latestStatusEntryPerStudent,
 } from "./p2";
 
 describe("the strict P2 completion rule", () => {
@@ -95,6 +98,48 @@ describe("the strict P2 completion rule", () => {
     const latest = latestPerStudent(logs);
     expect(latest.get("a-uuid")).toBeDefined();
     expect(latest.get("7")).toBeDefined();
+  });
+});
+
+describe("touch points stay on their own track", () => {
+  it("keeps the touch point method out of the contact vocabulary", () => {
+    expect(CONTACT_METHODS as readonly string[]).not.toContain(TOUCH_POINT_METHOD);
+    expect(isTouchPointEntry({ method: TOUCH_POINT_METHOD })).toBe(true);
+    expect(isTouchPointEntry({ method: " touch point " })).toBe(true);
+    expect(isTouchPointEntry({ method: "FULL P2" })).toBe(false);
+  });
+
+  it("never lets a touch point change a derived status", () => {
+    // Every real status, then the same student with a newer touch point.
+    for (const method of CONTACT_METHODS) {
+      for (const outcome of OUTCOMES_BY_METHOD[method]) {
+        const logs = [
+          { student_id: 1, method: TOUCH_POINT_METHOD, outcome: "Noted" },
+          { student_id: 1, method, outcome },
+        ];
+        const withTouch = latestStatusEntryPerStudent(logs);
+        const withoutTouch = latestPerStudent([logs[1]!]);
+        expect(deriveStatus(withTouch.get("1"))).toBe(deriveStatus(withoutTouch.get("1")));
+      }
+    }
+  });
+
+  it("leaves a student on P2 Complete when a newer touch point lands", () => {
+    const logs = [
+      { student_id: 1, method: TOUCH_POINT_METHOD, outcome: "Noted" },
+      { student_id: 1, method: "FULL P2", outcome: "Reached" },
+    ];
+    const latest = latestStatusEntryPerStudent(logs);
+    expect(deriveStatus(latest.get("1"))).toBe("p2_complete");
+    expect(isP2Done(deriveStatus(latest.get("1")))).toBe(true);
+  });
+
+  it("reads No contact for a student whose only entry is a touch point", () => {
+    const logs = [{ student_id: 1, method: TOUCH_POINT_METHOD, outcome: "Noted" }];
+    const latest = latestStatusEntryPerStudent(logs);
+    expect(latest.get("1")).toBeUndefined();
+    expect(deriveStatus(latest.get("1"))).toBe("none");
+    expect(isP2Done(deriveStatus(latest.get("1")))).toBe(false);
   });
 });
 
