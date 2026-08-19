@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   CONTACT_METHODS,
   OUTCOMES_BY_METHOD,
+  P2_INVISIBLE_METHODS,
   TOUCH_POINT_METHOD,
   deriveStatus,
   isP2Done,
@@ -9,6 +10,19 @@ import {
   latestPerStudent,
   latestStatusEntryPerStudent,
 } from "./p2";
+
+// Walks the whole vocabulary. A method with no outcomes still yields one
+// pair with an empty outcome, which is exactly what the panel saves, so a
+// future addition cannot slip through uncovered.
+function everyPair(): [string, string][] {
+  const pairs: [string, string][] = [];
+  for (const method of CONTACT_METHODS) {
+    const outcomes = OUTCOMES_BY_METHOD[method];
+    if (outcomes.length === 0) pairs.push([method, ""]);
+    else for (const outcome of outcomes) pairs.push([method, outcome]);
+  }
+  return pairs;
+}
 
 describe("the strict P2 completion rule", () => {
   it("counts FULL P2 with Reached as complete", () => {
@@ -37,14 +51,23 @@ describe("the strict P2 completion rule", () => {
     expect(isP2Done(status)).toBe(false);
   });
 
-  it("maps the other methods to their own statuses, none of them done", () => {
+  it("counts Full Email Report as done on its own, whatever the outcome", () => {
+    for (const outcome of ["", "Sent", "Reached", "anything at all"]) {
+      const status = deriveStatus({ method: "Full Email Report", outcome });
+      expect(status).toBe("email_report");
+      expect(isP2Done(status)).toBe(true);
+    }
+  });
+
+  it("maps the lighter methods to their own statuses, none of them done", () => {
     const expected: Record<string, string> = {
       "SMS only": "sms",
-      "Email No Report": "email",
-      "Email Full Report": "report",
+      "Light touch": "light",
+      "Touch Point Email": "touch_email",
     };
     for (const [method, want] of Object.entries(expected)) {
-      const status = deriveStatus({ method, outcome: "Sent" });
+      // These save an empty outcome, so that is what is tested.
+      const status = deriveStatus({ method, outcome: "" });
       expect(status).toBe(want);
       expect(isP2Done(status)).toBe(false);
     }
@@ -64,17 +87,17 @@ describe("the strict P2 completion rule", () => {
   });
 
   it("flips a previously done student back for a newer entry of every other kind", () => {
-    for (const method of CONTACT_METHODS) {
-      for (const outcome of OUTCOMES_BY_METHOD[method]) {
-        const newerStatus = deriveStatus({ method, outcome });
-        if (isP2Done(newerStatus)) continue;
-        const logs = [
-          { student_id: 1, method, outcome },
-          { student_id: 1, method: "FULL P2", outcome: "Reached" },
-        ];
-        const latest = latestPerStudent(logs);
-        expect(isP2Done(deriveStatus(latest.get("1")))).toBe(false);
-      }
+    for (const [method, outcome] of everyPair()) {
+      // Touch Point Email is the one exception and has its own tests below.
+      if (isTouchPointEntry({ method })) continue;
+      const newerStatus = deriveStatus({ method, outcome });
+      if (isP2Done(newerStatus)) continue;
+      const logs = [
+        { student_id: 1, method, outcome },
+        { student_id: 1, method: "FULL P2", outcome: "Reached" },
+      ];
+      const latest = latestStatusEntryPerStudent(logs);
+      expect(isP2Done(deriveStatus(latest.get("1")))).toBe(false);
     }
   });
 
@@ -109,18 +132,42 @@ describe("touch points stay on their own track", () => {
     expect(isTouchPointEntry({ method: "FULL P2" })).toBe(false);
   });
 
-  it("never lets a touch point change a derived status", () => {
-    // Every real status, then the same student with a newer touch point.
-    for (const method of CONTACT_METHODS) {
-      for (const outcome of OUTCOMES_BY_METHOD[method]) {
+  it("treats Touch Point Email as invisible to the P2 calculation", () => {
+    expect(isTouchPointEntry({ method: "Touch Point Email" })).toBe(true);
+    expect(isTouchPointEntry({ method: " touch point email " })).toBe(true);
+    // It is in the dropdown, unlike the older notes side guard.
+    expect(CONTACT_METHODS as readonly string[]).toContain("Touch Point Email");
+  });
+
+  it("never lets either invisible method change a derived status", () => {
+    // Every real status, then the same student with a newer invisible entry.
+    for (const invisible of P2_INVISIBLE_METHODS) {
+      for (const [method, outcome] of everyPair()) {
+        if (isTouchPointEntry({ method })) continue;
         const logs = [
-          { student_id: 1, method: TOUCH_POINT_METHOD, outcome: "Noted" },
+          { student_id: 1, method: invisible, outcome: "" },
           { student_id: 1, method, outcome },
         ];
         const withTouch = latestStatusEntryPerStudent(logs);
         const withoutTouch = latestPerStudent([logs[1]!]);
         expect(deriveStatus(withTouch.get("1"))).toBe(deriveStatus(withoutTouch.get("1")));
       }
+    }
+  });
+
+  it("leaves every completed kind complete when a Touch Point Email lands after it", () => {
+    const completed: [string, string][] = [
+      ["FULL P2", "Reached"],
+      ["Full Email Report", ""],
+      ["Low Risk Parent", "Noted"],
+    ];
+    for (const [method, outcome] of completed) {
+      const logs = [
+        { student_id: 1, method: "Touch Point Email", outcome: "" },
+        { student_id: 1, method, outcome },
+      ];
+      const latest = latestStatusEntryPerStudent(logs);
+      expect(isP2Done(deriveStatus(latest.get("1")))).toBe(true);
     }
   });
 
@@ -144,23 +191,47 @@ describe("touch points stay on their own track", () => {
 });
 
 describe("the contact vocabulary", () => {
+  it("offers exactly the six methods, in order", () => {
+    expect([...CONTACT_METHODS]).toEqual([
+      "FULL P2",
+      "Full Email Report",
+      "Low Risk Parent",
+      "Touch Point Email",
+      "SMS only",
+      "Light touch",
+    ]);
+  });
+
+  it("asks for an outcome on exactly two methods", () => {
+    const withOutcomes = CONTACT_METHODS.filter((method) => OUTCOMES_BY_METHOD[method].length > 0);
+    expect([...withOutcomes]).toEqual(["FULL P2", "Low Risk Parent"]);
+    expect([...OUTCOMES_BY_METHOD["FULL P2"]]).toEqual(["Reached", "Voicemail", "No Answer"]);
+    expect([...OUTCOMES_BY_METHOD["Low Risk Parent"]]).toEqual(["Noted"]);
+  });
+
   it("derives a status for every method and outcome pair in the vocabulary", () => {
-    for (const method of CONTACT_METHODS) {
-      for (const outcome of OUTCOMES_BY_METHOD[method]) {
-        expect(deriveStatus({ method, outcome })).not.toBe("none");
-      }
+    for (const [method, outcome] of everyPair()) {
+      expect(deriveStatus({ method, outcome })).not.toBe("none");
     }
   });
 
-  it("marks exactly the two documented pairs as done across the whole vocabulary", () => {
+  it("marks exactly the three qualifying kinds as done across the whole vocabulary", () => {
     const donePairs: string[] = [];
-    for (const method of CONTACT_METHODS) {
-      for (const outcome of OUTCOMES_BY_METHOD[method]) {
-        if (isP2Done(deriveStatus({ method, outcome }))) {
-          donePairs.push(`${method}/${outcome}`);
-        }
+    for (const [method, outcome] of everyPair()) {
+      if (isP2Done(deriveStatus({ method, outcome }))) {
+        donePairs.push(`${method}/${outcome}`);
       }
     }
-    expect(donePairs.sort()).toEqual(["FULL P2/Reached", "Low Risk Parent/Noted"]);
+    expect(donePairs.sort()).toEqual([
+      "FULL P2/Reached",
+      "Full Email Report/",
+      "Low Risk Parent/Noted",
+    ]);
+  });
+
+  it("keeps the two existing live combinations working unchanged", () => {
+    // The contact log holds only these two today: 23 and 2 rows.
+    expect(isP2Done(deriveStatus({ method: "FULL P2", outcome: "Reached" }))).toBe(true);
+    expect(isP2Done(deriveStatus({ method: "Low Risk Parent", outcome: "Noted" }))).toBe(true);
   });
 });
