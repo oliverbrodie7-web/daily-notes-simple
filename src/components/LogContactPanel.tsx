@@ -34,12 +34,19 @@ export function LogContactPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // A method with one outcome selects it. A method with none clears the
+  // outcome entirely, so the row saves empty rather than with a
+  // placeholder word.
   useEffect(() => {
     if (!method) {
       setOutcome("");
       return;
     }
     const allowed = OUTCOMES_BY_METHOD[method];
+    if (allowed.length === 0) {
+      setOutcome("");
+      return;
+    }
     if (!allowed.includes(outcome)) {
       setOutcome(allowed.length === 1 ? (allowed[0] ?? "") : "");
     }
@@ -51,7 +58,8 @@ export function LogContactPanel({
       setMessage("Choose a method.");
       return;
     }
-    if (!outcome) {
+    // Only ask for an outcome when this method offers any.
+    if (OUTCOMES_BY_METHOD[method].length > 0 && !outcome) {
       setMessage("Choose an outcome.");
       return;
     }
@@ -122,28 +130,29 @@ export function LogContactPanel({
             ))}
           </select>
         </div>
-        <div className="log-field">
-          <label className="field-label" htmlFor="log-outcome">
-            Outcome
-          </label>
-          <select
-            id="log-outcome"
-            className="text-field log-input"
-            value={outcome}
-            disabled={!method}
-            onChange={(event) => {
-              setOutcome(event.target.value);
-              setMessage(null);
-            }}
-          >
-            <option value="">Choose</option>
-            {outcomes.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </div>
+        {outcomes.length > 0 ? (
+          <div className="log-field">
+            <label className="field-label" htmlFor="log-outcome">
+              Outcome
+            </label>
+            <select
+              id="log-outcome"
+              className="text-field log-input"
+              value={outcome}
+              onChange={(event) => {
+                setOutcome(event.target.value);
+                setMessage(null);
+              }}
+            >
+              <option value="">Choose</option>
+              {outcomes.map((entry) => (
+                <option key={entry} value={entry}>
+                  {entry}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
       {message ? (
         <p className="roster-panel-message" role="alert">

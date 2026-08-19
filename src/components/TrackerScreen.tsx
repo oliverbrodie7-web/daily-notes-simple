@@ -73,11 +73,14 @@ type TrackerScreenProps = {
 const BADGES: Record<ContactStatus, { label: string; cls: string }> = {
   none: { label: "No contact", cls: "badge-neutral" },
   p2_complete: { label: "P2 Complete", cls: "badge-success" },
+  email_report: { label: "Email Report", cls: "badge-report" },
   low_risk: { label: "Low Risk", cls: "badge-calm" },
   attempted: { label: "Attempted", cls: "badge-attempted" },
   sms: { label: "SMS Sent", cls: "badge-sms" },
-  email: { label: "Email Sent", cls: "badge-email" },
-  report: { label: "Report Sent", cls: "badge-report" },
+  light: { label: "Light Touch", cls: "badge-email" },
+  // Filtered out before a badge is ever derived, so this label is a
+  // fallback that should never appear on a row.
+  touch_email: { label: "Touch Point Email", cls: "badge-neutral" },
 };
 
 function subjectClass(subject: string | null): string {
