@@ -137,10 +137,13 @@ svg {
   --good: #166534;
   --good-soft: #dcfce7;
   --good-border: rgba(22, 101, 52, 0.32);
+  --warning-ink: #96590a;
+  --warning-contrast: #2b1a02;
   --seg-track: rgba(66, 5, 90, 0.1);
   --seg-slab: var(--surface);
   --seg-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
   --bar-glass: rgba(255, 255, 255, 0.72);
+  --scrim: rgba(66, 5, 90, 0.42);
   /* Tracker badge tokens: eight visually distinct statuses per theme. */
   --badge-success-bg: #dcfce7;
   --badge-success-text: #166534;
@@ -196,10 +199,13 @@ svg {
   --good: #166534;
   --good-soft: #dcfce7;
   --good-border: rgba(22, 101, 52, 0.32);
+  --warning-ink: #96590a;
+  --warning-contrast: #2b1a02;
   --seg-track: rgba(31, 41, 51, 0.07);
   --seg-slab: var(--surface);
   --seg-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
   --bar-glass: rgba(255, 255, 255, 0.72);
+  --scrim: rgba(31, 41, 51, 0.4);
   /* Badge tokens match the light scheme: both are light schemes, and the
      pills already read correctly on white. */
   --badge-success-bg: #dcfce7;
@@ -267,10 +273,13 @@ svg {
   --good: #4ade80;
   --good-soft: rgba(74, 222, 128, 0.16);
   --good-border: rgba(74, 222, 128, 0.32);
+  --warning-ink: #e2a355;
+  --warning-contrast: #2b1a02;
   --seg-track: rgba(255, 255, 255, 0.07);
   --seg-slab: var(--surface-raised);
   --seg-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   --bar-glass: rgba(38, 44, 52, 0.86);
+  --scrim: rgba(0, 0, 0, 0.62);
   /* Tracker badge tokens. Dark mode keeps its rules: no purple and no
      yellow, so SMS shifts to cyan and the focus highlight leans on the
      accent family instead of violet. */
@@ -930,9 +939,216 @@ svg {
   overflow-wrap: break-word;
 }
 
+/* A thin rule separates the match line from the note text. */
 .today-item-foot {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border);
+}
+
+/* A note the matcher could not resolve on its own takes the warning card,
+   so an unmatched note is obvious without reading the line. */
+.today-item-unmatched {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+}
+
+.today-match {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.today-match-icon {
+  flex: none;
+}
+
+.today-match-good {
+  color: var(--good);
+}
+
+.today-match-warn {
+  color: var(--warning-ink);
+}
+
+/* Always sits at the right, whether it shares the line with the match
+   wording or wraps below it on a phone. */
+.today-item-actions {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.today-match-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--warning);
+  color: var(--warning-contrast);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.today-match-button:hover {
+  filter: brightness(0.94);
+}
+
+/* The student picker. A panel over the screen, capped so it stays readable
+   on a desktop and leaving a comfortable margin on a phone. */
+.match-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--scrim);
+}
+
+.match-panel {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+.match-panel-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--text);
+}
+
+.match-panel-sub {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.match-typed {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.match-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.match-option {
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  text-align: left;
+}
+
+.match-option:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.match-option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.match-option-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.match-option-parent {
+  color: var(--text-soft);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.match-panel-empty {
+  margin-top: 12px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+
+.match-search-field {
+  margin-bottom: 0;
+}
+
+.match-search-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+}
+
+.match-panel-message {
+  margin-top: 4px;
+  color: var(--warning-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.match-cancel {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.match-cancel:hover {
+  border-color: var(--accent-border);
+}
+
+.match-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .remove-button {
