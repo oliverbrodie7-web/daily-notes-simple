@@ -1,14 +1,28 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { supabase } from "../lib/supabase";
+import { matchNote, type NoteMatch } from "../lib/touchPoints";
+import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
+import { TickIcon, WarningIcon } from "./Icons";
 
 type TodayNote = {
   id: string;
+  student_id: string | null;
   student_name: string;
   note_text: string;
   created_at: string;
   added_by: string | null;
 };
+
+const NOTE_COLUMNS = "id, student_id, student_name, note_text, created_at, added_by";
+
+// Small counts read better as words. Anything larger is rare enough that a
+// digit is clearer than spelling it out.
+const COUNT_WORDS = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+
+function countWord(count: number): string {
+  return COUNT_WORDS[count] ?? String(count);
+}
 
 export function TodayScreen() {
   const [studentName, setStudentName] = useState("");
@@ -20,6 +34,8 @@ export function TodayScreen() {
   const [inputMessage, setInputMessage] = useState<string | null>(null);
   const [listMessage, setListMessage] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [students, setStudents] = useState<PickerStudent[] | null>(null);
+  const [pickingId, setPickingId] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const staffRef = useRef<HTMLInputElement | null>(null);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -28,7 +44,7 @@ export function TodayScreen() {
     let cancelled = false;
     supabase
       .from("daily_notes")
-      .select("id, student_name, note_text, created_at, added_by")
+      .select(NOTE_COLUMNS)
       .eq("note_date", sydneyTodayIso())
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
@@ -39,6 +55,23 @@ export function TodayScreen() {
           return;
         }
         setNotes((data ?? []) as TodayNote[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The active roster, used only to work out which student each note is
+  // about. Nothing here is written unless a person taps a candidate.
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("students")
+      .select("id, student_name, parent_name")
+      .eq("enrolment_status", "Active")
+      .then(({ data }) => {
+        if (cancelled) return;
+        setStudents((data ?? []) as PickerStudent[]);
       });
     return () => {
       cancelled = true;
@@ -75,7 +108,7 @@ export function TodayScreen() {
         no_match: false,
         added_by: staff,
       })
-      .select("id, student_name, note_text, created_at, added_by")
+      .select(NOTE_COLUMNS)
       .single();
     if (error || !data) {
       setInputMessage("The note could not be saved. Please try again.");
@@ -142,6 +175,29 @@ export function TodayScreen() {
     }
     setNotes((current) => (current ?? []).filter((item) => item.id !== note.id));
     setRemovingId(null);
+  }
+
+  // Worked out at display time with the same shared module the Parents
+  // screen uses, so the two screens can never disagree about a note.
+  const matches = useMemo(() => {
+    const found = new Map<string, NoteMatch<PickerStudent>>();
+    if (!notes || !students) return found;
+    for (const note of notes) found.set(note.id, matchNote(note, students));
+    return found;
+  }, [notes, students]);
+
+  const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
+  const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
+
+  function handleMatched(student: PickerStudent) {
+    setNotes((current) =>
+      (current ?? []).map((note) =>
+        note.id === pickingId
+          ? { ...note, student_id: String(student.id), student_name: student.student_name }
+          : note,
+      ),
+    );
+    setPickingId(null);
   }
 
   const loading = notes === null;
@@ -236,35 +292,70 @@ export function TodayScreen() {
           <p className="today-message">No notes yet today. Add your first one above.</p>
         ) : (
           <ul className="today-list">
-            {notes.map((note) => (
-              <li key={note.id} className="today-item">
-                <div className="today-item-top">
-                  <span className="today-item-name">{note.student_name}</span>
-                  <span className="today-item-when">
-                    {note.added_by ? (
-                      <span className="today-item-by today-item-by-inline">
-                        Added by {note.added_by}
-                      </span>
-                    ) : null}
-                    <span className="today-item-time">{formatSydneyTime(note.created_at)}</span>
-                  </span>
-                </div>
-                <p className="today-item-text">{note.note_text}</p>
-                {note.added_by ? (
-                  <p className="today-item-by today-item-by-block">Added by {note.added_by}</p>
-                ) : null}
-                <div className="today-item-foot">
-                  <button
-                    type="button"
-                    className="remove-button"
-                    disabled={removingId === note.id}
-                    onClick={() => handleRemove(note)}
-                  >
-                    {removingId === note.id ? "Removing..." : "Remove"}
-                  </button>
-                </div>
-              </li>
-            ))}
+            {notes.map((note) => {
+              const match = matches.get(note.id);
+              const unresolved = Boolean(match) && match!.kind !== "matched";
+              return (
+                <li
+                  key={note.id}
+                  className={`today-item${unresolved ? " today-item-unmatched" : ""}`}
+                >
+                  <div className="today-item-top">
+                    <span className="today-item-name">{note.student_name}</span>
+                    <span className="today-item-when">
+                      {note.added_by ? (
+                        <span className="today-item-by today-item-by-inline">
+                          Added by {note.added_by}
+                        </span>
+                      ) : null}
+                      <span className="today-item-time">{formatSydneyTime(note.created_at)}</span>
+                    </span>
+                  </div>
+                  <p className="today-item-text">{note.note_text}</p>
+                  {note.added_by ? (
+                    <p className="today-item-by today-item-by-block">Added by {note.added_by}</p>
+                  ) : null}
+                  <div className="today-item-foot">
+                    {match ? (
+                      match.kind === "matched" ? (
+                        <span className="today-match today-match-good">
+                          <TickIcon className="today-match-icon" size={13} />
+                          Matched to {match.student.student_name}
+                        </span>
+                      ) : (
+                        <span className="today-match today-match-warn">
+                          <WarningIcon className="today-match-icon" size={15} />
+                          {match.kind === "ambiguous"
+                            ? `${countWord(match.candidates.length)} students could match`
+                            : "No student found"}
+                        </span>
+                      )
+                    ) : (
+                      <span className="today-match" />
+                    )}
+                    <span className="today-item-actions">
+                      {unresolved ? (
+                        <button
+                          type="button"
+                          className="today-match-button"
+                          onClick={() => setPickingId(note.id)}
+                        >
+                          Match to a student
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="remove-button"
+                        disabled={removingId === note.id}
+                        onClick={() => handleRemove(note)}
+                      >
+                        {removingId === note.id ? "Removing..." : "Remove"}
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -273,6 +364,17 @@ export function TodayScreen() {
         <strong>7:30 pm tonight:</strong> these notes collate automatically and land on the Output
         screen.
       </p>
+
+      {picking && pickingMatch && pickingMatch.kind !== "matched" ? (
+        <MatchStudentPanel
+          noteId={picking.id}
+          typedName={picking.student_name}
+          candidates={pickingMatch.kind === "ambiguous" ? pickingMatch.candidates : []}
+          students={students ?? []}
+          onMatched={handleMatched}
+          onClose={() => setPickingId(null)}
+        />
+      ) : null}
     </section>
   );
 }
