@@ -134,6 +134,9 @@ svg {
   --warning: #d38a2e;
   --warning-soft: #fff4e5;
   --warning-border: rgba(211, 138, 46, 0.45);
+  --good: #166534;
+  --good-soft: #dcfce7;
+  --good-border: rgba(22, 101, 52, 0.32);
   --seg-track: rgba(66, 5, 90, 0.1);
   --seg-slab: var(--surface);
   --seg-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
@@ -190,6 +193,9 @@ svg {
   --warning: #d38a2e;
   --warning-soft: #fff4e5;
   --warning-border: rgba(211, 138, 46, 0.45);
+  --good: #166534;
+  --good-soft: #dcfce7;
+  --good-border: rgba(22, 101, 52, 0.32);
   --seg-track: rgba(31, 41, 51, 0.07);
   --seg-slab: var(--surface);
   --seg-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
@@ -258,6 +264,9 @@ svg {
   --warning: #d38a2e;
   --warning-soft: rgba(211, 138, 46, 0.14);
   --warning-border: rgba(211, 138, 46, 0.4);
+  --good: #4ade80;
+  --good-soft: rgba(74, 222, 128, 0.16);
+  --good-border: rgba(74, 222, 128, 0.32);
   --seg-track: rgba(255, 255, 255, 0.07);
   --seg-slab: var(--surface-raised);
   --seg-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
@@ -1519,11 +1528,13 @@ svg {
   white-space: nowrap;
 }
 
-/* The roster as a dense table: one compact row per student, a sticky
-   header, hairline separators, and defined column widths so nothing gets
-   pushed apart. Below 900px the same cells stack compactly instead. */
+/* The roster as a four column table on wide screens: student, P2 status,
+   touch points, and the row controls. Below 900px each row becomes a card,
+   since four columns will never fit a phone. */
 .roster-table {
-  --roster-cols: minmax(118px, 165px) minmax(136px, 1fr) 72px minmax(160px, 280px) 232px;
+  /* Column four holds Log plus two 44px squares, which needs 167px, so it
+     is 178px rather than the 152px first sketched. */
+  --roster-cols: minmax(0, 1fr) 150px 132px 178px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1535,11 +1546,10 @@ svg {
   z-index: 5;
   display: grid;
   grid-template-columns: var(--roster-cols);
-  grid-template-areas: "student parent subject status actions";
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  padding: 8px 14px 8px 17px;
-  background: var(--surface);
+  padding: 9px 14px 9px 17px;
+  background: var(--surface-raised);
   border-bottom: 1px solid var(--border);
   border-radius: 14px 14px 0 0;
   font-size: 10.5px;
@@ -1547,11 +1557,6 @@ svg {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-faint);
-}
-
-.roster-head .cell-actions {
-  justify-content: flex-end;
-  display: flex;
 }
 
 .roster-body {
@@ -1564,11 +1569,9 @@ svg {
   position: relative;
   display: grid;
   grid-template-columns: var(--roster-cols);
-  grid-template-areas: "student parent subject status actions";
-  gap: 0 10px;
+  gap: 0 12px;
   align-items: center;
-  min-height: 50px;
-  padding: 3px 14px 3px 17px;
+  padding: 9px 14px 9px 17px;
 }
 
 .roster-row + .roster-row {
@@ -1605,18 +1608,23 @@ svg {
   background: var(--badge-highlight-text);
 }
 
-.cell-student {
-  grid-area: student;
+/* Column one: the name on top, the parent and phone underneath. The block
+   shrinks and trims rather than pushing the controls off the edge. */
+.col-student {
+  min-width: 0;
+}
+
+.row-name {
   display: flex;
   align-items: center;
   gap: 5px;
   min-width: 0;
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 15px;
   color: var(--text);
 }
 
-.cell-student-name {
+.row-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1627,88 +1635,216 @@ svg {
   flex: none;
 }
 
-/* Touch points sit beside the student name, deliberately in a different
-   column from the status badge so the two can never compete. The button is
-   full row height for the tap target; only the pill inside it is painted. */
-.touch-chip {
-  flex: none;
-  height: 44px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-}
-
-.touch-chip-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.touch-chip:hover .touch-chip-pill {
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.cell-parent {
-  grid-area: parent;
+.row-sub {
   display: flex;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+  margin-top: 1px;
   font-size: 13px;
   color: var(--text-soft);
 }
 
-.cell-parent-name {
+.row-parent {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-.cell-phone {
+.row-phone {
   color: var(--text-faint);
-  font-size: 12px;
   white-space: nowrap;
 }
 
-.cell-subject {
-  grid-area: subject;
-  min-width: 0;
-}
-
-.cell-status {
-  grid-area: status;
+/* Column two: the status pill and the last contact line. */
+.col-status {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-/* The subject repeats inside the status line only on narrow screens, where
-   the subject column is hidden. */
-.cell-status .subject-in-status {
-  display: none;
-}
-
-.cell-actions {
-  grid-area: actions;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 3px;
+  min-width: 0;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.status-pill-good {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.status-pill-warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.status-pill-danger {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}
+
+.status-pill-neutral {
+  background: var(--badge-neutral-bg);
+  color: var(--badge-neutral-text);
+}
+
+.status-last {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Column three: a solid accent badge, or a receding grey one at zero. */
+.col-touch {
+  min-width: 0;
+}
+
+.touch-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  min-height: 46px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: var(--seg-shadow);
+  text-align: center;
+}
+
+.touch-badge.is-empty {
+  background: var(--badge-neutral-bg);
+  color: var(--badge-neutral-text);
+  box-shadow: none;
+}
+
+.touch-badge-icon {
+  flex: none;
+  opacity: 0.85;
+}
+
+.touch-badge-count {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.touch-badge-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* The icon sits to the left of the number, with the words underneath. */
+.touch-badge-icon,
+.touch-badge-count {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.touch-badge-icon {
+  margin-right: 5px;
+}
+
+/* Column four: Log, history, and the overflow menu holding the rest. */
+.col-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.row-log-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 11px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.row-square-button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-soft);
+}
+
+.row-square-button:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.row-menu-wrap {
+  position: relative;
+  flex: none;
+}
+
+.row-menu {
+  top: calc(100% + 6px);
+  min-width: 208px;
+}
+
+.action-menu-item-danger {
+  color: var(--badge-danger-text);
+}
+
+.action-menu-item-danger .action-menu-icon {
+  color: var(--badge-danger-text);
+}
+
+.action-menu-item:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.action-menu-item:disabled:hover {
+  background: transparent;
+  color: var(--text-faint);
 }
 
 .badge {
@@ -2626,7 +2762,9 @@ svg {
   outline-color: var(--fallback-accent);
 }
 
-/* Narrow screens: the roster head hides and each row stacks compactly. */
+/* Phones: four columns will never fit, so each row becomes a card. Name and
+   parent top left, touch badge top right, then the status, then the
+   controls with Log stretching to fill. */
 @media (max-width: 899px) {
   .roster-head {
     display: none;
@@ -2636,33 +2774,44 @@ svg {
     border-radius: 14px;
   }
 
-  /* Five actions no longer fit beside the name, so they take their own line
-     and spread across it, keeping full size tap targets. */
   .roster-row {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "student" "parent" "status" "actions";
-    align-items: center;
-    gap: 2px 0;
-    min-height: 0;
-    padding: 8px 12px 8px 15px;
+    grid-template-columns: minmax(0, 1fr) 118px;
+    grid-template-areas:
+      "student touch"
+      "status status"
+      "actions actions";
+    align-items: start;
+    gap: 8px 10px;
+    padding: 12px 12px 12px 15px;
   }
 
   .roster-row:first-child {
     border-radius: 14px 14px 0 0;
   }
 
-  .cell-actions {
-    justify-content: flex-start;
-    gap: 6px;
-    margin-top: 4px;
+  .col-student {
+    grid-area: student;
   }
 
-  .cell-subject {
-    display: none;
+  .col-touch {
+    grid-area: touch;
   }
 
-  .cell-status .subject-in-status {
-    display: inline-flex;
+  .col-status {
+    grid-area: status;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .col-actions {
+    grid-area: actions;
+    justify-content: stretch;
+  }
+
+  .row-log-button {
+    flex: 1;
   }
 }
 

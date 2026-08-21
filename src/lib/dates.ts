@@ -68,3 +68,15 @@ export function formatSydneyHeaderDate(): string {
 export function formatSydneyFullDate(dateIso: string): string {
   return formatSydneyDayMonth(new Date(`${dateIso}T00:00:00Z`));
 }
+
+// A short day and month, for the last contact line on a roster row.
+export function formatSydneyShortDate(dateIso: string): string {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+  }).formatToParts(new Date(`${dateIso}T00:00:00Z`));
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  return `${day} ${month}`;
+}

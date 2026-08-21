@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PinGate } from "../hooks/usePinGate";
 import { copyText } from "../lib/clipboard";
-import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
+import { formatSydneyFullDate, formatSydneyShortDate, formatSydneyTime } from "../lib/dates";
 import { deriveStatus, isP2Done, latestStatusEntryPerStudent, type ContactStatus } from "../lib/p2";
 import { parentEmailPairs, parentFirstNames, type MessageTemplate } from "../lib/templates";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
@@ -70,25 +70,32 @@ type TrackerScreenProps = {
   pinGate: PinGate;
 };
 
-const BADGES: Record<ContactStatus, { label: string; cls: string }> = {
-  none: { label: "No contact", cls: "badge-neutral" },
-  p2_complete: { label: "P2 Complete", cls: "badge-success" },
-  email_report: { label: "Email Report", cls: "badge-report" },
-  low_risk: { label: "Low Risk", cls: "badge-calm" },
-  attempted: { label: "Attempted", cls: "badge-attempted" },
-  sms: { label: "SMS Sent", cls: "badge-sms" },
-  light: { label: "Light Touch", cls: "badge-email" },
-  // Filtered out before a badge is ever derived, so this label is a
-  // fallback that should never appear on a row.
-  touch_email: { label: "Touch Point Email", cls: "badge-neutral" },
+// The pill colour now comes from the row state (done, overdue, due this
+// week, or neutral), so only the wording lives here.
+const STATUS_LABELS: Record<ContactStatus, string> = {
+  none: "No contact",
+  p2_complete: "P2 Complete",
+  email_report: "Email Report",
+  low_risk: "Low Risk",
+  attempted: "Attempted",
+  sms: "SMS Sent",
+  light: "Light Touch",
+  // Filtered out before a status is ever derived, so this should never show.
+  touch_email: "Touch Point Email",
 };
 
-function subjectClass(subject: string | null): string {
-  const value = (subject ?? "").trim().toLowerCase();
-  if (value === "maths") return "subject-maths";
-  if (value === "english") return "subject-english";
-  if (value === "both") return "subject-both";
-  return "badge-neutral";
+// Short labels for the last contact line under the status pill.
+const SHORT_METHODS: Record<string, string> = {
+  "full p2": "Call",
+  "full email report": "Email report",
+  "low risk parent": "Low risk",
+  "sms only": "SMS",
+  "light touch": "Light touch",
+};
+
+function shortMethod(method: string | null): string {
+  const key = (method ?? "").trim().toLowerCase();
+  return SHORT_METHODS[key] ?? method ?? "Contact";
 }
 
 function normaliseParentName(name: string | null | undefined): string {
@@ -120,6 +127,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [toolPanel, setToolPanel] = useState<"help" | "sms" | "email" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [rowMenuId, setRowMenuId] = useState<string | null>(null);
+  const rowMenuRef = useRef<HTMLDivElement | null>(null);
 
   // The overflow menu closes on a tap outside or on escape, the way an iOS
   // popover does. It is anchored inline, never a dialog.
@@ -138,6 +147,23 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
+
+  // The row overflow menu closes the same way the toolbar one does.
+  useEffect(() => {
+    if (!rowMenuId) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rowMenuRef.current?.contains(event.target as Node)) setRowMenuId(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRowMenuId(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [rowMenuId]);
 
   const liveRef = useRef(true);
   useEffect(() => {
@@ -665,15 +691,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           ) : (
             <div className="roster-table">
               <div className="roster-head" aria-hidden="true">
-                <span className="cell-student">Student</span>
-                <span className="cell-parent">Parent</span>
-                <span className="cell-subject">Subject</span>
-                <span className="cell-status">Status</span>
-                <span className="cell-actions">Actions</span>
+                <span className="col-student">Student</span>
+                <span className="col-status">P2 status</span>
+                <span className="col-touch">Touch points</span>
+                <span className="col-actions" />
               </div>
               <ul className="roster-body">
-                {filtered.map(({ student, status, overdue, focus }) => {
-                  const badge = BADGES[status];
+                {filtered.map(({ student, status, done, overdue, focus }) => {
+                  const statusLabel = STATUS_LABELS[status];
                   const openKind =
                     panel && panel.studentId === String(student.id) ? panel.kind : null;
                   const historyEntries =
@@ -681,112 +706,163 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                       ? logs.filter((log) => String(log.student_id) === String(student.id))
                       : [];
                   const touch = touchPointsByStudent.get(String(student.id));
+                  const touchCount = touch?.count ?? 0;
+                  const touchWord = touchCount === 1 ? "Touch point" : "Touch points";
                   const touchLabel = touch
-                    ? `${touch.count} touch ${touch.count === 1 ? "point" : "points"}${
+                    ? `${touchCount} touch ${touchCount === 1 ? "point" : "points"}${
                         touch.latestDate ? `, latest ${formatSydneyFullDate(touch.latestDate)}` : ""
                       }`
                     : "";
+                  // Green when done, red when overdue, amber when due this
+                  // week, neutral otherwise.
+                  const tone = done ? "good" : overdue ? "danger" : focus ? "warn" : "neutral";
+                  const lastEntry = latestByStudent.get(String(student.id));
+                  const lastContact =
+                    lastEntry && lastEntry.date_contacted
+                      ? `${shortMethod(lastEntry.method)}, ${formatSydneyShortDate(lastEntry.date_contacted)}`
+                      : null;
+                  const rowMenu = rowMenuId === String(student.id);
                   return (
                     <li
                       key={student.id}
                       className={`roster-row${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
                     >
-                      <p className="cell-student">
-                        {student.is_priority ? (
-                          <StarIcon className="roster-star" size={12} />
-                        ) : null}
-                        <span className="cell-student-name">{student.student_name}</span>
-                        {touch ? (
+                      <div className="col-student">
+                        <p className="row-name">
+                          {student.is_priority ? (
+                            <StarIcon className="roster-star" size={12} />
+                          ) : null}
+                          <span className="row-name-text">{student.student_name}</span>
+                        </p>
+                        <p className="row-sub">
+                          <span className="row-parent">
+                            {student.parent_name ?? "No parent name"}
+                          </span>
+                          {student.parent_phone ? (
+                            <span className="row-phone">{student.parent_phone}</span>
+                          ) : null}
+                        </p>
+                      </div>
+
+                      <div className="col-status">
+                        <span className={`status-pill status-pill-${tone}`}>
+                          <span className="status-dot" aria-hidden="true" />
+                          {statusLabel}
+                        </span>
+                        {lastContact ? <span className="status-last">{lastContact}</span> : null}
+                      </div>
+
+                      <div className="col-touch">
+                        {touchCount > 0 ? (
                           <button
                             type="button"
-                            className="touch-chip"
+                            className="touch-badge"
                             aria-label={touchLabel}
                             title={touchLabel}
                             onClick={() => openPanel("touch", student.id)}
                           >
-                            <span className="touch-chip-pill">{touch.count}</span>
+                            <MailIcon className="touch-badge-icon" size={13} />
+                            <span className="touch-badge-count">{touchCount}</span>
+                            <span className="touch-badge-label">{touchWord}</span>
                           </button>
-                        ) : null}
-                      </p>
-                      <p className="cell-parent">
-                        <span className="cell-parent-name">
-                          {student.parent_name ?? "No parent name"}
-                        </span>
-                        {student.parent_phone ? (
-                          <span className="cell-phone">{student.parent_phone}</span>
-                        ) : null}
-                      </p>
-                      <p className="cell-subject">
-                        <span className={`badge ${subjectClass(student.subject)}`}>
-                          {student.subject ?? "None"}
-                        </span>
-                      </p>
-                      <div className="cell-status">
-                        <span
-                          className={`badge subject-in-status ${subjectClass(student.subject)}`}
-                        >
-                          {student.subject ?? "None"}
-                        </span>
-                        <span className={`badge ${badge.cls}`}>{badge.label}</span>
-                        {overdue ? <span className="badge badge-danger">Overdue</span> : null}
-                        {focus ? <span className="badge badge-highlight">This Week</span> : null}
+                        ) : (
+                          <span
+                            className="touch-badge is-empty"
+                            aria-label={`No touch points for ${student.student_name}`}
+                          >
+                            <MailIcon className="touch-badge-icon" size={13} />
+                            <span className="touch-badge-count">0</span>
+                            <span className="touch-badge-label">{touchWord}</span>
+                          </span>
+                        )}
                       </div>
-                      <div className="cell-actions">
+
+                      <div className="col-actions">
                         <button
                           type="button"
-                          className="icon-button icon-button-primary"
+                          className="row-log-button"
                           aria-label={`Log contact for ${student.student_name}`}
-                          title="Log contact"
                           onClick={() => openPanel("log", student.id)}
                         >
-                          <PlusIcon />
+                          <PlusIcon size={15} />
+                          Log
                         </button>
                         <button
                           type="button"
-                          className="icon-button icon-button-quiet"
-                          aria-label={
-                            student.parent_phone
-                              ? `Send an SMS about ${student.student_name}`
-                              : `No phone number for ${student.student_name}`
-                          }
-                          title={student.parent_phone ? "Send SMS" : "No phone number"}
-                          disabled={!student.parent_phone}
-                          onClick={() => openPanel("sms", student.id)}
-                        >
-                          <MessageIcon />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-button icon-button-quiet"
-                          aria-label={
-                            student.parent_email
-                              ? `Email about ${student.student_name}`
-                              : `No email address for ${student.student_name}`
-                          }
-                          title={student.parent_email ? "Send email" : "No email address"}
-                          disabled={!student.parent_email}
-                          onClick={() => openPanel("email", student.id)}
-                        >
-                          <MailIcon />
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-button icon-button-quiet"
+                          className="row-square-button"
                           aria-label={`Contact history for ${student.student_name}`}
                           title="History"
                           onClick={() => openPanel("history", student.id)}
                         >
                           <HistoryIcon />
                         </button>
-                        <button
-                          type="button"
-                          className="icon-button icon-button-danger"
-                          aria-label={`Delete ${student.student_name}`}
-                          title="Delete student"
-                          onClick={() => openPanel("delete", student.id)}
-                        >
-                          <TrashIcon />
-                        </button>
+                        <div className="row-menu-wrap" ref={rowMenu ? rowMenuRef : undefined}>
+                          <button
+                            type="button"
+                            className="row-square-button"
+                            aria-haspopup="menu"
+                            aria-expanded={rowMenu}
+                            aria-label={`More actions for ${student.student_name}`}
+                            title="More actions"
+                            onClick={() =>
+                              setRowMenuId((current) =>
+                                current === String(student.id) ? null : String(student.id),
+                              )
+                            }
+                          >
+                            <MoreIcon size={16} />
+                          </button>
+                          {rowMenu ? (
+                            <div
+                              className="action-menu row-menu"
+                              role="menu"
+                              aria-label={`More actions for ${student.student_name}`}
+                            >
+                              <div className="action-menu-group">
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="action-menu-item"
+                                  disabled={!student.parent_phone}
+                                  onClick={() => {
+                                    setRowMenuId(null);
+                                    openPanel("sms", student.id);
+                                  }}
+                                >
+                                  {student.parent_phone ? "Send an SMS" : "No phone number"}
+                                  <MessageIcon className="action-menu-icon" />
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="action-menu-item"
+                                  disabled={!student.parent_email}
+                                  onClick={() => {
+                                    setRowMenuId(null);
+                                    openPanel("email", student.id);
+                                  }}
+                                >
+                                  {student.parent_email ? "Send an email" : "No email address"}
+                                  <MailIcon className="action-menu-icon" />
+                                </button>
+                              </div>
+                              <div className="action-menu-group">
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="action-menu-item action-menu-item-danger"
+                                  onClick={() => {
+                                    setRowMenuId(null);
+                                    openPanel("delete", student.id);
+                                  }}
+                                >
+                                  Delete student
+                                  <TrashIcon className="action-menu-icon" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                       {openKind === "log" ? (
                         <LogContactPanel
