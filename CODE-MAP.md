@@ -57,11 +57,10 @@ with two children is copied once, matching the way the weekly focus
 matches names and the way the Monday agent picks 18 parents rather than
 18 students.
 
-Realtime covers contact_log, students, weekly_focus and term_settings
-through the signed in client. The old tracker also watched
-calendly_mismatches, which is not subscribed here because the Calendly
-mismatch banner it fed has no surface in Touch Points yet. If that
-banner is ever ported, the fifth subscription goes back with it.
+Realtime covers contact_log, students, weekly_focus, term_settings and
+calendly_mismatches through the signed in client, matching the old
+tracker's five tables exactly. The fifth went back on 21 August 2026
+when the mismatch banner was built.
 
 ## Calendly display verification, 12 August 2026
 
@@ -152,39 +151,56 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
-## calendly_mismatches: porting notes, not built
+## calendly_mismatches: the review feature, built 21 August 2026
 
-Mismatched bookings are currently invisible in Touch Points. Old Janice
-selected id, invitee_name, student_name_given, event_start_time and
-reviewed from calendly_mismatches filtered to reviewed false, ordered by
-event time ascending, kept it live with a realtime subscription, and
-showed a red banner above the roster reading "N unmatched Calendly
-booking(s) need review" with a Review button and a dismiss X whose
-dismissal was session only and never persisted. Review opened a modal
-listing each booking with the invitee name, the student name the parent
-typed and the event time; you searched active students by student or
-parent name, picked one, and Confirm Match inserted a FULL P2 with
-Reached contact_log row dated from the event start, then set reviewed
-true. Dismiss set reviewed true with no log row.
+Mismatched bookings surface on the Parents screen. loadRoster reads id,
+invitee_name, student_name_given, event_start_time and reviewed from
+calendly_mismatches filtered to reviewed false, ordered by event time
+ascending, as the fifth entry in the existing Promise.all. That read is
+deliberately outside the fatal error check: if it alone fails the roster
+is still correct, so the screen shows no banner rather than blanking.
 
-Porting is roughly one focused session, comparable to the template
-manager work. It needs the fifth realtime subscription, a fetch added to
-loadRoster, a banner strip sitting naturally between the progress bar
-and the search pill using the existing badge danger and row danger
-tokens, and the modal rebuilt as an inline panel. The tool panel slot
-already takes a fourth kind, though the banner rather than the overflow
-menu should open it, since it is a state driven alert and not a standing
-action. The only genuinely new interface is the student picker with
-search.
+A red banner sits between the progress bar and the search pill whenever
+any exist, reading "N Calendly booking(s) need review" in the existing
+badge danger tokens, and disappears entirely at zero. It is the whole
+strip, not a label with a button: tapping anywhere on it toggles an
+inline panel below it, never a dialog. There is no session dismiss on
+the banner, unlike old Janice: at zero it is gone, and above zero it is
+the point.
 
-Two improvements on the old behaviour when it is built:
+MismatchPanel.tsx lists each booking with the invitee name, the name the
+parent typed and the Sydney event time. src/lib/mismatch.ts ranks the
+roster and offers up to three one tap options, each labelled with both
+the student and the parent name so what is being confirmed is
+unmistakable, plus a search box over the full roster as the fallback.
+Ranking only orders the candidates. Nothing is ever auto confirmed,
+because a wrong attribution writes a completed P2 against the wrong
+student, which is worse than the gap it was meant to close.
 
-1. Set logged_at explicitly on the match insert. The old code omitted
-   it, which is exactly the pattern that made risk 1 above possible.
-2. Reconsider the dismiss button. A booking dismissed from the banner
-   without being reviewed is a parent meeting that silently never lands
-   in the tracker, which is the opposite of making the gaps impossible
-   to miss.
+Confirming inserts a FULL P2 with Reached contact_log row dated from the
+Sydney date of the event start, then sets reviewed true. The new row is
+pushed into the same logs state the badges, six stat tiles and progress
+bar all derive from, so every one of them updates in the same render.
+If the insert succeeds but the mark fails, the panel says the contact
+was saved and the booking could not be cleared, rather than implying
+nothing happened.
+
+Both improvements planned in the earlier porting notes were built:
+
+1. logged_at is set explicitly on the match insert, so the row can never
+   sort as the newest entry forever and pin a student as complete.
+2. Dismiss is no longer silent. The control reads "Not a P2", not
+   "Dismiss", and takes a second tap behind the question "Set aside with
+   no contact recorded?". More importantly it is reversible: "Show
+   bookings set aside" reads back the reviewed true rows and each offers
+   "Bring back", which sets reviewed false and returns the booking to
+   the banner. Nothing needed a schema change, because reviewed was
+   always a boolean that could be set either way. The old behaviour let
+   a real parent meeting be waved away in one tap and never land, with
+   no way to find it again.
+
+Not built: the old modal presentation, and any write to calendly_mismatches
+beyond the reviewed flag. The Apps Script owns every other column.
 
 ## Phase 1 plan (as built)
 
