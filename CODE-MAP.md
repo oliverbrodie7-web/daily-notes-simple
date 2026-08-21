@@ -153,6 +153,51 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Stat tiles filter the list, 21 August 2026
+
+Current Week was removed: the term bar above already names the week. In its
+place, fifth of six between Focus this week and P2 Rate, is No touch point,
+counting active students with no touch point at all this term. It reads the
+same touchPointsByStudent map the row badge reads, so the tile and the badge
+can never disagree, and a student showing a badge of zero is counted here.
+Its number takes the warning colour, since it is a job to do.
+
+Tapping a tile filters the list to exactly the students it counts. Tapping
+it again clears it, tapping another swaps to it, and only one is ever on.
+P2 Rate does not filter and is not a button, because a percentage is not a
+list of students.
+
+src/lib/rosterFilters.ts is the single definition. Each filter carries its
+tile wording, its bar wording, its empty line, its tint and its predicate,
+and BOTH the tile's number and the filtered list run that one predicate:
+the count is applyFilter(key, rows).length and the list is
+applyFilter(key, sorted). They are the same calculation, so the number in
+the bar and the number on the tile cannot drift apart. Only the counting
+lives there; whether a student is done, overdue, in the focus or touched is
+decided upstream in decorated, which the row badges also read.
+
+The filter applies on top of the existing sort and search rather than
+replacing them. The bar's count is deliberately the tile's number, not the
+number of rows on screen, so a search narrowing further does not change it.
+
+Filter state is plain useState with nothing persisted. The route renders one
+view at a time, so leaving Parents unmounts the screen and the filter is
+gone on return, which is what was wanted.
+
+Two fixes went in alongside. A zero rendered as "00" because padCount padded
+to two characters unconditionally; tileCount now returns "0" for zero and
+keeps the deliberate padding on a real count. And the stat labels had
+white-space nowrap with no width cap, so at 320px "FOCUS THIS WEEK" and
+"NO TOUCH POINT" spilled across the neighbouring tiles. Below the six across
+breakpoint the labels now wrap instead. That one was invisible to the
+measurements and only showed up in a screenshot, because a nowrap label
+grows rather than clipping itself, so scrollWidth never exceeds clientWidth.
+
+Known and left alone: .stat-label and .stat-faint use --text-faint, which is
+2.66 to 1 on the surface. That is pre-existing styling shared by every stat
+label on the screen, so changing it is a separate decision about the token
+rather than part of this work.
+
 ## Name matching rewritten, 21 August 2026
 
 The first version compared the typed name against the full student_name and
