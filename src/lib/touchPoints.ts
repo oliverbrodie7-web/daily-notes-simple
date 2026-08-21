@@ -2,12 +2,17 @@
 // students by name. Nothing is written: they are a parallel track that never
 // reaches contact_log, never reaches deriveStatus, and never displaces a
 // status badge.
+//
+// A note only counts once an email draft was actually created for it. Notes
+// held back with no draft are not contact and are excluded entirely, from
+// both the count and the panel.
 
 export type TouchPointNote = {
   student_name: string | null;
   note_date: string | null;
   note_text: string | null;
   added_by: string | null;
+  draft_created: boolean | null;
 };
 
 export type TouchPointEntry = {
@@ -46,6 +51,8 @@ export function matchTouchPoints<T extends { id: number | string; student_name: 
 
   const summaries = new Map<string, TouchPointSummary>();
   for (const note of notes) {
+    // No draft, no touch point. This is the whole rule.
+    if (note.draft_created !== true) continue;
     const key = normaliseStudentName(note.student_name);
     if (!key) continue;
     const ids = byName.get(key);

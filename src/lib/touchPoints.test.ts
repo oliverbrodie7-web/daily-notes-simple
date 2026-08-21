@@ -6,8 +6,13 @@ const STUDENTS = [
   { id: 2, student_name: "Bella Nguyen" },
 ];
 
-function note(student_name: string | null, note_date = "2026-08-10", added_by = "Sarah") {
-  return { student_name, note_date, note_text: "Worked on fractions.", added_by };
+function note(
+  student_name: string | null,
+  note_date = "2026-08-10",
+  added_by = "Sarah",
+  draft_created: boolean | null = true,
+) {
+  return { student_name, note_date, note_text: "Worked on fractions.", added_by, draft_created };
 }
 
 describe("normalising a typed student name", () => {
@@ -80,6 +85,37 @@ describe("matching notes to students", () => {
       "2026-08-07",
       "2026-08-03",
     ]);
+  });
+
+  it("counts a note only once a draft was created for it", () => {
+    const withDraft = matchTouchPoints([note("Aiden Chen", "2026-08-10", "Sarah", true)], STUDENTS);
+    expect(withDraft.get("1")?.count).toBe(1);
+
+    const heldBack = matchTouchPoints([note("Aiden Chen", "2026-08-10", "Sarah", false)], STUDENTS);
+    expect(heldBack.size).toBe(0);
+  });
+
+  it("treats a missing draft flag as no draft rather than assuming one", () => {
+    expect(matchTouchPoints([note("Aiden Chen", "2026-08-10", "Sarah", null)], STUDENTS).size).toBe(
+      0,
+    );
+  });
+
+  it("keeps undrafted notes out of the panel entries as well as the count", () => {
+    const matched = matchTouchPoints(
+      [
+        note("Aiden Chen", "2026-08-11", "Sarah", true),
+        note("Aiden Chen", "2026-08-10", "Priya", false),
+        note("Aiden Chen", "2026-08-09", "Sarah", true),
+      ],
+      STUDENTS,
+    );
+    expect(matched.get("1")?.count).toBe(2);
+    expect(matched.get("1")?.entries.map((entry) => entry.date)).toEqual([
+      "2026-08-11",
+      "2026-08-09",
+    ]);
+    expect(matched.get("1")?.latestDate).toBe("2026-08-11");
   });
 
   it("keeps the staff member and the note text for the panel", () => {
