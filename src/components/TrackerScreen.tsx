@@ -17,11 +17,13 @@ import {
   type TermRow,
   type TermWarning,
 } from "../lib/terms";
+import type { CalendlyMismatch } from "../lib/mismatch";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
+import { MismatchPanel } from "./MismatchPanel";
 import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
 import {
@@ -138,6 +140,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [terms, setTerms] = useState<ActiveTerm[]>([]);
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
   const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
+  const [mismatches, setMismatches] = useState<CalendlyMismatch[]>([]);
+  const [mismatchOpen, setMismatchOpen] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<MessageTemplate[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -199,7 +203,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   }, []);
 
   const loadRoster = useCallback(async () => {
-    const [studentsRes, logsRes, termRes, focusRes] = await Promise.all([
+    const [studentsRes, logsRes, termRes, focusRes, mismatchRes] = await Promise.all([
       supabase
         .from("students")
         .select("id, student_name, parent_name, parent_phone, parent_email, subject, is_priority")
@@ -220,6 +224,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         .select("term_name, term_start_date, term_end_date, p2_deadline")
         .order("term_start_date", { ascending: true }),
       supabase.from("weekly_focus").select("parent_name, week_start"),
+      supabase
+        .from("calendly_mismatches")
+        .select("id, invitee_name, student_name_given, event_start_time, reviewed")
+        .eq("reviewed", false)
+        .order("event_start_time", { ascending: true }),
     ]);
     if (!liveRef.current) return;
     if (studentsRes.error || logsRes.error || termRes.error || focusRes.error) {
@@ -248,6 +257,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       if (name) names.add(name);
     }
     setFocusNames(names);
+    // Deliberately not part of the fatal check above: if this one read
+    // fails the roster is still correct, so show no banner rather than
+    // blanking the screen.
+    setMismatches((mismatchRes.data ?? []) as CalendlyMismatch[]);
 
     // Touch points are read, never written. Scoped to the current term when
     // one is set, otherwise to a rolling window.
@@ -286,8 +299,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   // Realtime: an agent write or a change on the other device refreshes the
   // roster in place, so badges, the stat strip and the progress bar all
-  // recompute without a reload. The old tracker also watched
-  // calendly_mismatches, which has no surface here yet.
+  // recompute without a reload. All five tables the old tracker watched are
+  // covered now that the mismatch banner has a surface.
   useEffect(() => {
     if (!unlocked) return;
     const refresh = () => {
@@ -299,6 +312,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       .on("postgres_changes", { event: "*", schema: "public", table: "students" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "weekly_focus" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "term_settings" }, refresh)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "calendly_mismatches" },
+        refresh,
+      )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -716,6 +734,41 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
               ) : null}
             </div>
           </div>
+
+          {mismatches.length > 0 ? (
+            <>
+              <button
+                type="button"
+                className="mismatch-banner"
+                aria-expanded={mismatchOpen}
+                aria-controls="mismatch-panel"
+                onClick={() => setMismatchOpen((current) => !current)}
+              >
+                <WarningIcon className="mismatch-banner-icon" size={18} />
+                <span className="mismatch-banner-text">
+                  {mismatches.length === 1
+                    ? "1 Calendly booking needs review"
+                    : `${mismatches.length} Calendly bookings need review`}
+                </span>
+                <span className="mismatch-banner-action">{mismatchOpen ? "Hide" : "Review"}</span>
+              </button>
+              {mismatchOpen ? (
+                <div id="mismatch-panel">
+                  <MismatchPanel
+                    mismatches={mismatches}
+                    students={students ?? []}
+                    onResolved={(id) =>
+                      setMismatches((current) =>
+                        current.filter((entry) => String(entry.id) !== String(id)),
+                      )
+                    }
+                    onLogged={handleLogSaved}
+                    onClose={() => setMismatchOpen(false)}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : null}
 
           <div className="search-pill">
             <SearchIcon className="search-pill-icon" />
