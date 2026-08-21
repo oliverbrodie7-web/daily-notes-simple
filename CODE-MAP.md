@@ -115,12 +115,14 @@ completed P2 and it must never displace a status badge, so it runs on a
 parallel track and is excluded from status derivation entirely.
 
 Built as Option B: daily_notes is read at display time and matched to
-students by name, and nothing is ever written to contact_log. Matching
-mirrors the no_match convention. Names are normalised with trim, lowercase
-and collapsed internal whitespace, and a note is attributed only when
-exactly one ACTIVE student matches. A note matching nobody, or matching two
-enrolled students who share a name, is recorded against nobody rather than
-guessed at.
+students by name, and nothing is ever written to contact_log. Names are
+normalised with trim, lowercase and collapsed internal whitespace, and a
+note is attributed only when exactly one ACTIVE student matches. A note
+matching nobody, or matching two students who could both fit, is recorded
+against nobody rather than guessed at.
+
+The rule was rewritten on 21 August 2026 after it was found to be counting
+almost nothing. See the section below.
 
 The read is scoped to the current term via term_start_date. With no active
 term row there is no term start to scope to, so it falls back to a rolling
@@ -150,6 +152,58 @@ first and later by a unique partial index on student_id and date_contacted
 where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
+
+## Name matching rewritten, 21 August 2026
+
+The first version compared the typed name against the full student_name and
+nothing else. Tutors type a first name, usually with a surname initial like
+"Charlie S", so almost every note was attributed to nobody: about 45 parent
+emails had been drafted while the Parents screen showed a touch point count
+of one. The nightly job was already matching those same notes, because it
+falls back to the first name, so the app was strictly weaker than the
+process that had already proved the notes were matchable.
+
+daily_notes gained a student_id column, a uuid referencing students, empty
+on every existing row. matchNote in src/lib/touchPoints.ts now works
+through four steps in order against the ACTIVE roster, normalising both
+sides the same way throughout, and stops at the first that resolves:
+
+1. student_id, which is a decision a person already made and beats
+   everything below. An id pointing outside the active roster means that
+   student was made inactive since; the note is then unmatched rather than
+   falling back to guessing at the name.
+2. The full name, character for character once normalised.
+3. A first name and a surname initial, with or without a full stop. The
+   given names are accepted as well as the first name, so "Mary Jane W"
+   reaches Mary Jane Wu the same way "Charlie S" reaches Charlie Smith.
+4. A bare first name.
+
+Every note comes back as exactly one of three outcomes: matched naming the
+student, ambiguous listing the students that could fit, or unmatched. Two
+students who both fit is ambiguous at every step, never a guess. The Parents
+screen counts only matched notes and still requires draft_created to be
+true, so ambiguous and unmatched notes are counted nowhere.
+
+The Today screen shows the outcome per note on a line under the note text:
+a green tick and the matched student, or the warning card with either the
+real count of students that could match or "No student found" plus a Match
+to a student button. The button opens MatchStudentPanel, a panel over the
+screen with escape, outside click, a focus trap and focus return. Tapping a
+row writes student_id AND overwrites student_name with the full name, so the
+nightly job, which only reads the typed name, matches it too. There is no
+confirm step: one tap is the match, and it is trivially correctable by
+matching again.
+
+For an ambiguous note the panel lists the candidates the matcher found. For
+an unmatched note it lists the five closest first names, with no similarity
+floor, because an empty panel is a dead end and the search fallback covers
+the rest.
+
+The Today screen loads the active roster to do this, which it did not
+before. That puts student and parent names on a screen outside the PIN
+gate, unlike the Parents screen. Everything is still behind the Supabase
+sign in, and tutors already type student names here, so this was accepted
+rather than overlooked.
 
 ## calendly_mismatches: the review feature, built 21 August 2026
 
