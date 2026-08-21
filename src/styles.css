@@ -1531,7 +1531,13 @@ svg {
   overflow: hidden;
 }
 
+.stat-cell {
+  min-width: 0;
+  display: flex;
+}
+
 .stat-tile {
+  flex: 1;
   min-width: 0;
   background: var(--surface);
   display: flex;
@@ -1541,13 +1547,43 @@ svg {
   padding: 5px 4px;
 }
 
+/* Five of the six tiles turn a filter on. The sixth is a percentage, which
+   is not a list of students, so it stays a plain tile. */
+.stat-tile-button {
+  border: none;
+  border-radius: 0;
+  text-align: center;
+}
+
+/* Active: the tile's own tint, a bar along its bottom edge, and its label
+   in that colour. The bar is an inset shadow so nothing shifts. */
+.stat-tile-button.is-active.is-accent {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.stat-tile-button.is-active.is-accent .stat-label {
+  color: var(--accent);
+}
+
+.stat-tile-button.is-active.is-warning {
+  background: var(--warning-soft);
+  box-shadow: inset 0 -3px 0 var(--warning);
+}
+
+.stat-tile-button.is-active.is-warning .stat-label {
+  color: var(--warning-ink);
+}
+
 .stat-label {
+  max-width: 100%;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-faint);
   white-space: nowrap;
+  text-align: center;
 }
 
 .stat-value {
@@ -1579,6 +1615,68 @@ svg {
 
 .stat-faint {
   color: var(--text-faint);
+}
+
+.stat-warning {
+  color: var(--warning-ink);
+}
+
+/* Says what the list is currently showing. Only present while a filter is
+   on, and it takes the tint of the tile that turned it on. */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 12px;
+  padding: 7px 14px;
+  border-radius: 12px;
+}
+
+.filter-bar-accent {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+}
+
+.filter-bar-warning {
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+}
+
+/* Wide enough that the wording keeps the line and the count wraps whole,
+   rather than the count being squeezed into a sliver and clipped. */
+.filter-bar-text {
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.filter-bar-count {
+  flex: 0 1 auto;
+  color: var(--text-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.filter-bar-clear {
+  flex: none;
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filter-bar-clear:hover {
+  border-color: var(--accent-border);
 }
 
 /* Page header: heading, one quiet subtitle line, and a single overflow
@@ -3216,6 +3314,11 @@ svg {
    parent top left, touch badge top right, then the status, then the
    controls with Log stretching to fill. */
 @media (max-width: 899px) {
+  .stat-label {
+    white-space: normal;
+    line-height: 1.15;
+  }
+
   .roster-head {
     display: none;
   }

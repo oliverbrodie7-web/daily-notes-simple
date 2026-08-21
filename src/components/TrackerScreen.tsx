@@ -18,6 +18,14 @@ import {
   type TermWarning,
 } from "../lib/terms";
 import type { CalendlyMismatch } from "../lib/mismatch";
+import {
+  ROSTER_FILTERS,
+  applyFilter,
+  findFilter,
+  tileCount,
+  toggleFilter,
+  type FilterKey,
+} from "../lib/rosterFilters";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
@@ -128,10 +136,6 @@ function normaliseParentName(name: string | null | undefined): string {
   return (name ?? "").trim().toLowerCase();
 }
 
-function padCount(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
 export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const unlocked = pinGate.state === "unlocked";
 
@@ -142,6 +146,9 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
   const [mismatches, setMismatches] = useState<CalendlyMismatch[]>([]);
   const [mismatchOpen, setMismatchOpen] = useState(false);
+  // Deliberately not persisted anywhere. The screen unmounts when another
+  // view is opened, so a filter never survives leaving and coming back.
+  const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
   const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<MessageTemplate[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -351,9 +358,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       const done = isP2Done(status);
       const overdue = deadlinePassed && !done;
       const focus = !done && focusNames.has(normaliseParentName(student.parent_name));
-      return { student, status, done, overdue, focus };
+      // The same matching and the same draft_created rule the row badge
+      // uses, read from the one map rather than recomputed.
+      const touchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
+      return { student, status, done, overdue, focus, touchPoints };
     });
-  }, [students, latestByStudent, deadlinePassed, focusNames]);
+  }, [students, latestByStudent, deadlinePassed, focusNames, touchPointsByStudent]);
 
   // Default sort: overdue, then contact this week, then priority, then
   // alphabetical by parent, with done students at the bottom.
@@ -374,33 +384,38 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   }, [decorated]);
 
   const filtered = useMemo(() => {
+    const byTile = applyFilter(filterKey, sorted);
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return sorted;
-    return sorted.filter(
+    if (!query) return byTile;
+    return byTile.filter(
       (row) =>
         row.student.student_name.toLowerCase().includes(query) ||
         (row.student.parent_name ?? "").toLowerCase().includes(query),
     );
-  }, [sorted, searchQuery]);
+  }, [sorted, searchQuery, filterKey]);
+
+  // Every tile number comes from the filter that tile turns on, so the
+  // number and the list it produces are the same calculation.
+  const counts = useMemo(() => {
+    const tally = {} as Record<FilterKey, number>;
+    for (const filter of ROSTER_FILTERS) {
+      tally[filter.key] = applyFilter(filter.key, decorated).length;
+    }
+    return tally;
+  }, [decorated]);
 
   const stats = useMemo(() => {
     const total = decorated.length;
-    const complete = decorated.filter((row) => row.done).length;
-    const outstanding = total - complete;
-    const overdue = deadlinePassed ? outstanding : 0;
-    const rate = total === 0 ? 0 : Math.round((complete / total) * 100);
-    const focus = decorated.filter((row) => row.focus).length;
-    let week: number | null = null;
-    if (term?.term_start_date) {
-      const start = new Date(term.term_start_date);
-      start.setHours(0, 0, 0, 0);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const diff = Math.floor((today.getTime() - start.getTime()) / 86_400_000);
-      week = diff >= 0 ? Math.floor(diff / 7) + 1 : null;
-    }
-    return { total, complete, outstanding, overdue, rate, focus, week };
-  }, [decorated, deadlinePassed, term]);
+    const rate = total === 0 ? 0 : Math.round((counts.complete / total) * 100);
+    return {
+      total,
+      complete: counts.complete,
+      outstanding: counts.outstanding,
+      rate,
+    };
+  }, [decorated, counts]);
+
+  const activeFilter = findFilter(filterKey);
 
   const daysToDeadline = useMemo(() => {
     if (!term?.p2_deadline) return null;
@@ -528,26 +543,16 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   const loading = students === null;
 
-  const statTiles = [
-    { label: "P2 Complete", value: padCount(stats.complete), cls: "stat-success" },
-    { label: "P2 Outstanding", value: padCount(stats.outstanding), cls: "stat-plain" },
-    {
-      label: "P2 Overdue",
-      value: padCount(stats.overdue),
-      cls: stats.overdue > 0 ? "stat-danger" : "stat-faint",
-    },
-    {
-      label: "Focus this week",
-      value: padCount(stats.focus),
-      cls: stats.focus > 0 ? "stat-highlight" : "stat-faint",
-    },
-    { label: "P2 Rate", value: `${stats.rate}%`, cls: "stat-accent" },
-    {
-      label: "Current Week",
-      value: stats.week ? `Wk ${padCount(stats.week)}` : "--",
-      cls: "stat-plain",
-    },
-  ];
+  // The colour of a tile's number. Only the wording and the counting rule
+  // live in the filter module; how a number is coloured is presentation.
+  function valueClass(key: FilterKey, value: number): string {
+    if (key === "complete") return "stat-success";
+    if (key === "outstanding") return "stat-plain";
+    if (key === "overdue") return value > 0 ? "stat-danger" : "stat-faint";
+    if (key === "focus") return value > 0 ? "stat-highlight" : "stat-faint";
+    // No touch point is a job to do rather than good news.
+    return value > 0 ? "stat-warning" : "stat-faint";
+  }
 
   return (
     <section
@@ -598,12 +603,35 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           ) : null}
 
           <ul className="stats-hero">
-            {statTiles.map((tile) => (
-              <li key={tile.label} className="stat-tile">
-                <span className="stat-label">{tile.label}</span>
-                <span className={`stat-value ${tile.cls}`}>{tile.value}</span>
-              </li>
-            ))}
+            {ROSTER_FILTERS.map((filter) => {
+              const active = filterKey === filter.key;
+              const value = counts[filter.key];
+              return (
+                <li key={filter.key} className="stat-cell">
+                  <button
+                    type="button"
+                    className={`stat-tile stat-tile-button${
+                      active ? ` is-active is-${filter.tone}` : ""
+                    }`}
+                    aria-pressed={active}
+                    onClick={() => setFilterKey((current) => toggleFilter(current, filter.key))}
+                  >
+                    <span className="stat-label">{filter.tile}</span>
+                    <span className={`stat-value ${valueClass(filter.key, value)}`}>
+                      {tileCount(value)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+            {/* A percentage is not a list of students, so this one never
+                filters and is not a button. */}
+            <li className="stat-cell">
+              <div className="stat-tile">
+                <span className="stat-label">P2 Rate</span>
+                <span className="stat-value stat-accent">{stats.rate}%</span>
+              </div>
+            </li>
           </ul>
 
           <div className="p2-progress">
@@ -810,9 +838,25 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </div>
           ) : null}
 
+          {activeFilter ? (
+            <div className={`filter-bar filter-bar-${activeFilter.tone}`} role="status">
+              <span className="filter-bar-text">{activeFilter.showing}</span>
+              <span className="filter-bar-count">
+                {counts[activeFilter.key]} of {stats.total}
+              </span>
+              <button type="button" className="filter-bar-clear" onClick={() => setFilterKey(null)}>
+                Clear filter
+              </button>
+            </div>
+          ) : null}
+
           {filtered.length === 0 ? (
             <p className="tracker-message">
-              {searchQuery.trim() ? "No students match that search." : "No active students yet."}
+              {activeFilter && counts[activeFilter.key] === 0
+                ? activeFilter.empty
+                : searchQuery.trim()
+                  ? "No students match that search."
+                  : "No active students yet."}
             </p>
           ) : (
             <div className="roster-table">
