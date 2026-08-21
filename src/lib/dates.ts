@@ -80,3 +80,17 @@ export function formatSydneyShortDate(dateIso: string): string {
   const month = parts.find((part) => part.type === "month")?.value ?? "";
   return `${day} ${month}`;
 }
+
+// Day, month and year with no weekday, for the term runway banner: the year
+// matters there because the date is often more than a year away.
+export function formatSydneyDateWithYear(dateIso: string): string {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).formatToParts(new Date(`${dateIso}T00:00:00Z`));
+  const part = (type: Intl.DateTimeFormatPart["type"]) =>
+    parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("day")} ${part("month")} ${part("year")}`;
+}

@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PinGate } from "../hooks/usePinGate";
 import { copyText } from "../lib/clipboard";
-import { formatSydneyFullDate, formatSydneyShortDate, formatSydneyTime } from "../lib/dates";
+import {
+  formatSydneyFullDate,
+  formatSydneyDateWithYear,
+  formatSydneyShortDate,
+  formatSydneyTime,
+  sydneyTodayIso,
+} from "../lib/dates";
 import { deriveStatus, isP2Done, latestStatusEntryPerStudent, type ContactStatus } from "../lib/p2";
 import { parentEmailPairs, parentFirstNames, type MessageTemplate } from "../lib/templates";
+import {
+  lastTermEnd,
+  pickTermForDate,
+  termWarning,
+  type TermRow,
+  type TermWarning,
+} from "../lib/terms";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
@@ -13,6 +26,7 @@ import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
 import {
   AtIcon,
+  CloseIcon,
   HelpIcon,
   HistoryIcon,
   MailIcon,
@@ -23,6 +37,7 @@ import {
   SearchIcon,
   StarIcon,
   TrashIcon,
+  WarningIcon,
 } from "./Icons";
 
 type RosterStudent = {
@@ -49,6 +64,19 @@ type RowPanel = {
   studentId: string;
 } | null;
 
+// The soon to run out reminder is dismissed for this browser session only,
+// so it comes back on the next visit. The blocking one cannot be dismissed
+// at all, because the numbers on screen are wrong until it is dealt with.
+const RUNWAY_DISMISS_KEY = "touch-points-term-runway-dismissed";
+
+function readRunwayDismissed(): boolean {
+  try {
+    return window.sessionStorage.getItem(RUNWAY_DISMISS_KEY) === "yes";
+  } catch {
+    return false;
+  }
+}
+
 // With no active term row there is no term start to scope to, so the touch
 // point read falls back to a rolling ninety day window, which is close
 // enough to one term that the indicator means the same thing either way.
@@ -60,11 +88,7 @@ function fallbackWindowStart(): string {
   return start.toISOString().slice(0, 10);
 }
 
-type ActiveTerm = {
-  term_name: string | null;
-  term_start_date: string | null;
-  p2_deadline: string | null;
-};
+type ActiveTerm = TermRow;
 
 type TrackerScreenProps = {
   pinGate: PinGate;
@@ -111,7 +135,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   const [students, setStudents] = useState<RosterStudent[] | null>(null);
   const [logs, setLogs] = useState<RosterLog[]>([]);
-  const [term, setTerm] = useState<ActiveTerm | null>(null);
+  const [terms, setTerms] = useState<ActiveTerm[]>([]);
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
   const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
   const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
@@ -128,6 +152,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [rowMenuId, setRowMenuId] = useState<string | null>(null);
+  const [runwayDismissed, setRunwayDismissed] = useState(readRunwayDismissed);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
 
   // The overflow menu closes on a tap outside or on escape, the way an iOS
@@ -189,13 +214,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         .order("logged_at", { ascending: false, nullsFirst: false })
         .order("date_contacted", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false }),
+      // Every term, chosen from by date. is_active is deliberately not read.
       supabase
         .from("term_settings")
-        .select("term_name, term_start_date, p2_deadline")
-        .eq("is_active", true)
-        .order("p2_deadline", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+        .select("term_name, term_start_date, term_end_date, p2_deadline")
+        .order("term_start_date", { ascending: true }),
       supabase.from("weekly_focus").select("parent_name, week_start"),
     ]);
     if (!liveRef.current) return;
@@ -207,7 +230,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     setLoadFailed(false);
     setStudents((studentsRes.data ?? []) as RosterStudent[]);
     setLogs((logsRes.data ?? []) as RosterLog[]);
-    setTerm((termRes.data ?? null) as ActiveTerm | null);
+    setTerms((termRes.data ?? []) as ActiveTerm[]);
 
     // Focus rows for the latest week only, matched by normalised parent name.
     const focusRows = (focusRes.data ?? []) as {
@@ -228,8 +251,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
     // Touch points are read, never written. Scoped to the current term when
     // one is set, otherwise to a rolling window.
-    const term = (termRes.data ?? null) as ActiveTerm | null;
-    const windowStart = term?.term_start_date ?? fallbackWindowStart();
+    const activeTerm = pickTermForDate((termRes.data ?? []) as ActiveTerm[], sydneyTodayIso());
+    const windowStart = activeTerm?.term_start_date ?? fallbackWindowStart();
     const notesRes = await supabase
       .from("daily_notes")
       .select("student_name, note_date, note_text, added_by, draft_created")
@@ -284,6 +307,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   // Touch points are filtered out here, so a badge only ever derives from
   // the most recent entry that is not a touch point.
+  // The term the screen works from, chosen by today's Sydney date. Every
+  // downstream calculation reads this exactly as it did before.
+  const today = sydneyTodayIso();
+  const term = useMemo(() => pickTermForDate(terms, today), [terms, today]);
+  const warning = useMemo<TermWarning>(() => termWarning(terms, today), [terms, today]);
+  const lastEnd = useMemo(() => lastTermEnd(terms), [terms]);
+
   const latestByStudent = useMemo(() => latestStatusEntryPerStudent(logs), [logs]);
 
   const touchPointsByStudent = useMemo(
@@ -375,6 +405,15 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   // Export: parent first names only for everyone not yet P2 done, one entry
   // per parent, no email addresses at all.
+  function dismissRunway() {
+    setRunwayDismissed(true);
+    try {
+      window.sessionStorage.setItem(RUNWAY_DISMISS_KEY, "yes");
+    } catch {
+      // Private browsing can block storage; it stays dismissed for now.
+    }
+  }
+
   function showExportMessage(text: string) {
     setExportMessage(text);
     window.setTimeout(() => {
@@ -506,6 +545,40 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         </p>
       ) : (
         <>
+          {warning === "expired" ? (
+            <div className="term-banner term-banner-expired" role="alert">
+              <WarningIcon className="term-banner-icon" size={20} />
+              <div className="term-banner-body">
+                <p className="term-banner-title">No term is set for today</p>
+                <p className="term-banner-text">
+                  P2 deadlines and touch point counts are falling back to the last 90 days. Add this
+                  year's term dates to fix it.
+                </p>
+              </div>
+            </div>
+          ) : warning === "ending-soon" && !runwayDismissed ? (
+            <div className="term-banner term-banner-runway" role="status">
+              <WarningIcon className="term-banner-icon" size={20} />
+              <div className="term-banner-body">
+                <p className="term-banner-title">Term dates run out soon</p>
+                <p className="term-banner-text">
+                  The last term set up ends on {lastEnd ? formatSydneyDateWithYear(lastEnd) : ""}.
+                  Add the next year's terms before then, or the P2 dates and touch point counts will
+                  stop being accurate.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="term-banner-dismiss"
+                aria-label="Dismiss this reminder"
+                title="Dismiss this reminder"
+                onClick={dismissRunway}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          ) : null}
+
           <ul className="stats-hero">
             {statTiles.map((tile) => (
               <li key={tile.label} className="stat-tile">

@@ -2141,6 +2141,77 @@ svg {
   text-decoration: none;
 }
 
+/* The term runway banner, above the stat tiles. Amber while there is still
+   time, red once the numbers on screen are already wrong. */
+.term-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: 14px;
+}
+
+.term-banner-runway {
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
+}
+
+.term-banner-runway .term-banner-icon {
+  color: var(--warning);
+}
+
+.term-banner-expired {
+  background: var(--badge-danger-bg);
+  border-color: var(--badge-danger-text);
+}
+
+.term-banner-expired .term-banner-icon {
+  color: var(--badge-danger-text);
+}
+
+.term-banner-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.term-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.term-banner-title {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--text);
+}
+
+.term-banner-text {
+  margin-top: 2px;
+  color: var(--text-soft);
+  font-size: 13.5px;
+  overflow-wrap: break-word;
+}
+
+.term-banner-dismiss {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -4px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-soft);
+}
+
+.term-banner-dismiss:hover {
+  color: var(--text);
+}
+
 /* The P2 progress bar sits with the stat strip as a one line summary. */
 .p2-progress {
   margin-top: 10px;
