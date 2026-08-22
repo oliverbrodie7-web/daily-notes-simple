@@ -43,6 +43,15 @@ export function pickTermForDate(terms: TermRow[], todayIso: string): TermRow | n
   return finished[0] ?? null;
 }
 
+// Which week of the term a date falls in, counting the start date as week
+// one. Null before the term starts or when there is no term. ISO strings
+// compare and subtract without a timezone, the same as everything else here.
+export function termWeek(term: TermRow | null, todayIso: string): number | null {
+  if (!term?.term_start_date || !todayIso) return null;
+  const days = daysBetween(term.term_start_date, todayIso);
+  return days < 0 ? null : Math.floor(days / 7) + 1;
+}
+
 export function lastTermEnd(terms: TermRow[]): string | null {
   const ends = terms.filter(usable).map((term) => term.term_end_date!);
   if (!ends.length) return null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { TERM_RUNWAY_DAYS, lastTermEnd, pickTermForDate, termWarning } from "./terms";
+import { TERM_RUNWAY_DAYS, lastTermEnd, pickTermForDate, termWarning, termWeek } from "./terms";
 
 // Two consecutive terms with a holiday between them, plus a third later on.
 const TERMS = [
@@ -77,7 +77,12 @@ describe("picking the term by today's date", () => {
 
   it("skips rows with a missing start or end date rather than guessing", () => {
     const broken = [
-      { term_name: "No end", term_start_date: "2026-07-13", term_end_date: null, p2_deadline: null },
+      {
+        term_name: "No end",
+        term_start_date: "2026-07-13",
+        term_end_date: null,
+        p2_deadline: null,
+      },
       ...TERMS,
     ];
     expect(pickTermForDate(broken, "2026-08-12")?.term_name).toBe("Term 3 2026");
@@ -127,5 +132,35 @@ describe("finding the last term end", () => {
 
   it("returns nothing when no row carries dates", () => {
     expect(lastTermEnd([])).toBeNull();
+  });
+});
+
+describe("which week of the term a date falls in", () => {
+  const term = {
+    term_name: "Term 3 2026",
+    term_start_date: "2026-07-20",
+    term_end_date: "2026-09-25",
+    p2_deadline: "2026-09-11",
+  };
+
+  it("counts the start date as week one", () => {
+    expect(termWeek(term, "2026-07-20")).toBe(1);
+    expect(termWeek(term, "2026-07-26")).toBe(1);
+  });
+
+  it("rolls over on the seventh day", () => {
+    expect(termWeek(term, "2026-07-27")).toBe(2);
+    expect(termWeek(term, "2026-08-21")).toBe(5);
+  });
+
+  it("puts the P2 deadline in week eight, where it now sits", () => {
+    expect(termWeek(term, "2026-09-11")).toBe(8);
+  });
+
+  it("gives nothing before the term starts or with no term", () => {
+    expect(termWeek(term, "2026-07-19")).toBeNull();
+    expect(termWeek(null, "2026-08-21")).toBeNull();
+    expect(termWeek({ ...term, term_start_date: null }, "2026-08-21")).toBeNull();
+    expect(termWeek(term, "")).toBeNull();
   });
 });
