@@ -35,11 +35,19 @@ import {
   type SortDirection,
   type SortKey,
 } from "../lib/rosterSort";
+import {
+  beforeCounting,
+  engagementByEmail,
+  engagementFor,
+  hasGoneQuiet,
+  type ParentEmail,
+} from "../lib/engagement";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
+import { EngagementBar, EngagementPanel } from "./Engagement";
 import { MismatchPanel } from "./MismatchPanel";
 import { ScreenBar } from "./ScreenBar";
 import { SortArrow, SortMenu } from "./SortMenu";
@@ -155,8 +163,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [terms, setTerms] = useState<ActiveTerm[]>([]);
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
   const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
+  const [parentEmails, setParentEmails] = useState<ParentEmail[]>([]);
   const [mismatches, setMismatches] = useState<CalendlyMismatch[]>([]);
   const [mismatchOpen, setMismatchOpen] = useState(false);
+  const [engageId, setEngageId] = useState<string | null>(null);
   // Deliberately not persisted anywhere. The screen unmounts when another
   // view is opened, so a filter never survives leaving and coming back.
   const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
@@ -295,6 +305,17 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       .order("note_date", { ascending: false });
     if (!liveRef.current) return;
     setTouchNotes((notesRes.data ?? []) as TouchPointNote[]);
+
+    // Engagement. Read only: a weekly job owns this table and the app never
+    // writes to it. Scoped to the term, and not part of the fatal check,
+    // since a failure here leaves the rest of the roster correct.
+    const emailsRes = await supabase
+      .from("parent_emails")
+      .select("parent_email, received_at, subject, is_touch_point_reply")
+      .gte("received_at", windowStart)
+      .order("received_at", { ascending: false });
+    if (!liveRef.current) return;
+    setParentEmails((emailsRes.data ?? []) as ParentEmail[]);
   }, []);
 
   useEffect(() => {
@@ -361,6 +382,22 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     [touchNotes, students],
   );
 
+  // One pass over the term's emails, grouped by the parent's address.
+  // Siblings share an address, so they share an entry and show identical
+  // figures, which is intended.
+  const engagementByParent = useMemo(
+    () =>
+      engagementByEmail(parentEmails, {
+        termStart: term?.term_start_date,
+        termEnd: term?.term_end_date,
+        now: new Date(),
+      }),
+    [parentEmails, term],
+  );
+
+  // While today is still in the first fortnight nothing is counting yet.
+  const countingYet = !beforeCounting(term?.term_start_date, today);
+
   // Overdue mirrors the old tracker: no active term means nothing is overdue.
   const deadlinePassed = useMemo(() => {
     if (!term?.p2_deadline) return false;
@@ -378,9 +415,30 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       const touchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
       // The same entry the row's last contact line shows.
       const lastContacted = latestByStudent.get(String(student.id))?.date_contacted ?? null;
-      return { student, status, done, overdue, focus, touchPoints, lastContacted };
+      const engagement = engagementFor(student.parent_email, engagementByParent);
+      return {
+        student,
+        status,
+        done,
+        overdue,
+        focus,
+        touchPoints,
+        lastContacted,
+        engagement: engagement.score,
+        emails: engagement,
+        // Nothing has gone quiet while the first fortnight is still running.
+        goneQuiet: countingYet && hasGoneQuiet(engagement),
+      };
     });
-  }, [students, latestByStudent, deadlinePassed, focusNames, touchPointsByStudent]);
+  }, [
+    students,
+    latestByStudent,
+    deadlinePassed,
+    focusNames,
+    touchPointsByStudent,
+    engagementByParent,
+    countingYet,
+  ]);
 
   // Sorting only reorders. Which students are shown is decided by the
   // filter and the search below, never here.
@@ -422,11 +480,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   }, [decorated, counts]);
 
   const activeFilter = findFilter(filterKey);
+  const engageRow = engageId
+    ? decorated.find((row) => String(row.student.id) === engageId)
+    : undefined;
   const sortColumn = findSort(sortKey).column;
 
   // The sorted column heading takes the accent colour and an arrow. The
   // others are untouched.
-  function headClass(column: "student" | "status" | "touch"): string {
+  function headClass(column: "student" | "status" | "touch" | "engagement"): string {
     const base = `col-${column}`;
     return sortColumn === column ? `${base} is-sorted` : base;
   }
@@ -588,7 +649,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     if (key === "outstanding") return "stat-plain";
     if (key === "overdue") return value > 0 ? "stat-danger" : "stat-faint";
     if (key === "focus") return value > 0 ? "stat-highlight" : "stat-faint";
-    // No touch point is a job to do rather than good news.
+    // No touch point and Gone quiet are both jobs to do rather than good
+    // news, so they take the warning colour.
     return value > 0 ? "stat-warning" : "stat-faint";
   }
 
@@ -662,14 +724,6 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                 </li>
               );
             })}
-            {/* A percentage is not a list of students, so this one never
-                filters and is not a button. */}
-            <li className="stat-cell">
-              <div className="stat-tile">
-                <span className="stat-label">P2 Rate</span>
-                <span className="stat-value stat-accent">{stats.rate}%</span>
-              </div>
-            </li>
           </ul>
 
           <div className="p2-progress">
@@ -911,6 +965,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                     P2 status
                     {sortColumn === "status" ? <SortArrow direction={sortDirection} /> : null}
                   </span>
+                  <span className={headClass("engagement")}>
+                    Engagement
+                    {sortColumn === "engagement" ? <SortArrow direction={sortDirection} /> : null}
+                  </span>
                   <span className={headClass("touch")}>
                     Touch points
                     {sortColumn === "touch" ? <SortArrow direction={sortDirection} /> : null}
@@ -918,7 +976,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                   <span className="col-actions" />
                 </div>
                 <ul className="roster-body">
-                  {filtered.map(({ student, status, done, overdue, focus }) => {
+                  {filtered.map(({ student, status, done, overdue, focus, emails }) => {
                     const statusLabel = STATUS_LABELS[status];
                     const openKind =
                       panel && panel.studentId === String(student.id) ? panel.kind : null;
@@ -973,6 +1031,15 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                             {statusLabel}
                           </span>
                           {lastContact ? <span className="status-last">{lastContact}</span> : null}
+                        </div>
+
+                        <div className="col-engagement">
+                          <EngagementBar
+                            engagement={emails}
+                            counting={countingYet}
+                            studentName={student.student_name}
+                            onOpen={() => setEngageId(String(student.id))}
+                          />
                         </div>
 
                         <div className="col-touch">
@@ -1251,6 +1318,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           )}
         </>
       )}
+      {engageRow ? (
+        <EngagementPanel
+          studentName={engageRow.student.student_name}
+          parentName={engageRow.student.parent_name}
+          engagement={engageRow.emails}
+          onClose={() => setEngageId(null)}
+        />
+      ) : null}
     </section>
   );
 }
