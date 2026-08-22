@@ -2,6 +2,17 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { PinGate } from "../hooks/usePinGate";
 import { hashPin, isValidPin } from "../lib/pin";
 import { supabase } from "../lib/supabase";
+import {
+  DEFAULT_NAV_LABELS,
+  GROUP_KEYS,
+  MAX_LABEL_LENGTH,
+  SCREEN_FIELD_LABELS,
+  SCREEN_KEYS,
+  checkNavLabels,
+  sameNavLabels,
+  tidyNavLabels,
+  type NavLabels,
+} from "../lib/navLabels";
 import { LockGate } from "./LockGate";
 
 // The daily_notes_settings table holds exactly one row whose id is always 1.
@@ -20,9 +31,16 @@ function fillPlaceholders(text: string): string {
 type SettingsScreenProps = {
   onDirtyChange: (dirty: boolean) => void;
   pinGate: PinGate;
+  labels: NavLabels;
+  onLabelsChange: (next: NavLabels) => void;
 };
 
-export function SettingsScreen({ onDirtyChange, pinGate }: SettingsScreenProps) {
+export function SettingsScreen({
+  onDirtyChange,
+  pinGate,
+  labels,
+  onLabelsChange,
+}: SettingsScreenProps) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [savedSubject, setSavedSubject] = useState("");
@@ -42,6 +60,15 @@ export function SettingsScreen({ onDirtyChange, pinGate }: SettingsScreenProps) 
   const [pinSaved, setPinSaved] = useState(false);
   const [pinMessage, setPinMessage] = useState<string | null>(null);
   const pinSavedTimer = useRef<number | undefined>(undefined);
+
+  // The screen names. Seeded from what the app is currently showing, so the
+  // fields open on the names in use.
+  const [draftLabels, setDraftLabels] = useState<NavLabels>(labels);
+  const [labelsBusy, setLabelsBusy] = useState(false);
+  const [labelsSaved, setLabelsSaved] = useState(false);
+  const [labelsMessage, setLabelsMessage] = useState<string | null>(null);
+  const labelsSavedTimer = useRef<number | undefined>(undefined);
+  const labelsDirty = !sameNavLabels(tidyNavLabels(draftLabels), labels);
 
   const dirty = !loading && !loadFailed && (subject !== savedSubject || body !== savedBody);
 
@@ -73,6 +100,15 @@ export function SettingsScreen({ onDirtyChange, pinGate }: SettingsScreenProps) 
   }, []);
 
   useEffect(() => () => window.clearTimeout(pinSavedTimer.current), []);
+  useEffect(() => () => window.clearTimeout(labelsSavedTimer.current), []);
+
+  // A rename made somewhere else, or the first read arriving, refreshes the
+  // fields as long as nothing is part typed.
+  useEffect(() => {
+    if (!labelsDirty) setDraftLabels(labels);
+    // Only when the stored set changes, never on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labels]);
 
   async function handlePinSave() {
     if (pinBusy) return;
@@ -166,6 +202,43 @@ export function SettingsScreen({ onDirtyChange, pinGate }: SettingsScreenProps) 
     savedTimer.current = window.setTimeout(() => setJustSaved(false), 2000);
   }
 
+  async function saveLabels(next: NavLabels, resetting: boolean) {
+    if (labelsBusy) return;
+    const tidy = tidyNavLabels(next);
+    const problem = checkNavLabels(tidy);
+    if (problem) {
+      setLabelsMessage(problem.message);
+      return;
+    }
+    setLabelsBusy(true);
+    setLabelsMessage(null);
+    const { error } = await supabase
+      .from("daily_notes_settings")
+      .update({ nav_labels: tidy, updated_at: new Date().toISOString() })
+      .eq("id", SETTINGS_ROW_ID);
+    setLabelsBusy(false);
+    if (error) {
+      setLabelsMessage("The names could not be saved. Please try again.");
+      return;
+    }
+    setDraftLabels(tidy);
+    // Straight away everywhere, with no refresh.
+    onLabelsChange(tidy);
+    if (!resetting) {
+      setLabelsSaved(true);
+      window.clearTimeout(labelsSavedTimer.current);
+      labelsSavedTimer.current = window.setTimeout(() => setLabelsSaved(false), 2000);
+    }
+  }
+
+  function handleResetLabels() {
+    const sure = window.confirm(
+      "Put every screen name back to the one the app came with? Any names you have set will be lost.",
+    );
+    if (!sure) return;
+    void saveLabels(DEFAULT_NAV_LABELS, true);
+  }
+
   if (pinGate.state !== "unlocked") {
     return <LockGate heading="Settings" gate={pinGate} />;
   }
@@ -251,6 +324,85 @@ export function SettingsScreen({ onDirtyChange, pinGate }: SettingsScreenProps) 
             </div>
           </>
         )}
+      </div>
+
+      <div className="settings-card">
+        <h2 className="section-heading">Screen names</h2>
+        <p className="settings-sub">
+          These are the names shown in the sidebar and along the bottom on a phone.
+        </p>
+
+        <p className="names-group-head">Section headings</p>
+        {GROUP_KEYS.map((key) => (
+          <div key={key}>
+            <label className="field-label" htmlFor={`nav-group-${key}`}>
+              {DEFAULT_NAV_LABELS.groups[key]}
+            </label>
+            <input
+              id={`nav-group-${key}`}
+              className="text-field"
+              type="text"
+              value={draftLabels.groups[key]}
+              maxLength={MAX_LABEL_LENGTH}
+              onChange={(event) => {
+                setLabelsMessage(null);
+                setDraftLabels((current) => ({
+                  ...current,
+                  groups: { ...current.groups, [key]: event.target.value },
+                }));
+              }}
+            />
+          </div>
+        ))}
+
+        <p className="names-group-head">Screens</p>
+        {SCREEN_KEYS.map((key) => (
+          <div key={key}>
+            {/* Labelled by what the screen is for, so the label does not
+                change as the name is typed. */}
+            <label className="field-label" htmlFor={`nav-screen-${key}`}>
+              {SCREEN_FIELD_LABELS[key]}
+            </label>
+            <input
+              id={`nav-screen-${key}`}
+              className="text-field"
+              type="text"
+              value={draftLabels.screens[key]}
+              maxLength={MAX_LABEL_LENGTH}
+              onChange={(event) => {
+                setLabelsMessage(null);
+                setDraftLabels((current) => ({
+                  ...current,
+                  screens: { ...current.screens, [key]: event.target.value },
+                }));
+              }}
+            />
+          </div>
+        ))}
+
+        {labelsMessage ? (
+          <p className="settings-message" role="alert">
+            {labelsMessage}
+          </p>
+        ) : null}
+
+        <button
+          type="button"
+          className="primary-button settings-save"
+          disabled={!labelsDirty || labelsBusy}
+          onClick={() => void saveLabels(draftLabels, false)}
+        >
+          {labelsBusy ? "Saving..." : labelsSaved ? "Saved" : "Save changes"}
+        </button>
+
+        <button
+          type="button"
+          className="names-reset"
+          disabled={labelsBusy}
+          onClick={handleResetLabels}
+        >
+          Reset to the original names
+        </button>
       </div>
 
       <div className="settings-card">
