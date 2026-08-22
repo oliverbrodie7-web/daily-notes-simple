@@ -1,12 +1,8 @@
+import type { NavLabels } from "../lib/navLabels";
+
 export type AppView = "today" | "output" | "parents" | "manager" | "settings";
 
-const VIEWS: { key: AppView; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "output", label: "Output" },
-  { key: "parents", label: "Parents" },
-  { key: "manager", label: "Manager" },
-  { key: "settings", label: "Settings" },
-];
+const VIEWS: AppView[] = ["today", "output", "parents", "manager", "settings"];
 
 type ViewSwitcherProps = {
   view: AppView;
@@ -14,6 +10,7 @@ type ViewSwitcherProps = {
   // Manager and Settings share one PIN lock, so their padlocks show and
   // hide together.
   pinLocked: boolean;
+  labels: NavLabels;
 };
 
 export const PIN_PROTECTED: AppView[] = ["parents", "manager", "settings"];
@@ -120,29 +117,28 @@ export function ManagerPadlock({ locked }: { locked: boolean }) {
 
 // The phone navigation: a floating tab bar of icons above labels, shown
 // below 900px only. From there up the rail takes over.
-export function ViewSwitcher({ view, onViewChange, pinLocked }: ViewSwitcherProps) {
+export function ViewSwitcher({ view, onViewChange, pinLocked, labels }: ViewSwitcherProps) {
   return (
     <nav className="view-bar" aria-label="Screens">
       <div className="view-bar-inner">
-        {VIEWS.map((item) => {
-          const active = item.key === view;
-          const protectedItem = PIN_PROTECTED.includes(item.key);
-          const Glyph = GLYPHS[item.key];
+        {VIEWS.map((key) => {
+          const active = key === view;
+          const protectedItem = PIN_PROTECTED.includes(key);
+          const Glyph = GLYPHS[key];
+          const label = labels.screens[key];
           return (
             <button
-              key={item.key}
+              key={key}
               type="button"
               className={`view-bar-item${active ? " is-active" : ""}`}
               aria-current={active ? "true" : undefined}
-              aria-label={
-                protectedItem ? (pinLocked ? `${item.label}, locked` : item.label) : undefined
-              }
-              onClick={() => onViewChange(item.key)}
+              aria-label={protectedItem ? (pinLocked ? `${label}, locked` : label) : undefined}
+              onClick={() => onViewChange(key)}
             >
               <Glyph />
               <span className="bar-item-label">
                 {protectedItem ? <ManagerPadlock locked={pinLocked} /> : null}
-                {item.label}
+                <span className="bar-item-name">{label}</span>
               </span>
             </button>
           );

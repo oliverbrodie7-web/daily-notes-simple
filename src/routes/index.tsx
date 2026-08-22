@@ -11,6 +11,7 @@ import { SignIn } from "../components/SignIn";
 import { TodayScreen } from "../components/TodayScreen";
 import { TrackerScreen } from "../components/TrackerScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
+import { useNavLabels } from "../hooks/useNavLabels";
 import { usePinGate } from "../hooks/usePinGate";
 import { useSidebar } from "../hooks/useSidebar";
 import { useTheme } from "../hooks/useTheme";
@@ -31,14 +32,6 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const SCREEN_TITLES: Record<AppView, string> = {
-  today: "Today",
-  output: "Output",
-  parents: "Parents",
-  manager: "Manager",
-  settings: "Settings",
-};
-
 function Index() {
   const { theme, selectTheme } = useTheme();
   const { collapsed, toggleSidebar } = useSidebar();
@@ -50,6 +43,9 @@ function Index() {
   // One shared PIN lock for the Manager and Settings screens, held in
   // memory only in this single hook instance.
   const pinGate = usePinGate(Boolean(session));
+  // The screen names, read once and held here beside the colour scheme, so
+  // every screen sees the same set.
+  const { labels, applyNavLabels } = useNavLabels(Boolean(session));
 
   function handleViewChange(next: AppView) {
     if (next === view) return;
@@ -118,11 +114,12 @@ function Index() {
                 showLock={!pinGate.locked}
                 onLock={handleLockNow}
                 onSignOut={handleSignOut}
+                labels={labels}
               />
               <main className="app-main">
                 {/* One bar, rendered here, above whichever screen is on.
                     No screen renders its own. */}
-                <ScreenFrame title={SCREEN_TITLES[view]}>
+                <ScreenFrame title={labels.screens[view]}>
                   {view === "output" ? (
                     <OutputScreen />
                   ) : view === "parents" ? (
@@ -130,7 +127,12 @@ function Index() {
                   ) : view === "manager" ? (
                     <ManagerScreen pinGate={pinGate} />
                   ) : view === "settings" ? (
-                    <SettingsScreen onDirtyChange={setSettingsDirty} pinGate={pinGate} />
+                    <SettingsScreen
+                      onDirtyChange={setSettingsDirty}
+                      pinGate={pinGate}
+                      labels={labels}
+                      onLabelsChange={applyNavLabels}
+                    />
                   ) : (
                     <TodayScreen />
                   )}
@@ -138,7 +140,12 @@ function Index() {
               </main>
             </div>
           </SidebarControlProvider>
-          <ViewSwitcher view={view} onViewChange={handleViewChange} pinLocked={pinGate.locked} />
+          <ViewSwitcher
+            view={view}
+            onViewChange={handleViewChange}
+            pinLocked={pinGate.locked}
+            labels={labels}
+          />
         </>
       ) : (
         <SignIn />
