@@ -1049,6 +1049,7 @@ svg {
   gap: 18px;
   grid-template-areas:
     "input"
+    "suggest"
     "list"
     "strip";
 }
@@ -1098,6 +1099,54 @@ svg {
   font-family: inherit;
   font-weight: 700;
   font-size: 12px;
+}
+
+/* A quiet nudge below the input card. No warning colours, no counts, and
+   the chips are inert on purpose: a tappable chip that filled the name
+   field would make it easy to write about a child who was not in. */
+.focus-strip {
+  grid-area: suggest;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.focus-strip-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.focus-strip-chips {
+  margin-top: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* Deliberately flat: no shadow, no hover, no pointer, nothing that reads
+   as pressable. */
+.focus-chip {
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.focus-strip-note {
+  margin-top: 9px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow-wrap: break-word;
 }
 
 .today-list-section {
@@ -4175,9 +4224,10 @@ button.touch-block:hover {
 
   .today-screen {
     grid-template-columns: 42fr 58fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       "input list"
+      "suggest list"
       "strip list";
     align-items: start;
   }

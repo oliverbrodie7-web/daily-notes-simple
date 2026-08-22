@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
+import { focusSuggestions, mondayOf, type FocusRow } from "../lib/focus";
+import { pickTermForDate, type TermRow } from "../lib/terms";
+import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
+import { FocusSuggestions } from "./FocusSuggestions";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
 import { ScreenBar } from "./ScreenBar";
 import { TickIcon, WarningIcon } from "./Icons";
@@ -16,6 +20,16 @@ type TodayNote = {
 };
 
 const NOTE_COLUMNS = "id, student_id, student_name, note_text, created_at, added_by";
+
+// With no term to scope to, the same rolling window the Parents screen
+// falls back to, so the two agree about what "this term" means.
+const TOUCH_POINT_FALLBACK_DAYS = 90;
+
+function fallbackWindowStart(): string {
+  const start = new Date();
+  start.setDate(start.getDate() - TOUCH_POINT_FALLBACK_DAYS);
+  return start.toISOString().slice(0, 10);
+}
 
 // Small counts read better as words. Anything larger is rare enough that a
 // digit is clearer than spelling it out.
@@ -36,6 +50,10 @@ export function TodayScreen() {
   const [listMessage, setListMessage] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [students, setStudents] = useState<PickerStudent[] | null>(null);
+  // The suggestion strip's own data. Null until it has all arrived, so the
+  // strip shows nothing at all while it is still loading.
+  const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
+  const [termNotes, setTermNotes] = useState<TouchPointNote[] | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const staffRef = useRef<HTMLInputElement | null>(null);
@@ -74,6 +92,38 @@ export function TodayScreen() {
         if (cancelled) return;
         setStudents((data ?? []) as PickerStudent[]);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // This week's focus, and the term's touch points, for the suggestion
+  // strip. Read only, and never fatal: a failure here simply means no
+  // strip, which is the same as having nobody to suggest.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const today = sydneyTodayIso();
+      const [focusRes, termRes] = await Promise.all([
+        supabase.from("weekly_focus").select("parent_name, week_start"),
+        supabase
+          .from("term_settings")
+          .select("term_name, term_start_date, term_end_date, p2_deadline")
+          .order("term_start_date", { ascending: true }),
+      ]);
+      if (cancelled) return;
+      setFocusRows((focusRes.data ?? []) as FocusRow[]);
+
+      // The same term window the Parents screen scopes touch points to.
+      const term = pickTermForDate((termRes.data ?? []) as TermRow[], today);
+      const windowStart = term?.term_start_date ?? fallbackWindowStart();
+      const notesRes = await supabase
+        .from("daily_notes")
+        .select("student_id, student_name, note_date, note_text, added_by, draft_created")
+        .gte("note_date", windowStart);
+      if (cancelled) return;
+      setTermNotes((notesRes.data ?? []) as TouchPointNote[]);
+    })();
     return () => {
       cancelled = true;
     };
@@ -187,6 +237,19 @@ export function TodayScreen() {
     return found;
   }, [notes, students]);
 
+  // In this week's focus and not yet written about this term. Empty while
+  // anything is still loading, so the strip never flashes a stale list.
+  const suggestions = useMemo(() => {
+    if (!students || !focusRows || !termNotes) return [];
+    const touched = matchTouchPoints(termNotes, students);
+    return focusSuggestions(
+      students,
+      focusRows,
+      new Set(touched.keys()),
+      mondayOf(sydneyTodayIso()),
+    );
+  }, [students, focusRows, termNotes]);
+
   const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
   const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
 
@@ -286,6 +349,8 @@ export function TodayScreen() {
           <kbd className="key-chip">Shift</kbd> <kbd className="key-chip">Enter</kbd> for a new line
         </p>
       </div>
+
+      <FocusSuggestions students={suggestions} />
 
       <div className="today-list-section">
         <div className="today-list-head">
