@@ -8,7 +8,7 @@
 // Sorting never decides which students are shown. It reorders whatever the
 // filter and the search have already chosen.
 
-export type SortKey = "p2" | "touch" | "last" | "name";
+export type SortKey = "p2" | "touch" | "last" | "name" | "engagement";
 export type SortDirection = "default" | "reversed";
 
 export type SortableRow = {
@@ -18,6 +18,8 @@ export type SortableRow = {
   overdue: boolean;
   touchPoints: number;
   lastContacted: string | null;
+  // The engagement total for this student's parent.
+  engagement: number;
 };
 
 export type SortOption = {
@@ -26,7 +28,7 @@ export type SortOption = {
   label: string;
   // Which column heading shows the arrow. Last contacted highlights the P2
   // status heading, because the last contact line lives in that column.
-  column: "student" | "status" | "touch";
+  column: "student" | "status" | "touch" | "engagement";
   // Wording for the two orders, default first.
   orders: readonly [string, string];
 };
@@ -55,6 +57,12 @@ export const SORT_OPTIONS: readonly SortOption[] = [
     label: "Student name",
     column: "student",
     orders: ["A to Z", "Z to A"],
+  },
+  {
+    key: "engagement",
+    label: "Engagement",
+    column: "engagement",
+    orders: ["Most engaged first", "Least engaged first"],
   },
 ];
 
@@ -95,6 +103,11 @@ function compare(key: SortKey): (a: SortableRow, b: SortableRow) => number {
     // every real ISO date, which puts those students at the top by default
     // and at the bottom once reversed.
     return (a, b) => (a.lastContacted ?? "").localeCompare(b.lastContacted ?? "") || byName(a, b);
+  }
+  if (key === "engagement") {
+    // Highest first by default, so the quiet families are not the ones you
+    // have to scroll to find.
+    return (a, b) => b.engagement - a.engagement || byName(a, b);
   }
   if (key === "name") {
     return byName;

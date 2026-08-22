@@ -13,7 +13,15 @@ import {
 type Row = FilterableRow & { name: string };
 
 function row(name: string, over: Partial<FilterableRow> = {}): Row {
-  return { name, done: false, overdue: false, focus: false, touchPoints: 0, ...over };
+  return {
+    name,
+    done: false,
+    overdue: false,
+    focus: false,
+    touchPoints: 0,
+    goneQuiet: false,
+    ...over,
+  };
 }
 
 // One roster covering every combination the screen can hold: done students
@@ -26,6 +34,7 @@ const ROSTER: Row[] = [
   row("Overdue, never touched", { overdue: true, touchPoints: 0 }),
   row("Focus, touched", { focus: true, touchPoints: 2 }),
   row("Outstanding, never touched", { touchPoints: 0 }),
+  row("Quiet parent", { touchPoints: 1, goneQuiet: true }),
 ];
 
 const names = (rows: Row[]) => rows.map((entry) => entry.name).sort();
@@ -44,6 +53,7 @@ describe("each filter returns exactly the students its tile counts", () => {
       "Outstanding, never touched",
       "Overdue, never touched",
       "Overdue, touched",
+      "Quiet parent",
     ]);
   });
 
@@ -64,6 +74,10 @@ describe("each filter returns exactly the students its tile counts", () => {
       "Outstanding, never touched",
       "Overdue, never touched",
     ]);
+  });
+
+  it("Gone quiet shows only the parents who have gone quiet", () => {
+    expect(names(applyFilter("quiet", ROSTER))).toEqual(["Quiet parent"]);
   });
 
   it("counts a student whose badge shows zero, done or not", () => {
@@ -133,13 +147,14 @@ describe("only one filter is ever active", () => {
 });
 
 describe("the tile vocabulary", () => {
-  it("offers exactly the five filtering tiles, in order", () => {
+  it("offers exactly the six filtering tiles, in order", () => {
     expect(ROSTER_FILTERS.map((filter) => filter.key)).toEqual([
       "complete",
       "outstanding",
       "overdue",
       "focus",
       "no-touch",
+      "quiet",
     ]);
   });
 
@@ -153,14 +168,16 @@ describe("the tile vocabulary", () => {
 
   it("has wording for the bar and for an empty list on every filter", () => {
     for (const filter of ROSTER_FILTERS) {
-      expect(filter.showing.startsWith("Showing students")).toBe(true);
+      expect(filter.showing.startsWith("Showing ")).toBe(true);
       expect(filter.empty.startsWith("Nothing to show.")).toBe(true);
     }
   });
 
-  it("does not include P2 Rate, which is a percentage rather than a list", () => {
+  it("has replaced P2 Rate, so every tile now filters", () => {
+    // A percentage was never a list of students. Gone quiet is.
     expect(ROSTER_FILTERS.map((filter) => filter.tile)).not.toContain("P2 Rate");
-    expect(ROSTER_FILTERS).toHaveLength(5);
+    expect(ROSTER_FILTERS.map((filter) => filter.tile)).toContain("Gone quiet");
+    expect(ROSTER_FILTERS).toHaveLength(6);
   });
 
   it("finds a filter by key and nothing for no filter", () => {

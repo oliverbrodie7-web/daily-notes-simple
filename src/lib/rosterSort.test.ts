@@ -23,6 +23,7 @@ function row(name: string, over: Partial<Omit<Row, "student">> = {}): Row {
     focus: false,
     touchPoints: 0,
     lastContacted: null,
+    engagement: 0,
     ...over,
   };
 }
@@ -35,16 +36,28 @@ const ROSTER: Row[] = [
     done: true,
     touchPoints: 4,
     lastContacted: "2026-08-18",
+    engagement: 6,
   }),
-  row("Aiden Chen", { status: "attempted", touchPoints: 2, lastContacted: "2026-08-02" }),
+  row("Aiden Chen", {
+    status: "attempted",
+    touchPoints: 2,
+    lastContacted: "2026-08-02",
+    engagement: 1,
+  }),
   row("Bella Nguyen", {
     status: "none",
     overdue: true,
     touchPoints: 1,
     lastContacted: "2026-07-30",
+    engagement: 3,
   }),
   row("Dylan Ortiz", { status: "none", touchPoints: 0, lastContacted: null }),
-  row("Ethan Park", { status: "sms", touchPoints: 2, lastContacted: "2026-08-11" }),
+  row("Ethan Park", {
+    status: "sms",
+    touchPoints: 2,
+    lastContacted: "2026-08-11",
+    engagement: 1,
+  }),
 ];
 
 const names = (rows: Row[]) => rows.map((entry) => entry.student.student_name);
@@ -140,6 +153,29 @@ describe("sorting by student name", () => {
       "Bella Nguyen",
       "Aiden Chen",
     ]);
+  });
+});
+
+describe("sorting by engagement", () => {
+  it("puts the most engaged first", () => {
+    expect(names(sortRoster(ROSTER, "engagement", "default"))).toEqual([
+      "Chloe Adams",
+      "Bella Nguyen",
+      // Aiden and Ethan both sit on one, so the name decides.
+      "Aiden Chen",
+      "Ethan Park",
+      "Dylan Ortiz",
+    ]);
+  });
+
+  it("puts the least engaged first when reversed", () => {
+    const totals = sortRoster(ROSTER, "engagement", "reversed").map((entry) => entry.engagement);
+    expect(totals).toEqual([...totals].sort((a, b) => a - b));
+  });
+
+  it("reads the total, not the P2 state or the touch points", () => {
+    const totals = sortRoster(ROSTER, "engagement", "default").map((entry) => entry.engagement);
+    expect(totals).toEqual([...totals].sort((a, b) => b - a));
   });
 });
 
@@ -257,13 +293,20 @@ describe("sorting and filtering stay independent", () => {
 });
 
 describe("the sort vocabulary", () => {
-  it("offers exactly the four sorts, in order", () => {
-    expect(SORT_OPTIONS.map((option) => option.key)).toEqual(["p2", "touch", "last", "name"]);
+  it("offers exactly the five sorts, in order", () => {
+    expect(SORT_OPTIONS.map((option) => option.key)).toEqual([
+      "p2",
+      "touch",
+      "last",
+      "name",
+      "engagement",
+    ]);
     expect(SORT_OPTIONS.map((option) => option.label)).toEqual([
       "P2 status",
       "Touch points",
       "Last contacted",
       "Student name",
+      "Engagement",
     ]);
   });
 
@@ -276,6 +319,8 @@ describe("the sort vocabulary", () => {
     expect(orderLabel("last", "reversed")).toBe("Most recent first");
     expect(orderLabel("name", "default")).toBe("A to Z");
     expect(orderLabel("name", "reversed")).toBe("Z to A");
+    expect(orderLabel("engagement", "default")).toBe("Most engaged first");
+    expect(orderLabel("engagement", "reversed")).toBe("Least engaged first");
   });
 
   it("points each sort at the column heading that shows the arrow", () => {
@@ -284,6 +329,7 @@ describe("the sort vocabulary", () => {
     // The last contact line lives under the P2 status pill.
     expect(findSort("last").column).toBe("status");
     expect(findSort("name").column).toBe("student");
+    expect(findSort("engagement").column).toBe("engagement");
   });
 
   it("falls back to the first sort for an unknown key rather than throwing", () => {

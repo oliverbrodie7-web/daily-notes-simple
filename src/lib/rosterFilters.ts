@@ -12,9 +12,11 @@ export type FilterableRow = {
   overdue: boolean;
   focus: boolean;
   touchPoints: number;
+  // Silent for three weeks or more, having emailed at least once this term.
+  goneQuiet: boolean;
 };
 
-export type FilterKey = "complete" | "outstanding" | "overdue" | "focus" | "no-touch";
+export type FilterKey = "complete" | "outstanding" | "overdue" | "focus" | "no-touch" | "quiet";
 
 // Which soft tint the tile and the filter bar take when it is active.
 export type FilterTone = "accent" | "warning";
@@ -72,6 +74,14 @@ export const ROSTER_FILTERS: readonly RosterFilter[] = [
     empty: "Nothing to show. Every student has been contacted this term.",
     tone: "warning",
     matches: (row) => row.touchPoints === 0,
+  },
+  {
+    key: "quiet",
+    tile: "Gone quiet",
+    showing: "Showing parents who have gone quiet",
+    empty: "Nothing to show. No parent has gone quiet this term.",
+    tone: "warning",
+    matches: (row) => row.goneQuiet,
   },
 ];
 
