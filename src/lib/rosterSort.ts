@@ -11,6 +11,10 @@
 export type SortKey = "p2" | "touch" | "last" | "name" | "engagement";
 export type SortDirection = "default" | "reversed";
 
+// The four headings that sort. The fourth column holds the row controls and
+// has no sort of its own.
+export type SortColumn = "student" | "status" | "touch" | "engagement";
+
 export type SortableRow = {
   student: { student_name: string };
   status: string;
@@ -28,7 +32,12 @@ export type SortOption = {
   label: string;
   // Which column heading shows the arrow. Last contacted highlights the P2
   // status heading, because the last contact line lives in that column.
-  column: "student" | "status" | "touch" | "engagement";
+  column: SortColumn;
+  // The direction a heading tap starts this sort in. For most columns that
+  // is the sort's own default. Touch points is the exception: its menu
+  // default is fewest first, but tapping a heading should put the highest
+  // at the top, the same as every other heading does.
+  headingStart: SortDirection;
   // Wording for the two orders, default first.
   orders: readonly [string, string];
 };
@@ -38,30 +47,35 @@ export const SORT_OPTIONS: readonly SortOption[] = [
     key: "p2",
     label: "P2 status",
     column: "status",
+    headingStart: "default",
     orders: ["Needs attention first", "Done first"],
   },
   {
     key: "touch",
     label: "Touch points",
     column: "touch",
+    headingStart: "reversed",
     orders: ["Fewest first", "Most first"],
   },
   {
     key: "last",
     label: "Last contacted",
     column: "status",
+    headingStart: "default",
     orders: ["Longest ago first", "Most recent first"],
   },
   {
     key: "name",
     label: "Student name",
     column: "student",
+    headingStart: "default",
     orders: ["A to Z", "Z to A"],
   },
   {
     key: "engagement",
     label: "Engagement",
     column: "engagement",
+    headingStart: "default",
     orders: ["Most engaged first", "Least engaged first"],
   },
 ];
@@ -72,6 +86,40 @@ export const DEFAULT_SORT_DIRECTION: SortDirection = "default";
 
 export function findSort(key: SortKey): SortOption {
   return SORT_OPTIONS.find((option) => option.key === key) ?? SORT_OPTIONS[0]!;
+}
+
+// The sort a heading turns on when the column is not already sorted.
+export const COLUMN_SORTS: Record<SortColumn, SortKey> = {
+  student: "name",
+  status: "p2",
+  touch: "touch",
+  engagement: "engagement",
+};
+
+export type SortState = { key: SortKey; direction: SortDirection };
+
+export function flip(direction: SortDirection): SortDirection {
+  return direction === "default" ? "reversed" : "default";
+}
+
+// Tapping a heading. An inactive column takes its own sort in the direction
+// a heading starts in; the active column reverses whatever is already on
+// it, which is why Last contacted reverses rather than jumping to P2 status
+// when the P2 status heading is tapped. There are only ever these two
+// outcomes, so no sequence of taps can leave the list unsorted.
+export function headingTap(column: SortColumn, current: SortState): SortState {
+  if (findSort(current.key).column === column) {
+    return { key: current.key, direction: flip(current.direction) };
+  }
+  const key = COLUMN_SORTS[column];
+  return { key, direction: findSort(key).headingStart };
+}
+
+// Which way the arrow points, from what actually sits at the top of the
+// list rather than from the direction's name. Down means the higher or more
+// urgent value is at the top.
+export function arrowFor(key: SortKey, direction: SortDirection): "down" | "up" {
+  return direction === findSort(key).headingStart ? "down" : "up";
 }
 
 export function orderLabel(key: SortKey, direction: SortDirection): string {

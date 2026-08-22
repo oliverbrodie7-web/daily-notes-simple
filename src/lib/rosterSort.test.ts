@@ -6,9 +6,13 @@ import {
   SORT_OPTIONS,
   findSort,
   orderLabel,
+  arrowFor,
+  headingTap,
   sortRoster,
+  type SortColumn,
   type SortDirection,
   type SortKey,
+  type SortState,
   type SortableRow,
 } from "./rosterSort";
 
@@ -342,5 +346,117 @@ describe("the sort vocabulary", () => {
       expect(sortRoster([], option.key, "default")).toEqual([]);
       expect(sortRoster([row("Solo")], option.key, "reversed")).toHaveLength(1);
     }
+  });
+});
+
+describe("tapping a column heading", () => {
+  const start: SortState = { key: DEFAULT_SORT_KEY, direction: DEFAULT_SORT_DIRECTION };
+
+  it("sets an inactive column to its own sort, in the direction it starts in", () => {
+    expect(headingTap("student", start)).toEqual({ key: "name", direction: "default" });
+    expect(headingTap("engagement", start)).toEqual({ key: "engagement", direction: "default" });
+    // Touch points starts highest first, even though the menu default for
+    // that sort is fewest first.
+    expect(headingTap("touch", start)).toEqual({ key: "touch", direction: "reversed" });
+  });
+
+  it("starts every heading with the higher or more urgent value at the top", () => {
+    for (const column of ["student", "status", "touch", "engagement"] as SortColumn[]) {
+      const next = headingTap(column, { key: "last", direction: "reversed" });
+      // "last" lives on the status column, so that one reverses instead.
+      if (column === "status") continue;
+      expect(arrowFor(next.key, next.direction)).toBe("down");
+    }
+  });
+
+  it("reverses the active column rather than switching it", () => {
+    const first = headingTap("engagement", start);
+    const second = headingTap("engagement", first);
+    expect(second).toEqual({ key: "engagement", direction: "reversed" });
+    expect(arrowFor(second.key, second.direction)).toBe("up");
+  });
+
+  it("reverses and reverses back, with no third state", () => {
+    for (const column of ["student", "status", "touch", "engagement"] as SortColumn[]) {
+      const once = headingTap(column, start);
+      const twice = headingTap(column, once);
+      const thrice = headingTap(column, twice);
+      // The second tap flips it and the third puts it back exactly.
+      expect(twice.key).toBe(once.key);
+      expect(twice.direction).not.toBe(once.direction);
+      expect(thrice).toEqual(once);
+      // And the list itself comes back to exactly where it was.
+      const first = names(sortRoster(ROSTER, once.key, once.direction));
+      expect(names(sortRoster(ROSTER, twice.key, twice.direction))).toEqual([...first].reverse());
+      expect(names(sortRoster(ROSTER, thrice.key, thrice.direction))).toEqual(first);
+    }
+  });
+
+  it("reverses the sort sitting on a column, whichever sort that is", () => {
+    // Last contacted highlights the P2 status heading, so tapping it
+    // reverses Last contacted rather than jumping to P2 status.
+    const onLast: SortState = { key: "last", direction: "default" };
+    expect(headingTap("status", onLast)).toEqual({ key: "last", direction: "reversed" });
+    expect(headingTap("status", { key: "last", direction: "reversed" })).toEqual(onLast);
+  });
+
+  it("never leaves the list unsorted, however it is tapped", () => {
+    const columns: SortColumn[] = ["student", "status", "touch", "engagement"];
+    let state = start;
+    // Every column, then every column again, then the same one repeatedly.
+    for (const column of [...columns, ...columns, "touch", "touch", "touch"] as SortColumn[]) {
+      state = headingTap(column, state);
+      expect(SORT_OPTIONS.some((option) => option.key === state.key)).toBe(true);
+      expect(["default", "reversed"]).toContain(state.direction);
+      expect(sortRoster(ROSTER, state.key, state.direction)).toHaveLength(ROSTER.length);
+    }
+  });
+});
+
+describe("the heading and the Sort menu are one setting", () => {
+  it("gives the menu a real order label for every heading tap", () => {
+    const columns: SortColumn[] = ["student", "status", "touch", "engagement"];
+    let state: SortState = { key: DEFAULT_SORT_KEY, direction: DEFAULT_SORT_DIRECTION };
+    for (const column of [...columns, ...columns]) {
+      state = headingTap(column, state);
+      const option = findSort(state.key);
+      expect(orderLabel(state.key, state.direction)).toBe(
+        state.direction === "reversed" ? option.orders[1] : option.orders[0],
+      );
+      // The heading that lights up is the one the sort belongs to.
+      expect(option.column).toBe(
+        // Tapping the status column while Last contacted is on keeps that
+        // sort, which still belongs to the status column.
+        findSort(state.key).column,
+      );
+    }
+  });
+
+  it("agrees with the menu about which heading is active", () => {
+    for (const option of SORT_OPTIONS) {
+      for (const direction of ["default", "reversed"] as SortDirection[]) {
+        // Whatever the menu picks, exactly one heading shows the arrow.
+        const lit = (["student", "status", "touch", "engagement"] as SortColumn[]).filter(
+          (column) => findSort(option.key).column === column,
+        );
+        expect(lit).toHaveLength(1);
+        expect(["down", "up"]).toContain(arrowFor(option.key, direction));
+      }
+    }
+  });
+
+  it("points the arrow down whenever the top of the list is the higher value", () => {
+    expect(arrowFor("p2", "default")).toBe("down");
+    expect(arrowFor("p2", "reversed")).toBe("up");
+    expect(arrowFor("engagement", "default")).toBe("down");
+    expect(arrowFor("engagement", "reversed")).toBe("up");
+    expect(arrowFor("name", "default")).toBe("down");
+    expect(arrowFor("name", "reversed")).toBe("up");
+    expect(arrowFor("last", "default")).toBe("down");
+    expect(arrowFor("last", "reversed")).toBe("up");
+    // Most first puts the highest at the top, so it points down even though
+    // it is the reversed direction.
+    expect(arrowFor("touch", "reversed")).toBe("down");
+    expect(arrowFor("touch", "default")).toBe("up");
   });
 });
