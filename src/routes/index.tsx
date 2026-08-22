@@ -5,11 +5,14 @@ import { Header } from "../components/Header";
 import { ManagerScreen } from "../components/ManagerScreen";
 import { OutputScreen } from "../components/OutputScreen";
 import { SettingsScreen } from "../components/SettingsScreen";
+import { ScreenBar, SidebarControlProvider } from "../components/ScreenBar";
+import { Sidebar } from "../components/Sidebar";
 import { SignIn } from "../components/SignIn";
 import { TodayScreen } from "../components/TodayScreen";
 import { TrackerScreen } from "../components/TrackerScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
 import { usePinGate } from "../hooks/usePinGate";
+import { useSidebar } from "../hooks/useSidebar";
 import { useTheme } from "../hooks/useTheme";
 import { supabase } from "../lib/supabase";
 
@@ -30,6 +33,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { theme, selectTheme } = useTheme();
+  const { collapsed, toggleSidebar } = useSidebar();
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<AppView>("today");
@@ -94,31 +98,38 @@ function Index() {
             onLock={handleLockNow}
             onSignOut={handleSignOut}
           />
-          <ViewSwitcher
-            variant="tabs"
-            view={view}
-            onViewChange={handleViewChange}
-            pinLocked={pinGate.locked}
-          />
-          <main className="app-main">
-            {view === "output" ? (
-              <OutputScreen />
-            ) : view === "parents" ? (
-              <TrackerScreen pinGate={pinGate} />
-            ) : view === "manager" ? (
-              <ManagerScreen pinGate={pinGate} />
-            ) : view === "settings" ? (
-              <SettingsScreen onDirtyChange={setSettingsDirty} pinGate={pinGate} />
-            ) : (
-              <TodayScreen />
-            )}
-          </main>
-          <ViewSwitcher
-            variant="bar"
-            view={view}
-            onViewChange={handleViewChange}
-            pinLocked={pinGate.locked}
-          />
+          <SidebarControlProvider value={{ collapsed, onToggle: toggleSidebar }}>
+            <div className="app-shell">
+              <Sidebar
+                view={view}
+                onViewChange={handleViewChange}
+                pinLocked={pinGate.locked}
+                collapsed={collapsed}
+                theme={theme}
+                onSelectTheme={selectTheme}
+                showLock={!pinGate.locked}
+                onLock={handleLockNow}
+                onSignOut={handleSignOut}
+              />
+              <main className="app-main">
+                {view === "output" ? (
+                  <OutputScreen />
+                ) : view === "parents" ? (
+                  <TrackerScreen pinGate={pinGate} />
+                ) : view === "manager" ? (
+                  <ManagerScreen pinGate={pinGate} />
+                ) : view === "settings" ? (
+                  <>
+                    <ScreenBar title="Settings" />
+                    <SettingsScreen onDirtyChange={setSettingsDirty} pinGate={pinGate} />
+                  </>
+                ) : (
+                  <TodayScreen />
+                )}
+              </main>
+            </div>
+          </SidebarControlProvider>
+          <ViewSwitcher view={view} onViewChange={handleViewChange} pinLocked={pinGate.locked} />
         </>
       ) : (
         <SignIn />

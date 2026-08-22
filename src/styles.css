@@ -66,7 +66,7 @@ svg {
   .primary-button,
   .signout-button,
   .fallback-button,
-  .seg-item,
+  .sidebar-item,
   .view-bar-item,
   .copy-button,
   .copy-all-button,
@@ -78,10 +78,6 @@ svg {
       color 0.15s ease,
       border-color 0.15s ease,
       opacity 0.15s ease;
-  }
-
-  .seg-slab {
-    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   .view-lock {
@@ -139,10 +135,8 @@ svg {
   --good-border: rgba(22, 101, 52, 0.32);
   --warning-ink: #96590a;
   --warning-contrast: #2b1a02;
-  --seg-track: rgba(66, 5, 90, 0.1);
-  --seg-slab: var(--surface);
-  --seg-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
   --bar-glass: rgba(255, 255, 255, 0.72);
+  --chip-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
   --scrim: rgba(66, 5, 90, 0.42);
   /* Tracker badge tokens: eight visually distinct statuses per theme. */
   --badge-success-bg: #dcfce7;
@@ -201,10 +195,8 @@ svg {
   --good-border: rgba(22, 101, 52, 0.32);
   --warning-ink: #96590a;
   --warning-contrast: #2b1a02;
-  --seg-track: rgba(31, 41, 51, 0.07);
-  --seg-slab: var(--surface);
-  --seg-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
   --bar-glass: rgba(255, 255, 255, 0.72);
+  --chip-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
   --scrim: rgba(31, 41, 51, 0.4);
   /* Badge tokens match the light scheme: both are light schemes, and the
      pills already read correctly on white. */
@@ -275,10 +267,8 @@ svg {
   --good-border: rgba(74, 222, 128, 0.32);
   --warning-ink: #e2a355;
   --warning-contrast: #2b1a02;
-  --seg-track: rgba(255, 255, 255, 0.07);
-  --seg-slab: var(--surface-raised);
-  --seg-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   --bar-glass: rgba(38, 44, 52, 0.86);
+  --chip-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   --scrim: rgba(0, 0, 0, 0.62);
   /* Tracker badge tokens. Dark mode keeps its rules: no purple and no
      yellow, so SMS shifts to cyan and the focus highlight leans on the
@@ -619,63 +609,312 @@ svg {
   font-size: 14px;
 }
 
-/* Screen switcher, iOS style. At 900px and above it is a segmented control
-   under the header; below 900px it is a floating tab bar. Exactly one form
-   is ever visible. */
-.view-tabs {
+/* Sidebar. From 900px up it replaces both the header and the segmented
+   control. Below 900px it is not shown at all and the phone header and tab
+   bar are exactly as they were. */
+.app-shell {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.app-sidebar {
   display: none;
 }
 
-.view-tabs-inner {
-  max-width: 1060px;
-  margin: 0 auto;
-  padding: 14px 28px 0;
+@media (min-width: 900px) {
+  .app-sidebar {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    width: 216px;
+    align-self: stretch;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    padding: 16px 12px 12px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-raised);
+    overflow: hidden auto;
+    transition: width 140ms ease;
+  }
+
+  .app-sidebar.is-collapsed {
+    width: 66px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  /* The rail carries the app name, the date and the controls now. */
+  .app-header {
+    display: none;
+  }
+
+  .app-main {
+    padding: 20px 28px 28px;
+  }
 }
 
-.seg-control {
+@media (min-width: 900px) and (prefers-reduced-motion: reduce) {
+  .app-sidebar {
+    transition: none;
+  }
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 14px;
+  min-width: 0;
+}
+
+.sidebar-star {
+  flex: none;
+  color: var(--accent);
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-name {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.sidebar-date {
+  margin-top: 1px;
+  color: var(--text-soft);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.sidebar-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-group-head {
+  padding: 0 8px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.sidebar-item {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
-  max-width: 560px;
-  padding: 3px;
-  border-radius: 12px;
-  background: var(--seg-track);
-}
-
-.seg-slab {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: 3px;
-  width: calc((100% - 6px - 16px) / 5);
-  border-radius: 9px;
-  background: var(--seg-slab);
-  box-shadow: var(--seg-shadow);
-}
-
-.seg-item {
-  position: relative;
-  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
   min-height: 44px;
   padding: 0 10px;
   border: none;
-  background: transparent;
-  border-radius: 9px;
+  border-radius: 10px;
+  background: none;
   color: var(--text-soft);
+  font-size: 14px;
   font-weight: 600;
-  font-size: 15px;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  text-align: left;
 }
 
-.seg-item.is-active {
-  color: var(--text);
+.sidebar-item:hover {
+  background: var(--accent-soft);
+}
+
+.sidebar-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
   font-weight: 700;
 }
 
+.sidebar-item-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+}
+
+/* A screen name never wraps: the rail is a fixed width and a wrapped label
+   would change the row height. */
+.sidebar-item-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-item .view-lock {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* The name shown beside an icon while the rail is collapsed. It is inert
+   and invisible until then. */
+.sidebar-tip {
+  display: none;
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 25;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-foot .theme-toggle {
+  width: 100%;
+  justify-content: space-between;
+  border-color: var(--border);
+  margin-bottom: 4px;
+}
+
+/* Full tap targets in the rail, where the switch is a row of its own
+   rather than a compact control tucked into the header. */
+.sidebar-foot .theme-option {
+  flex: 1;
+  min-height: 44px;
+}
+
+/* Collapsed: icons only, centred, with the labels and headings gone and the
+   name arriving as a small label on hover or focus. */
+.app-sidebar.is-collapsed .sidebar-brand {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-brand-text,
+.app-sidebar.is-collapsed .sidebar-group-head,
+.app-sidebar.is-collapsed .sidebar-item-label,
+.app-sidebar.is-collapsed .sidebar-item .view-lock {
+  display: none;
+}
+
+.app-sidebar.is-collapsed .sidebar-item {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-item:hover .sidebar-tip,
+.app-sidebar.is-collapsed .sidebar-item:focus-visible .sidebar-tip {
+  display: block;
+  opacity: 1;
+}
+
+.app-sidebar.is-collapsed .sidebar-foot .theme-toggle {
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+}
+
+/* The bar belonging to the current screen. */
+.screen-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.screen-bar-toggle {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-soft);
+}
+
+.screen-bar-toggle:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+@media (min-width: 900px) {
+  .screen-bar-toggle {
+    display: inline-flex;
+  }
+}
+
+.screen-bar-main {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.screen-bar-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.screen-bar-sub {
+  margin-top: 1px;
+  color: var(--text-soft);
+  font-size: 13px;
+  overflow-wrap: break-word;
+}
+
+.screen-bar-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.screen-bar-button {
+  min-height: 44px;
+  width: auto;
+  margin: 0;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.output-count-line {
+  margin-bottom: 12px;
+}
+
+/* The phone navigation: a floating tab bar, shown below 900px only. */
 .view-bar {
   position: fixed;
   left: 10px;
@@ -740,9 +979,9 @@ svg {
   opacity: 1;
 }
 
-.seg-item .view-lock svg {
-  width: 11px;
-  height: 11px;
+.sidebar-item .view-lock svg {
+  width: 12px;
+  height: 12px;
 }
 
 .bar-item-label .view-lock {
@@ -855,12 +1094,6 @@ svg {
   display: flex;
   align-items: baseline;
   gap: 10px;
-}
-
-.today-count {
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 15px;
 }
 
 .today-message {
@@ -1217,19 +1450,6 @@ svg {
   margin-top: 6px;
   color: var(--text);
   overflow-wrap: break-word;
-}
-
-.output-datebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.output-date-centre {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
 }
 
 .date-arrow {
@@ -2363,7 +2583,7 @@ svg {
   border-radius: 10px;
   background: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: var(--seg-shadow);
+  box-shadow: var(--chip-shadow);
   text-align: center;
 }
 
@@ -3252,12 +3472,6 @@ svg {
   gap: 10px;
 }
 
-.manager-count {
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 15px;
-}
-
 .manager-message {
   margin-top: 14px;
   color: var(--text-soft);
@@ -3564,10 +3778,6 @@ svg {
 
   .app-main {
     padding: 28px;
-  }
-
-  .view-tabs {
-    display: block;
   }
 
   .view-bar {

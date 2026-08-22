@@ -8,10 +8,7 @@ const VIEWS: { key: AppView; label: string }[] = [
   { key: "settings", label: "Settings" },
 ];
 
-const SEGMENT_GAP_PX = 4;
-
 type ViewSwitcherProps = {
-  variant: "tabs" | "bar";
   view: AppView;
   onViewChange: (view: AppView) => void;
   // Manager and Settings share one PIN lock, so their padlocks show and
@@ -19,9 +16,9 @@ type ViewSwitcherProps = {
   pinLocked: boolean;
 };
 
-const PIN_PROTECTED: AppView[] = ["parents", "manager", "settings"];
+export const PIN_PROTECTED: AppView[] = ["parents", "manager", "settings"];
 
-type GlyphProps = {
+export type GlyphProps = {
   size?: number;
 };
 
@@ -42,7 +39,7 @@ function glyphProps({ size = 19 }: GlyphProps) {
   } as const;
 }
 
-function CalendarGlyph(props: GlyphProps) {
+export function CalendarGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
       <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
@@ -52,7 +49,7 @@ function CalendarGlyph(props: GlyphProps) {
   );
 }
 
-function DocumentGlyph(props: GlyphProps) {
+export function DocumentGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
       <path d="M7 3.5h6.5L18.5 8.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z" />
@@ -62,7 +59,7 @@ function DocumentGlyph(props: GlyphProps) {
   );
 }
 
-function PeopleGlyph(props: GlyphProps) {
+export function PeopleGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
       <circle cx="9" cy="8.2" r="3.1" />
@@ -73,7 +70,7 @@ function PeopleGlyph(props: GlyphProps) {
   );
 }
 
-function TickGlyph(props: GlyphProps) {
+export function TickGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
       <path d="M4.5 12.5 10 18 19.5 6.5" />
@@ -81,7 +78,7 @@ function TickGlyph(props: GlyphProps) {
   );
 }
 
-function CogGlyph(props: GlyphProps) {
+export function CogGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
       <circle cx="12" cy="12" r="6.6" />
@@ -91,7 +88,7 @@ function CogGlyph(props: GlyphProps) {
   );
 }
 
-const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof CalendarGlyph>> = {
+export const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof CalendarGlyph>> = {
   today: CalendarGlyph,
   output: DocumentGlyph,
   parents: PeopleGlyph,
@@ -102,7 +99,7 @@ const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof CalendarG
 // A tiny padlock beside a protected screen's label while it is locked. It
 // stays mounted so it can fade in and out, takes the label's colour in
 // every state, and collapses to nothing once unlocked.
-function ManagerPadlock({ locked }: { locked: boolean }) {
+export function ManagerPadlock({ locked }: { locked: boolean }) {
   return (
     <span className={`view-lock${locked ? "" : " is-hidden"}`} aria-hidden="true">
       <svg
@@ -121,55 +118,9 @@ function ManagerPadlock({ locked }: { locked: boolean }) {
   );
 }
 
-// One switcher, two iOS style forms. At 900px and above it is a segmented
-// control under the header with a raised slab that slides to the selection.
-// Below 900px it is a floating tab bar of icons above labels. CSS keeps
-// exactly one form visible at a time.
-export function ViewSwitcher({ variant, view, onViewChange, pinLocked }: ViewSwitcherProps) {
-  const activeIndex = Math.max(
-    0,
-    VIEWS.findIndex((item) => item.key === view),
-  );
-
-  if (variant === "tabs") {
-    return (
-      <nav className="view-tabs" aria-label="Screens">
-        <div className="view-tabs-inner">
-          <div className="seg-control">
-            <div
-              className="seg-slab"
-              aria-hidden="true"
-              style={{
-                transform: `translateX(calc(${activeIndex * 100}% + ${
-                  activeIndex * SEGMENT_GAP_PX
-                }px))`,
-              }}
-            />
-            {VIEWS.map((item) => {
-              const active = item.key === view;
-              const protectedItem = PIN_PROTECTED.includes(item.key);
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`seg-item${active ? " is-active" : ""}`}
-                  aria-current={active ? "true" : undefined}
-                  aria-label={
-                    protectedItem ? (pinLocked ? `${item.label}, locked` : item.label) : undefined
-                  }
-                  onClick={() => onViewChange(item.key)}
-                >
-                  {protectedItem ? <ManagerPadlock locked={pinLocked} /> : null}
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
-    );
-  }
-
+// The phone navigation: a floating tab bar of icons above labels, shown
+// below 900px only. From there up the rail takes over.
+export function ViewSwitcher({ view, onViewChange, pinLocked }: ViewSwitcherProps) {
   return (
     <nav className="view-bar" aria-label="Screens">
       <div className="view-bar-inner">
