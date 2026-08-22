@@ -14,6 +14,7 @@ import {
   lastTermEnd,
   pickTermForDate,
   termWarning,
+  termWeek,
   type TermRow,
   type TermWarning,
 } from "../lib/terms";
@@ -40,6 +41,7 @@ import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { MismatchPanel } from "./MismatchPanel";
+import { ScreenBar } from "./ScreenBar";
 import { SortArrow, SortMenu } from "./SortMenu";
 import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
@@ -549,11 +551,35 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     setDeleteConfirm("");
   }
 
+  // The bar stays put through the lock, so the sidebar control is reachable
+  // on a locked screen and the layout does not jump when it unlocks.
   if (!unlocked) {
-    return <LockGate heading="Parents" gate={pinGate} />;
+    return (
+      <>
+        <ScreenBar title="Parents" />
+        <LockGate heading="Parents" gate={pinGate} />
+      </>
+    );
   }
 
   const loading = students === null;
+
+  // The bar's line of context: the term, which week of it this is, and the
+  // P2 deadline, with the countdown once it is close.
+  const week = termWeek(term, today);
+  const termLine = term ? (
+    <>
+      {term.term_name}
+      {week !== null ? `, week ${week}` : ""}, P2 by {formatSydneyFullDate(term.p2_deadline ?? "")}
+      {daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 14 ? (
+        <span className="tracker-countdown">
+          {daysToDeadline} {daysToDeadline === 1 ? "day" : "days"}, {stats.outstanding} outstanding
+        </span>
+      ) : null}
+    </>
+  ) : (
+    "no active term set"
+  );
 
   // The colour of a tile's number. Only the wording and the counting rule
   // live in the filter module; how a number is coloured is presentation.
@@ -666,30 +692,17 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </div>
           </div>
 
-          <div className="tracker-header">
-            <div className="tracker-header-main">
-              <h2 className="section-heading">Parents</h2>
-              <p className="tracker-subtitle">
-                {sorted.length} active
-                <span className="tracker-subtitle-dot" aria-hidden="true">
-                  {"·"}
-                </span>
-                {term ? (
-                  <>
-                    {term.term_name}, P2 by {formatSydneyFullDate(term.p2_deadline ?? "")}
-                    {daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 14 ? (
-                      <span className="tracker-countdown">
-                        {daysToDeadline} {daysToDeadline === 1 ? "day" : "days"},{" "}
-                        {stats.outstanding} outstanding
-                      </span>
-                    ) : null}
-                  </>
-                ) : (
-                  "no active term set"
-                )}
-              </p>
-            </div>
-
+          <ScreenBar title="Parents" subtitle={termLine}>
+            <SortMenu
+              sortKey={sortKey}
+              direction={sortDirection}
+              onChange={(key, next) => {
+                // Never touches filterKey: a sort change leaves the filter
+                // exactly as it was.
+                setSortKey(key);
+                setSortDirection(next);
+              }}
+            />
             <div className="tracker-menu-wrap" ref={menuRef}>
               <button
                 type="button"
@@ -773,7 +786,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                 </div>
               ) : null}
             </div>
-          </div>
+          </ScreenBar>
 
           {mismatches.length > 0 ? (
             <>

@@ -9,6 +9,7 @@ import {
 } from "../lib/dates";
 import { supabase } from "../lib/supabase";
 import { LockGate } from "./LockGate";
+import { ScreenBar } from "./ScreenBar";
 import { TickIcon } from "./Icons";
 
 type TouchPoint = {
@@ -182,14 +183,24 @@ export function ManagerScreen({ pinGate }: ManagerScreenProps) {
     setItems((current) => sortByDue([...(current ?? []), { ...item, done: false, done_at: null }]));
   }
 
+  // The bar stays put through the lock, so the sidebar control is reachable
+  // on a locked screen and the layout does not jump when it unlocks.
   if (!unlocked) {
-    return <LockGate heading="Manager" gate={pinGate} />;
+    return (
+      <>
+        <ScreenBar title="Manager" />
+        <LockGate heading="Manager" gate={pinGate} />
+      </>
+    );
   }
 
   const today = sydneyTodayIso();
   const tomorrow = sydneyTomorrowIso();
   const loading = items === null;
   const openCount = items?.length ?? 0;
+  const openLabel = loading
+    ? null
+    : `${openCount} open touch ${openCount === 1 ? "point" : "points"}`;
 
   return (
     <section
@@ -197,6 +208,7 @@ export function ManagerScreen({ pinGate }: ManagerScreenProps) {
       onPointerDownCapture={pinGate.touch}
       onKeyDownCapture={pinGate.touch}
     >
+      <ScreenBar title="Manager" subtitle={openLabel} />
       <div className="manager-input-card">
         <label className="field-label" htmlFor="manager-who">
           Who
@@ -260,7 +272,6 @@ export function ManagerScreen({ pinGate }: ManagerScreenProps) {
       <div className="manager-list-section">
         <div className="manager-list-head">
           <h2 className="section-heading">To do</h2>
-          <span className="manager-count">{openCount} open</span>
         </div>
         {listMessage ? (
           <p className="manager-message" role="alert">

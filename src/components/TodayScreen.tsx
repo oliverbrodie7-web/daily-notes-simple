@@ -3,6 +3,7 @@ import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
+import { ScreenBar } from "./ScreenBar";
 import { TickIcon, WarningIcon } from "./Icons";
 
 type TodayNote = {
@@ -206,6 +207,20 @@ export function TodayScreen() {
 
   return (
     <section className="today-screen">
+      <ScreenBar
+        title="Today"
+        subtitle={countLabel === "0 notes" ? "No notes yet" : `${countLabel} added`}
+      >
+        <button
+          type="button"
+          className="primary-button screen-bar-button"
+          disabled={saving}
+          onClick={handleAdd}
+        >
+          {saving ? "Adding..." : "Add note"}
+        </button>
+      </ScreenBar>
+
       <div className="today-input-card">
         <label className="field-label" htmlFor="today-student">
           Student name
@@ -275,7 +290,6 @@ export function TodayScreen() {
       <div className="today-list-section">
         <div className="today-list-head">
           <h2 className="section-heading">Added today</h2>
-          <span className="today-count">{countLabel}</span>
         </div>
         {listMessage ? (
           <p className="today-message" role="alert">

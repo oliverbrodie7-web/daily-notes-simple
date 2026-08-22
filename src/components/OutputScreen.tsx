@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { copyText } from "../lib/clipboard";
 import { formatSydneyFullDate, formatSydneyTime } from "../lib/dates";
 import { supabase } from "../lib/supabase";
+import { ScreenBar } from "./ScreenBar";
 import { ChevronLeftIcon, ChevronRightIcon, TickIcon, WarningIcon } from "./Icons";
 
 type OutputNote = {
@@ -155,7 +156,7 @@ export function OutputScreen() {
 
   return (
     <section className="output-screen">
-      <div className="output-datebar">
+      <ScreenBar title="Output" subtitle={initialLoading ? null : heading}>
         <button
           type="button"
           className="date-arrow"
@@ -165,10 +166,6 @@ export function OutputScreen() {
         >
           <ChevronLeftIcon />
         </button>
-        <div className="output-date-centre">
-          <h2 className="section-heading">{initialLoading ? "Output" : heading}</h2>
-          {subline ? <p className="output-count">{subline}</p> : null}
-        </div>
         <button
           type="button"
           className="date-arrow"
@@ -178,7 +175,9 @@ export function OutputScreen() {
         >
           <ChevronRightIcon />
         </button>
-      </div>
+      </ScreenBar>
+
+      {subline ? <p className="output-count output-count-line">{subline}</p> : null}
 
       {noMatchNames.length > 0 ? (
         <div className="output-warning">
