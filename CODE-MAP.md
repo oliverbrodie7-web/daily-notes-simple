@@ -153,6 +153,40 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Suggestion strip on Today, 21 August 2026
+
+A quiet strip below the input card naming up to five students whose parent
+is in this week's focus and who have not been written about this term.
+
+src/lib/focus.ts is now the one place the parent name rule lives.
+TrackerScreen had a local normaliseParentName; it imports the shared one
+now, unchanged in behaviour, so the tile and the strip cannot drift apart.
+Touch points reuse matchTouchPoints and the draft_created rule exactly as
+the Parents screen does, and the term window comes from pickTermForDate
+with the same ninety day fallback.
+
+The week rule is deliberately NOT shared, and this is worth knowing. The
+Parents tile takes the newest week_start present in the table, whatever
+week that is. The strip insists on the Monday of the current Sydney week
+and shows nothing otherwise. That difference is intentional here: a stale
+list is worse than no list when the app is nudging someone to write about
+a child. It also means the two can disagree, with the tile showing a count
+from an old list while the strip shows nothing. The tile's loose week rule
+was reported on 21 August 2026 and left alone because this task was scoped
+to the Today screen.
+
+The chips are inert on purpose and that is the whole design. A tappable
+chip that filled the student name field would make it easy to write about
+a child who was not in that evening, which is the one thing this must not
+encourage. They are spans, not buttons, with no pointer cursor, no shadow
+and no hover, and nothing in the strip is focusable. The section carries
+an aria-label naming the students and everything inside it is aria-hidden,
+so a screen reader hears one sentence rather than a heading, a list of
+chips and a note.
+
+No warning colours anywhere, checked by scanning every painted colour in
+the strip rather than by eye.
+
 ## Touch points cell redesigned, 21 August 2026
 
 The filled accent badge with a big number was the loudest thing in the row
