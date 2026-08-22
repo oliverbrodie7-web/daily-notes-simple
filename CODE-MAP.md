@@ -153,6 +153,57 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Sidebar and screen bar, 21 August 2026 (part one of two)
+
+Layout only. The attention counts and the phone tab bar are part two.
+
+From 900px up the app header and the segmented control are both gone,
+replaced by a vertical rail on the left and a bar belonging to the current
+screen. Below 900px nothing changed: the header and the floating tab bar are
+exactly as they were.
+
+The segmented control was deleted rather than hidden. It only ever showed at
+900px and above, which is precisely where the rail now sits, so nothing was
+left for it to do. Its markup, its CSS and its --seg tokens went with it. One
+token survived under an honest name: --seg-shadow is now --chip-shadow,
+because the touch badge still uses it.
+
+src/components/Sidebar.tsx is the rail: brand, three groups (Daily, Follow
+up, Setup), and a foot pinned to the bottom holding the colour scheme
+switch, Lock and Sign out. It reuses the tab bar glyphs and the padlock
+rather than redrawing them, so the two navigations cannot disagree about
+what a screen looks like. Parents keeps the two person outline the tab bar
+already had.
+
+src/components/ScreenBar.tsx is the bar. Each screen renders its own, which
+is the whole reason no screen state had to be lifted: a screen already holds
+its note count, its batch date, its term and its actions, so it passes them
+straight in. The one thing the shell owns is the collapse control, and that
+reaches the bar through a context carrying nothing else. The bar renders on
+a locked screen too, so the sidebar control stays reachable and the layout
+does not jump when it unlocks.
+
+What moved into the bar: the Output date arrows and batch date, the Parents
+heading, term line, Sort control and overflow menu, and the counts that used
+to sit beside the Today and Manager list headings. Those two chips and the
+Output date row lost their markup, so .today-count, .manager-count,
+.output-datebar and .output-date-centre were removed from the stylesheet.
+
+src/hooks/useSidebar.ts holds the collapsed state under its own key,
+touch-points-sidebar. The colour scheme key is untouched. With nothing
+stored, the width decides: collapsed below 1100px, expanded above it, and it
+follows the window across that breakpoint until the person chooses, after
+which their choice stands at every width.
+
+termWeek came back into terms.ts for the bar's term line. The old Current
+Week tile had the only week arithmetic in the app and it went with that tile
+earlier today. The new one is tested, including that the P2 deadline of 11
+September falls in week 8 of a term starting 20 July.
+
+One thing worth knowing: the rail theme switch gets 44px tall options,
+scoped to the rail. The header's compact 30px version is untouched, because
+the rail's own quality bar asks for full tap targets on every control in it.
+
 ## Stat tiles filter the list, 21 August 2026
 
 Current Week was removed: the term bar above already names the week. In its
