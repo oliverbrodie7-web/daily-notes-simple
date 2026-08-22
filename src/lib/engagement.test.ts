@@ -309,6 +309,37 @@ describe("the sentence at the foot of the panel", () => {
   });
 });
 
+describe("counting touch point replies for the touch points cell", () => {
+  it("counts every reply in the term", () => {
+    const found = build([
+      email("a@b.com", daysAgo(1), true),
+      email("a@b.com", daysAgo(3), true),
+      email("a@b.com", daysAgo(5), false),
+    ]);
+    expect(found.get("a@b.com")?.replies).toBe(2);
+  });
+
+  it("counts a reply the week 3 rule left out of the score", () => {
+    // Whether a parent replied is not a question about scoring, so this
+    // one counts here even though it scored nothing.
+    const found = build([email("a@b.com", "2026-07-25T02:00:00Z", true)]);
+    expect(found.get("a@b.com")?.score).toBe(0);
+    expect(found.get("a@b.com")?.emails).toHaveLength(0);
+    expect(found.get("a@b.com")?.replies).toBe(1);
+  });
+
+  it("counts nothing for a parent who only ever started emails", () => {
+    expect(build([email("a@b.com", daysAgo(2))]).get("a@b.com")?.replies).toBe(0);
+    expect(EMPTY_ENGAGEMENT.replies).toBe(0);
+  });
+
+  it("gives siblings the same reply count, because they share an address", () => {
+    const found = build([email("shared@home.com", daysAgo(2), true)]);
+    expect(engagementFor("shared@home.com", found).replies).toBe(1);
+    expect(engagementFor("SHARED@home.com ", found).replies).toBe(1);
+  });
+});
+
 describe("the emails listed in the panel", () => {
   it("lists them newest first", () => {
     const found = build([

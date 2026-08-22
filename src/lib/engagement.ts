@@ -32,6 +32,10 @@ export type Engagement = {
   // Days since the most recent email of any kind, week 3 rule ignored, so
   // this always reflects reality. Null when there is none at all.
   daysSinceLast: number | null;
+  // Touch point replies in the term, counted whatever the score did with
+  // them. The week 3 rule is about scoring engagement, not about whether a
+  // parent replied, so the touch points cell counts every one.
+  replies: number;
 };
 
 // A reply to an email you sent about their child. The parent was led into
@@ -132,7 +136,13 @@ export function engagementByEmail(
     if (termStart && day < termStart) continue;
     if (termEnd && day > termEnd) continue;
 
-    const entry = byEmail.get(key) ?? { score: 0, level: "none", emails: [], daysSinceLast: null };
+    const entry = byEmail.get(key) ?? {
+      score: 0,
+      level: "none" as EngagementLevel,
+      emails: [],
+      daysSinceLast: null,
+      replies: 0,
+    };
 
     // The last email line ignores the week 3 rule, so it always reflects
     // reality even while nothing is counting yet.
@@ -140,6 +150,7 @@ export function engagementByEmail(
     if (days !== null && (entry.daysSinceLast === null || days < entry.daysSinceLast)) {
       entry.daysSinceLast = days;
     }
+    if (row.is_touch_point_reply === true) entry.replies += 1;
 
     if (!from || day >= from) {
       const weight = weightOf(row);
@@ -161,6 +172,7 @@ export const EMPTY_ENGAGEMENT: Engagement = {
   level: "none",
   emails: [],
   daysSinceLast: null,
+  replies: 0,
 };
 
 export function engagementFor(
