@@ -1952,6 +1952,157 @@ svg {
   text-decoration: underline;
 }
 
+/* The control row above the list: the count on the left, Sort on the
+   right. */
+.roster-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.roster-count {
+  color: var(--text-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sort-wrap {
+  position: relative;
+  margin-left: auto;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sort-button:hover {
+  border-color: var(--accent-border);
+}
+
+/* Anything other than the default sort is obvious at a glance. */
+.sort-button.is-set {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sort-button-word {
+  color: var(--text-faint);
+  font-weight: 700;
+}
+
+.sort-button.is-set .sort-button-word {
+  color: var(--accent);
+}
+
+.sort-button-name {
+  overflow-wrap: anywhere;
+}
+
+.sort-arrow {
+  flex: none;
+}
+
+/* Desktop: an inline popover anchored to the button, never a dialog. The
+   scrim belongs to the phone panel below and is hidden here. */
+.sort-scrim {
+  display: none;
+}
+
+.sort-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  min-width: 232px;
+  max-width: min(300px, calc(100vw - 40px));
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  box-shadow: var(--card-shadow);
+  text-align: left;
+}
+
+.sort-menu-head {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.sort-group {
+  border-radius: 11px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.sort-group + .sort-menu-head {
+  margin-top: 6px;
+}
+
+.sort-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+}
+
+.sort-item + .sort-item {
+  border-top: 1px solid var(--border);
+}
+
+.sort-item:hover {
+  background: var(--accent-soft);
+}
+
+.sort-item.is-on {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sort-item-tick {
+  flex: none;
+}
+
+/* Only shown when the menu is a panel, on a phone. */
+.sort-cancel {
+  display: none;
+}
+
+/* The sorted column heading. */
+.roster-head .is-sorted {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+}
+
 /* Search sits on its own full width row and never truncates. */
 .search-pill {
   display: flex;
@@ -3317,6 +3468,43 @@ svg {
   .stat-label {
     white-space: normal;
     line-height: 1.15;
+  }
+
+  /* Below the table breakpoint the menu is a panel over the screen rather
+     than a dropdown, so it is reachable with a thumb. */
+  .sort-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: var(--scrim);
+  }
+
+  .sort-menu {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+    margin: 0 12px calc(12px + env(safe-area-inset-bottom));
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    background: var(--surface-raised);
+  }
+
+  .sort-cancel {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
   }
 
   .roster-head {

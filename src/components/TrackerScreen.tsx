@@ -26,12 +26,21 @@ import {
   toggleFilter,
   type FilterKey,
 } from "../lib/rosterFilters";
+import {
+  DEFAULT_SORT_DIRECTION,
+  DEFAULT_SORT_KEY,
+  findSort,
+  sortRoster,
+  type SortDirection,
+  type SortKey,
+} from "../lib/rosterSort";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { MismatchPanel } from "./MismatchPanel";
+import { SortArrow, SortMenu } from "./SortMenu";
 import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
 import {
@@ -149,6 +158,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // Deliberately not persisted anywhere. The screen unmounts when another
   // view is opened, so a filter never survives leaving and coming back.
   const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
+  // Also not persisted. Leaving the screen unmounts it, so both the sort and
+  // the filter start fresh on every visit.
+  const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT_KEY);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(DEFAULT_SORT_DIRECTION);
   const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<MessageTemplate[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -361,27 +374,18 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       // The same matching and the same draft_created rule the row badge
       // uses, read from the one map rather than recomputed.
       const touchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
-      return { student, status, done, overdue, focus, touchPoints };
+      // The same entry the row's last contact line shows.
+      const lastContacted = latestByStudent.get(String(student.id))?.date_contacted ?? null;
+      return { student, status, done, overdue, focus, touchPoints, lastContacted };
     });
   }, [students, latestByStudent, deadlinePassed, focusNames, touchPointsByStudent]);
 
-  // Default sort: overdue, then contact this week, then priority, then
-  // alphabetical by parent, with done students at the bottom.
-  const sorted = useMemo(() => {
-    const rank = (row: (typeof decorated)[number]) => {
-      if (row.done) return 4;
-      if (row.overdue) return 0;
-      if (row.focus) return 1;
-      if (row.student.is_priority) return 2;
-      return 3;
-    };
-    return [...decorated].sort((a, b) => {
-      const ra = rank(a);
-      const rb = rank(b);
-      if (ra !== rb) return ra - rb;
-      return (a.student.parent_name ?? "").localeCompare(b.student.parent_name ?? "");
-    });
-  }, [decorated]);
+  // Sorting only reorders. Which students are shown is decided by the
+  // filter and the search below, never here.
+  const sorted = useMemo(
+    () => sortRoster(decorated, sortKey, sortDirection),
+    [decorated, sortKey, sortDirection],
+  );
 
   const filtered = useMemo(() => {
     const byTile = applyFilter(filterKey, sorted);
@@ -416,6 +420,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   }, [decorated, counts]);
 
   const activeFilter = findFilter(filterKey);
+  const sortColumn = findSort(sortKey).column;
+
+  // The sorted column heading takes the accent colour and an arrow. The
+  // others are untouched.
+  function headClass(column: "student" | "status" | "touch"): string {
+    const base = `col-${column}`;
+    return sortColumn === column ? `${base} is-sorted` : base;
+  }
 
   const daysToDeadline = useMemo(() => {
     if (!term?.p2_deadline) return null;
@@ -859,341 +871,370 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                   : "No active students yet."}
             </p>
           ) : (
-            <div className="roster-table">
-              <div className="roster-head" aria-hidden="true">
-                <span className="col-student">Student</span>
-                <span className="col-status">P2 status</span>
-                <span className="col-touch">Touch points</span>
-                <span className="col-actions" />
+            <>
+              <div className="roster-tools">
+                <span className="roster-count">
+                  {filtered.length} {filtered.length === 1 ? "student" : "students"}
+                </span>
+                <SortMenu
+                  sortKey={sortKey}
+                  direction={sortDirection}
+                  onChange={(key, next) => {
+                    // Never touches filterKey: a sort change leaves the
+                    // filter exactly as it was.
+                    setSortKey(key);
+                    setSortDirection(next);
+                  }}
+                />
               </div>
-              <ul className="roster-body">
-                {filtered.map(({ student, status, done, overdue, focus }) => {
-                  const statusLabel = STATUS_LABELS[status];
-                  const openKind =
-                    panel && panel.studentId === String(student.id) ? panel.kind : null;
-                  const historyEntries =
-                    openKind === "history"
-                      ? logs.filter((log) => String(log.student_id) === String(student.id))
-                      : [];
-                  const touch = touchPointsByStudent.get(String(student.id));
-                  const touchCount = touch?.count ?? 0;
-                  const touchWord = touchCount === 1 ? "Touch point" : "Touch points";
-                  const touchLabel = touch
-                    ? `${touchCount} touch ${touchCount === 1 ? "point" : "points"}${
-                        touch.latestDate ? `, latest ${formatSydneyFullDate(touch.latestDate)}` : ""
-                      }`
-                    : "";
-                  // Green when done, red when overdue, amber when due this
-                  // week, neutral otherwise.
-                  const tone = done ? "good" : overdue ? "danger" : focus ? "warn" : "neutral";
-                  const lastEntry = latestByStudent.get(String(student.id));
-                  const lastContact =
-                    lastEntry && lastEntry.date_contacted
-                      ? `${shortMethod(lastEntry.method)}, ${formatSydneyShortDate(lastEntry.date_contacted)}`
-                      : null;
-                  const rowMenu = rowMenuId === String(student.id);
-                  return (
-                    <li
-                      key={student.id}
-                      className={`roster-row${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
-                    >
-                      <div className="col-student">
-                        <p className="row-name">
-                          {student.is_priority ? (
-                            <StarIcon className="roster-star" size={12} />
-                          ) : null}
-                          <span className="row-name-text">{student.student_name}</span>
-                        </p>
-                        <p className="row-sub">
-                          <span className="row-parent">
-                            {student.parent_name ?? "No parent name"}
+
+              <div className="roster-table">
+                <div className="roster-head" aria-hidden="true">
+                  <span className={headClass("student")}>
+                    Student
+                    {sortColumn === "student" ? <SortArrow direction={sortDirection} /> : null}
+                  </span>
+                  <span className={headClass("status")}>
+                    P2 status
+                    {sortColumn === "status" ? <SortArrow direction={sortDirection} /> : null}
+                  </span>
+                  <span className={headClass("touch")}>
+                    Touch points
+                    {sortColumn === "touch" ? <SortArrow direction={sortDirection} /> : null}
+                  </span>
+                  <span className="col-actions" />
+                </div>
+                <ul className="roster-body">
+                  {filtered.map(({ student, status, done, overdue, focus }) => {
+                    const statusLabel = STATUS_LABELS[status];
+                    const openKind =
+                      panel && panel.studentId === String(student.id) ? panel.kind : null;
+                    const historyEntries =
+                      openKind === "history"
+                        ? logs.filter((log) => String(log.student_id) === String(student.id))
+                        : [];
+                    const touch = touchPointsByStudent.get(String(student.id));
+                    const touchCount = touch?.count ?? 0;
+                    const touchWord = touchCount === 1 ? "Touch point" : "Touch points";
+                    const touchLabel = touch
+                      ? `${touchCount} touch ${touchCount === 1 ? "point" : "points"}${
+                          touch.latestDate
+                            ? `, latest ${formatSydneyFullDate(touch.latestDate)}`
+                            : ""
+                        }`
+                      : "";
+                    // Green when done, red when overdue, amber when due this
+                    // week, neutral otherwise.
+                    const tone = done ? "good" : overdue ? "danger" : focus ? "warn" : "neutral";
+                    const lastEntry = latestByStudent.get(String(student.id));
+                    const lastContact =
+                      lastEntry && lastEntry.date_contacted
+                        ? `${shortMethod(lastEntry.method)}, ${formatSydneyShortDate(lastEntry.date_contacted)}`
+                        : null;
+                    const rowMenu = rowMenuId === String(student.id);
+                    return (
+                      <li
+                        key={student.id}
+                        className={`roster-row${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
+                      >
+                        <div className="col-student">
+                          <p className="row-name">
+                            {student.is_priority ? (
+                              <StarIcon className="roster-star" size={12} />
+                            ) : null}
+                            <span className="row-name-text">{student.student_name}</span>
+                          </p>
+                          <p className="row-sub">
+                            <span className="row-parent">
+                              {student.parent_name ?? "No parent name"}
+                            </span>
+                            {student.parent_phone ? (
+                              <span className="row-phone">{student.parent_phone}</span>
+                            ) : null}
+                          </p>
+                        </div>
+
+                        <div className="col-status">
+                          <span className={`status-pill status-pill-${tone}`}>
+                            <span className="status-dot" aria-hidden="true" />
+                            {statusLabel}
                           </span>
-                          {student.parent_phone ? (
-                            <span className="row-phone">{student.parent_phone}</span>
-                          ) : null}
-                        </p>
-                      </div>
+                          {lastContact ? <span className="status-last">{lastContact}</span> : null}
+                        </div>
 
-                      <div className="col-status">
-                        <span className={`status-pill status-pill-${tone}`}>
-                          <span className="status-dot" aria-hidden="true" />
-                          {statusLabel}
-                        </span>
-                        {lastContact ? <span className="status-last">{lastContact}</span> : null}
-                      </div>
+                        <div className="col-touch">
+                          {touchCount > 0 ? (
+                            <button
+                              type="button"
+                              className="touch-badge"
+                              aria-label={touchLabel}
+                              title={touchLabel}
+                              onClick={() => openPanel("touch", student.id)}
+                            >
+                              <MailIcon className="touch-badge-icon" size={13} />
+                              <span className="touch-badge-count">{touchCount}</span>
+                              <span className="touch-badge-label">{touchWord}</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="touch-badge is-empty"
+                              aria-label={`No touch points for ${student.student_name}`}
+                            >
+                              <MailIcon className="touch-badge-icon" size={13} />
+                              <span className="touch-badge-count">0</span>
+                              <span className="touch-badge-label">{touchWord}</span>
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="col-touch">
-                        {touchCount > 0 ? (
+                        <div className="col-actions">
                           <button
                             type="button"
-                            className="touch-badge"
-                            aria-label={touchLabel}
-                            title={touchLabel}
-                            onClick={() => openPanel("touch", student.id)}
+                            className="row-log-button"
+                            aria-label={`Log contact for ${student.student_name}`}
+                            onClick={() => openPanel("log", student.id)}
                           >
-                            <MailIcon className="touch-badge-icon" size={13} />
-                            <span className="touch-badge-count">{touchCount}</span>
-                            <span className="touch-badge-label">{touchWord}</span>
+                            <PlusIcon size={15} />
+                            Log
                           </button>
-                        ) : (
-                          <span
-                            className="touch-badge is-empty"
-                            aria-label={`No touch points for ${student.student_name}`}
-                          >
-                            <MailIcon className="touch-badge-icon" size={13} />
-                            <span className="touch-badge-count">0</span>
-                            <span className="touch-badge-label">{touchWord}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="col-actions">
-                        <button
-                          type="button"
-                          className="row-log-button"
-                          aria-label={`Log contact for ${student.student_name}`}
-                          onClick={() => openPanel("log", student.id)}
-                        >
-                          <PlusIcon size={15} />
-                          Log
-                        </button>
-                        <button
-                          type="button"
-                          className="row-square-button"
-                          aria-label={`Contact history for ${student.student_name}`}
-                          title="History"
-                          onClick={() => openPanel("history", student.id)}
-                        >
-                          <HistoryIcon />
-                        </button>
-                        <div className="row-menu-wrap" ref={rowMenu ? rowMenuRef : undefined}>
                           <button
                             type="button"
                             className="row-square-button"
-                            aria-haspopup="menu"
-                            aria-expanded={rowMenu}
-                            aria-label={`More actions for ${student.student_name}`}
-                            title="More actions"
-                            onClick={() =>
-                              setRowMenuId((current) =>
-                                current === String(student.id) ? null : String(student.id),
-                              )
-                            }
+                            aria-label={`Contact history for ${student.student_name}`}
+                            title="History"
+                            onClick={() => openPanel("history", student.id)}
                           >
-                            <MoreIcon size={16} />
+                            <HistoryIcon />
                           </button>
-                          {rowMenu ? (
-                            <div
-                              className="action-menu row-menu"
-                              role="menu"
-                              aria-label={`More actions for ${student.student_name}`}
-                            >
-                              <div className="action-menu-group">
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="action-menu-item"
-                                  disabled={!student.parent_phone}
-                                  onClick={() => {
-                                    setRowMenuId(null);
-                                    openPanel("sms", student.id);
-                                  }}
-                                >
-                                  {student.parent_phone ? "Send an SMS" : "No phone number"}
-                                  <MessageIcon className="action-menu-icon" />
-                                </button>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="action-menu-item"
-                                  disabled={!student.parent_email}
-                                  onClick={() => {
-                                    setRowMenuId(null);
-                                    openPanel("email", student.id);
-                                  }}
-                                >
-                                  {student.parent_email ? "Send an email" : "No email address"}
-                                  <MailIcon className="action-menu-icon" />
-                                </button>
-                              </div>
-                              <div className="action-menu-group">
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="action-menu-item action-menu-item-danger"
-                                  onClick={() => {
-                                    setRowMenuId(null);
-                                    openPanel("delete", student.id);
-                                  }}
-                                >
-                                  Delete student
-                                  <TrashIcon className="action-menu-icon" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      {openKind === "log" ? (
-                        <LogContactPanel
-                          studentId={student.id}
-                          studentName={student.student_name}
-                          onClose={() => setPanel(null)}
-                          onSaved={handleLogSaved}
-                        />
-                      ) : null}
-                      {openKind === "touch" && touch ? (
-                        <div className="roster-panel">
-                          <p className="roster-panel-title">
-                            Touch points for {student.student_name}
-                          </p>
-                          <p className="roster-panel-text">
-                            Notes taken on the Today screen. These do not count towards P2 and never
-                            change the status badge.
-                          </p>
-                          <ul className="history-list">
-                            {touch.entries.map((entry, index) => (
-                              <li key={`${entry.date}-${index}`} className="history-entry">
-                                <div className="history-details">
-                                  <p className="history-line">
-                                    {entry.date ? formatSydneyFullDate(entry.date) : "No date"}
-                                    {entry.addedBy ? `, ${entry.addedBy}` : ""}
-                                  </p>
-                                  <p className="history-when">{entry.text}</p>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                          <div className="roster-panel-actions">
+                          <div className="row-menu-wrap" ref={rowMenu ? rowMenuRef : undefined}>
                             <button
                               type="button"
-                              className="row-button"
-                              onClick={() => setPanel(null)}
+                              className="row-square-button"
+                              aria-haspopup="menu"
+                              aria-expanded={rowMenu}
+                              aria-label={`More actions for ${student.student_name}`}
+                              title="More actions"
+                              onClick={() =>
+                                setRowMenuId((current) =>
+                                  current === String(student.id) ? null : String(student.id),
+                                )
+                              }
                             >
-                              Close
+                              <MoreIcon size={16} />
                             </button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {openKind === "sms" && student.parent_phone ? (
-                        <TemplatePanel
-                          mode="sms"
-                          studentName={student.student_name}
-                          parentName={student.parent_name}
-                          target={student.parent_phone}
-                          templates={smsTemplates}
-                          onClose={() => setPanel(null)}
-                        />
-                      ) : null}
-                      {openKind === "email" && student.parent_email ? (
-                        <TemplatePanel
-                          mode="email"
-                          studentName={student.student_name}
-                          parentName={student.parent_name}
-                          target={student.parent_email}
-                          templates={emailTemplates}
-                          onClose={() => setPanel(null)}
-                        />
-                      ) : null}
-                      {openKind === "history" ? (
-                        <div className="roster-panel">
-                          <p className="roster-panel-title">
-                            Contact history for {student.student_name}
-                          </p>
-                          {historyEntries.length === 0 ? (
-                            <p className="roster-panel-text">No contact logged yet.</p>
-                          ) : (
-                            <ul className="history-list">
-                              {historyEntries.map((entry) => (
-                                <li key={entry.id} className="history-entry">
-                                  <div className="history-details">
-                                    <p className="history-line">
-                                      {entry.method ?? "Unknown"}, {entry.outcome ?? "unknown"}
-                                    </p>
-                                    <p className="history-when">
-                                      {entry.date_contacted
-                                        ? formatSydneyFullDate(entry.date_contacted)
-                                        : "No date"}
-                                      {entry.logged_at
-                                        ? `, logged ${formatSydneyTime(entry.logged_at)}`
-                                        : ""}
-                                    </p>
-                                  </div>
+                            {rowMenu ? (
+                              <div
+                                className="action-menu row-menu"
+                                role="menu"
+                                aria-label={`More actions for ${student.student_name}`}
+                              >
+                                <div className="action-menu-group">
                                   <button
                                     type="button"
-                                    className="row-button row-button-danger"
-                                    disabled={entryBusyId === entry.id}
-                                    onClick={() => handleEntryDelete(entry)}
+                                    role="menuitem"
+                                    className="action-menu-item"
+                                    disabled={!student.parent_phone}
+                                    onClick={() => {
+                                      setRowMenuId(null);
+                                      openPanel("sms", student.id);
+                                    }}
                                   >
-                                    {entryBusyId === entry.id ? "Removing..." : "Delete"}
+                                    {student.parent_phone ? "Send an SMS" : "No phone number"}
+                                    <MessageIcon className="action-menu-icon" />
                                   </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="action-menu-item"
+                                    disabled={!student.parent_email}
+                                    onClick={() => {
+                                      setRowMenuId(null);
+                                      openPanel("email", student.id);
+                                    }}
+                                  >
+                                    {student.parent_email ? "Send an email" : "No email address"}
+                                    <MailIcon className="action-menu-icon" />
+                                  </button>
+                                </div>
+                                <div className="action-menu-group">
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="action-menu-item action-menu-item-danger"
+                                    onClick={() => {
+                                      setRowMenuId(null);
+                                      openPanel("delete", student.id);
+                                    }}
+                                  >
+                                    Delete student
+                                    <TrashIcon className="action-menu-icon" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        {openKind === "log" ? (
+                          <LogContactPanel
+                            studentId={student.id}
+                            studentName={student.student_name}
+                            onClose={() => setPanel(null)}
+                            onSaved={handleLogSaved}
+                          />
+                        ) : null}
+                        {openKind === "touch" && touch ? (
+                          <div className="roster-panel">
+                            <p className="roster-panel-title">
+                              Touch points for {student.student_name}
+                            </p>
+                            <p className="roster-panel-text">
+                              Notes taken on the Today screen. These do not count towards P2 and
+                              never change the status badge.
+                            </p>
+                            <ul className="history-list">
+                              {touch.entries.map((entry, index) => (
+                                <li key={`${entry.date}-${index}`} className="history-entry">
+                                  <div className="history-details">
+                                    <p className="history-line">
+                                      {entry.date ? formatSydneyFullDate(entry.date) : "No date"}
+                                      {entry.addedBy ? `, ${entry.addedBy}` : ""}
+                                    </p>
+                                    <p className="history-when">{entry.text}</p>
+                                  </div>
                                 </li>
                               ))}
                             </ul>
-                          )}
-                          {rowMessage ? (
-                            <p className="roster-panel-message" role="alert">
-                              {rowMessage}
-                            </p>
-                          ) : null}
-                          <div className="roster-panel-actions">
-                            <button
-                              type="button"
-                              className="row-button"
-                              onClick={() => setPanel(null)}
-                            >
-                              Close
-                            </button>
+                            <div className="roster-panel-actions">
+                              <button
+                                type="button"
+                                className="row-button"
+                                onClick={() => setPanel(null)}
+                              >
+                                Close
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : null}
-                      {openKind === "delete" ? (
-                        <div className="roster-panel">
-                          <p className="roster-panel-title">Delete {student.student_name}?</p>
-                          <p className="roster-panel-text">
-                            This removes the student and their whole contact history. It cannot be
-                            undone.
-                          </p>
-                          <input
-                            className="text-field log-input delete-confirm-field"
-                            type="text"
-                            value={deleteConfirm}
-                            placeholder="Type DELETE to confirm"
-                            aria-label="Type DELETE to confirm"
-                            onChange={(event) => {
-                              setDeleteConfirm(event.target.value);
-                              setRowMessage(null);
-                            }}
+                        ) : null}
+                        {openKind === "sms" && student.parent_phone ? (
+                          <TemplatePanel
+                            mode="sms"
+                            studentName={student.student_name}
+                            parentName={student.parent_name}
+                            target={student.parent_phone}
+                            templates={smsTemplates}
+                            onClose={() => setPanel(null)}
                           />
-                          {rowMessage ? (
-                            <p className="roster-panel-message" role="alert">
-                              {rowMessage}
+                        ) : null}
+                        {openKind === "email" && student.parent_email ? (
+                          <TemplatePanel
+                            mode="email"
+                            studentName={student.student_name}
+                            parentName={student.parent_name}
+                            target={student.parent_email}
+                            templates={emailTemplates}
+                            onClose={() => setPanel(null)}
+                          />
+                        ) : null}
+                        {openKind === "history" ? (
+                          <div className="roster-panel">
+                            <p className="roster-panel-title">
+                              Contact history for {student.student_name}
                             </p>
-                          ) : null}
-                          <div className="roster-panel-actions">
-                            <button
-                              type="button"
-                              className="row-button"
-                              onClick={() => setPanel(null)}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              className="primary-button roster-panel-save button-danger"
-                              disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
-                              onClick={() => handleStudentDelete(student)}
-                            >
-                              {deletingStudent ? "Deleting..." : "Delete student"}
-                            </button>
+                            {historyEntries.length === 0 ? (
+                              <p className="roster-panel-text">No contact logged yet.</p>
+                            ) : (
+                              <ul className="history-list">
+                                {historyEntries.map((entry) => (
+                                  <li key={entry.id} className="history-entry">
+                                    <div className="history-details">
+                                      <p className="history-line">
+                                        {entry.method ?? "Unknown"}, {entry.outcome ?? "unknown"}
+                                      </p>
+                                      <p className="history-when">
+                                        {entry.date_contacted
+                                          ? formatSydneyFullDate(entry.date_contacted)
+                                          : "No date"}
+                                        {entry.logged_at
+                                          ? `, logged ${formatSydneyTime(entry.logged_at)}`
+                                          : ""}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="row-button row-button-danger"
+                                      disabled={entryBusyId === entry.id}
+                                      onClick={() => handleEntryDelete(entry)}
+                                    >
+                                      {entryBusyId === entry.id ? "Removing..." : "Delete"}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {rowMessage ? (
+                              <p className="roster-panel-message" role="alert">
+                                {rowMessage}
+                              </p>
+                            ) : null}
+                            <div className="roster-panel-actions">
+                              <button
+                                type="button"
+                                className="row-button"
+                                onClick={() => setPanel(null)}
+                              >
+                                Close
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+                        ) : null}
+                        {openKind === "delete" ? (
+                          <div className="roster-panel">
+                            <p className="roster-panel-title">Delete {student.student_name}?</p>
+                            <p className="roster-panel-text">
+                              This removes the student and their whole contact history. It cannot be
+                              undone.
+                            </p>
+                            <input
+                              className="text-field log-input delete-confirm-field"
+                              type="text"
+                              value={deleteConfirm}
+                              placeholder="Type DELETE to confirm"
+                              aria-label="Type DELETE to confirm"
+                              onChange={(event) => {
+                                setDeleteConfirm(event.target.value);
+                                setRowMessage(null);
+                              }}
+                            />
+                            {rowMessage ? (
+                              <p className="roster-panel-message" role="alert">
+                                {rowMessage}
+                              </p>
+                            ) : null}
+                            <div className="roster-panel-actions">
+                              <button
+                                type="button"
+                                className="row-button"
+                                onClick={() => setPanel(null)}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                className="primary-button roster-panel-save button-danger"
+                                disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
+                                onClick={() => handleStudentDelete(student)}
+                              >
+                                {deletingStudent ? "Deleting..." : "Delete student"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </>
           )}
         </>
       )}
