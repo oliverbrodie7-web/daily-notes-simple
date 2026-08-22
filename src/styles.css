@@ -2334,10 +2334,52 @@ svg {
 }
 
 /* The sorted column heading. */
-.roster-head .is-sorted {
+/* Every heading that maps to a sort is a real button. The arrow is always
+   rendered and only made visible, so the heading never shifts sideways when
+   the sort changes. */
+.head-sort {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+}
+
+.head-sort .sort-arrow {
+  opacity: 0;
+}
+
+/* A faint arrow on hover or keyboard focus, to hint that it can be tapped. */
+.head-sort:hover,
+.head-sort:focus-visible {
+  color: var(--text-soft);
+}
+
+.head-sort:hover .sort-arrow,
+.head-sort:focus-visible .sort-arrow {
+  opacity: 0.45;
+}
+
+.roster-head .is-sorted {
+  color: var(--accent);
+}
+
+.roster-head .is-sorted .sort-arrow,
+.roster-head .is-sorted:hover .sort-arrow,
+.roster-head .is-sorted:focus-visible .sort-arrow {
+  opacity: 1;
+}
+
+.roster-head .is-sorted:hover,
+.roster-head .is-sorted:focus-visible {
   color: var(--accent);
 }
 
@@ -2414,7 +2456,7 @@ svg {
   grid-template-columns: var(--roster-cols);
   gap: 12px;
   align-items: center;
-  padding: 9px 14px 9px 17px;
+  padding: 0 14px 0 17px;
   background: var(--surface-raised);
   border-bottom: 1px solid var(--border);
   border-radius: 14px 14px 0 0;

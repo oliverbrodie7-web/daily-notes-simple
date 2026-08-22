@@ -31,7 +31,10 @@ import {
   DEFAULT_SORT_DIRECTION,
   DEFAULT_SORT_KEY,
   findSort,
+  headingTap,
+  orderLabel,
   sortRoster,
+  type SortColumn,
   type SortDirection,
   type SortKey,
 } from "../lib/rosterSort";
@@ -487,9 +490,18 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   // The sorted column heading takes the accent colour and an arrow. The
   // others are untouched.
-  function headClass(column: "student" | "status" | "touch" | "engagement"): string {
-    const base = `col-${column}`;
-    return sortColumn === column ? `${base} is-sorted` : base;
+  // The headings and the Sort menu are two ways into the same setting, so
+  // both write the same two pieces of state and neither holds any of its
+  // own.
+  function tapHeading(column: SortColumn) {
+    const next = headingTap(column, { key: sortKey, direction: sortDirection });
+    setSortKey(next.key);
+    setSortDirection(next.direction);
+  }
+
+  function headingLabel(column: SortColumn, name: string): string {
+    if (sortColumn !== column) return `Sort by ${name}`;
+    return `Sorted by ${findSort(sortKey).label}, ${orderLabel(sortKey, sortDirection)}. Tap to reverse.`;
   }
 
   const daysToDeadline = useMemo(() => {
@@ -956,23 +968,32 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
               </div>
 
               <div className="roster-table">
-                <div className="roster-head" aria-hidden="true">
-                  <span className={headClass("student")}>
-                    Student
-                    {sortColumn === "student" ? <SortArrow direction={sortDirection} /> : null}
-                  </span>
-                  <span className={headClass("status")}>
-                    P2 status
-                    {sortColumn === "status" ? <SortArrow direction={sortDirection} /> : null}
-                  </span>
-                  <span className={headClass("engagement")}>
-                    Engagement
-                    {sortColumn === "engagement" ? <SortArrow direction={sortDirection} /> : null}
-                  </span>
-                  <span className={headClass("touch")}>
-                    Touch points
-                    {sortColumn === "touch" ? <SortArrow direction={sortDirection} /> : null}
-                  </span>
+                <div className="roster-head">
+                  {(
+                    [
+                      ["student", "Student"],
+                      ["status", "P2 status"],
+                      ["engagement", "Engagement"],
+                      ["touch", "Touch points"],
+                    ] as [SortColumn, string][]
+                  ).map(([column, name]) => {
+                    const active = sortColumn === column;
+                    return (
+                      <button
+                        key={column}
+                        type="button"
+                        className={`col-${column} head-sort${active ? " is-sorted" : ""}`}
+                        aria-label={headingLabel(column, name)}
+                        aria-pressed={active}
+                        onClick={() => tapHeading(column)}
+                      >
+                        {name}
+                        {/* Rendered whether or not it shows, so the heading
+                            never shifts sideways when the sort changes. */}
+                        <SortArrow sortKey={sortKey} direction={sortDirection} />
+                      </button>
+                    );
+                  })}
                   <span className="col-actions" />
                 </div>
                 <ul className="roster-body">

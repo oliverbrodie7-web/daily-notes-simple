@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   SORT_OPTIONS,
+  arrowFor,
   findSort,
   orderLabel,
   type SortDirection,
@@ -16,10 +17,12 @@ type SortMenuProps = {
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-// An arrow rather than an icon import: it points down for the default order
-// and up for the reversed one, and it is the same glyph on the button and
-// beside the sorted column heading.
-export function SortArrow({ direction }: { direction: SortDirection }) {
+// An arrow rather than an icon import. It points at what is actually at the
+// top of the list: down when that is the higher or more urgent value, up
+// when it is the lower one. The same glyph and the same rule serve the Sort
+// button and the column headings, so the two can never disagree.
+export function SortArrow({ sortKey, direction }: { sortKey: SortKey; direction: SortDirection }) {
+  const arrow = arrowFor(sortKey, direction);
   return (
     <svg
       className="sort-arrow"
@@ -34,8 +37,8 @@ export function SortArrow({ direction }: { direction: SortDirection }) {
       aria-hidden="true"
       focusable="false"
     >
-      {direction === "reversed" ? <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /> : null}
-      {direction === "default" ? <path d="M12 5v14M5.5 12.5 12 19l6.5-6.5" /> : null}
+      {arrow === "up" ? <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /> : null}
+      {arrow === "down" ? <path d="M12 5v14M5.5 12.5 12 19l6.5-6.5" /> : null}
     </svg>
   );
 }
@@ -106,7 +109,7 @@ export function SortMenu({ sortKey, direction, onChange }: SortMenuProps) {
       >
         <span className="sort-button-word">Sort</span>
         <span className="sort-button-name">{active.label}</span>
-        <SortArrow direction={direction} />
+        <SortArrow sortKey={sortKey} direction={direction} />
       </button>
 
       {open ? (
