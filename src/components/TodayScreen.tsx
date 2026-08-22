@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
 import { FocusSuggestions } from "./FocusSuggestions";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
-import { ScreenBar } from "./ScreenBar";
+import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
 import { TickIcon, WarningIcon } from "./Icons";
 
 type TodayNote = {
@@ -270,10 +270,10 @@ export function TodayScreen() {
 
   return (
     <section className="today-screen">
-      <ScreenBar
-        title="Today"
-        subtitle={countLabel === "0 notes" ? "No notes yet" : `${countLabel} added`}
-      >
+      <ScreenSubtitle>
+        {countLabel === "0 notes" ? "No notes yet" : `${countLabel} added`}
+      </ScreenSubtitle>
+      <ScreenActions>
         <button
           type="button"
           className="primary-button screen-bar-button"
@@ -282,7 +282,7 @@ export function TodayScreen() {
         >
           {saving ? "Adding..." : "Add note"}
         </button>
-      </ScreenBar>
+      </ScreenActions>
 
       <div className="today-input-card">
         <label className="field-label" htmlFor="today-student">

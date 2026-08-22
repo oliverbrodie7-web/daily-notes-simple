@@ -9,7 +9,7 @@ import {
 } from "../lib/dates";
 import { supabase } from "../lib/supabase";
 import { LockGate } from "./LockGate";
-import { ScreenBar } from "./ScreenBar";
+import { ScreenSubtitle } from "./ScreenBar";
 import { TickIcon } from "./Icons";
 
 type TouchPoint = {
@@ -183,15 +183,10 @@ export function ManagerScreen({ pinGate }: ManagerScreenProps) {
     setItems((current) => sortByDue([...(current ?? []), { ...item, done: false, done_at: null }]));
   }
 
-  // The bar stays put through the lock, so the sidebar control is reachable
-  // on a locked screen and the layout does not jump when it unlocks.
+  // The bar belongs to the shell now, so a locked screen keeps it without
+  // this having to render one.
   if (!unlocked) {
-    return (
-      <>
-        <ScreenBar title="Manager" />
-        <LockGate heading="Manager" gate={pinGate} />
-      </>
-    );
+    return <LockGate heading="Manager" gate={pinGate} />;
   }
 
   const today = sydneyTodayIso();
@@ -208,7 +203,7 @@ export function ManagerScreen({ pinGate }: ManagerScreenProps) {
       onPointerDownCapture={pinGate.touch}
       onKeyDownCapture={pinGate.touch}
     >
-      <ScreenBar title="Manager" subtitle={openLabel} />
+      <ScreenSubtitle>{openLabel}</ScreenSubtitle>
       <div className="manager-input-card">
         <label className="field-label" htmlFor="manager-who">
           Who

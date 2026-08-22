@@ -54,7 +54,7 @@ import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { EngagementBar, EngagementPanel } from "./Engagement";
 import { MismatchPanel } from "./MismatchPanel";
-import { ScreenBar } from "./ScreenBar";
+import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
 import { SortArrow, SortMenu } from "./SortMenu";
 import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
@@ -646,12 +646,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // The bar stays put through the lock, so the sidebar control is reachable
   // on a locked screen and the layout does not jump when it unlocks.
   if (!unlocked) {
-    return (
-      <>
-        <ScreenBar title="Parents" />
-        <LockGate heading="Parents" gate={pinGate} />
-      </>
-    );
+    return <LockGate heading="Parents" gate={pinGate} />;
   }
 
   const loading = students === null;
@@ -777,7 +772,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </div>
           </div>
 
-          <ScreenBar title="Parents" subtitle={termLine}>
+          <ScreenSubtitle>{termLine}</ScreenSubtitle>
+          <ScreenActions>
             <SortMenu
               sortKey={sortKey}
               direction={sortDirection}
@@ -871,7 +867,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                 </div>
               ) : null}
             </div>
-          </ScreenBar>
+          </ScreenActions>
 
           {mismatches.length > 0 ? (
             <>

@@ -5,7 +5,7 @@ import { Header } from "../components/Header";
 import { ManagerScreen } from "../components/ManagerScreen";
 import { OutputScreen } from "../components/OutputScreen";
 import { SettingsScreen } from "../components/SettingsScreen";
-import { ScreenBar, SidebarControlProvider } from "../components/ScreenBar";
+import { ScreenFrame, SidebarControlProvider } from "../components/ScreenBar";
 import { Sidebar } from "../components/Sidebar";
 import { SignIn } from "../components/SignIn";
 import { TodayScreen } from "../components/TodayScreen";
@@ -30,6 +30,14 @@ export const Route = createFileRoute("/")({
   }),
   component: Index,
 });
+
+const SCREEN_TITLES: Record<AppView, string> = {
+  today: "Today",
+  output: "Output",
+  parents: "Parents",
+  manager: "Manager",
+  settings: "Settings",
+};
 
 function Index() {
   const { theme, selectTheme } = useTheme();
@@ -112,20 +120,21 @@ function Index() {
                 onSignOut={handleSignOut}
               />
               <main className="app-main">
-                {view === "output" ? (
-                  <OutputScreen />
-                ) : view === "parents" ? (
-                  <TrackerScreen pinGate={pinGate} />
-                ) : view === "manager" ? (
-                  <ManagerScreen pinGate={pinGate} />
-                ) : view === "settings" ? (
-                  <>
-                    <ScreenBar title="Settings" />
+                {/* One bar, rendered here, above whichever screen is on.
+                    No screen renders its own. */}
+                <ScreenFrame title={SCREEN_TITLES[view]}>
+                  {view === "output" ? (
+                    <OutputScreen />
+                  ) : view === "parents" ? (
+                    <TrackerScreen pinGate={pinGate} />
+                  ) : view === "manager" ? (
+                    <ManagerScreen pinGate={pinGate} />
+                  ) : view === "settings" ? (
                     <SettingsScreen onDirtyChange={setSettingsDirty} pinGate={pinGate} />
-                  </>
-                ) : (
-                  <TodayScreen />
-                )}
+                  ) : (
+                    <TodayScreen />
+                  )}
+                </ScreenFrame>
               </main>
             </div>
           </SidebarControlProvider>
