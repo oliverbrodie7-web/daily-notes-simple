@@ -182,10 +182,12 @@ export function EngagementPanel({ studentName, parentName, engagement, onClose }
         ) : (
           <>
             <ul className="engage-list">
-              {shown.map((entry) => (
-                <li key={entry.receivedAt} className="engage-entry">
+              {shown.map((entry, index) => (
+                // Indexed, because two emails arriving in the same instant
+                // would collide on the timestamp.
+                <li key={index} className="engage-entry">
                   <span className="engage-entry-date">
-                    {formatSydneyShortDate(entry.receivedAt)}
+                    {formatSydneyShortDate(entry.receivedAt.slice(0, 10))}
                   </span>
                   <span className="engage-entry-subject">{oneLine(entry.subject)}</span>
                   <span className={`engage-tag${entry.weight < 1 ? " engage-tag-third" : ""}`}>
