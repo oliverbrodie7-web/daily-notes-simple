@@ -153,6 +153,59 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Three fixes and a rename feature, 22 August 2026
+
+### The engagement panel crash
+
+formatSydneyShortDate took a date column value and glued T00:00:00Z onto
+it. The panel passed parent_emails.received_at, a full timestamp, so the
+result was unparseable and Intl threw rather than returning a placeholder,
+which the root error boundary turned into a blank page. It fired for every
+parent with an email, so the panel had never worked.
+
+The panel narrows to the calendar day now, and all three date formatters
+plus formatSydneyTime narrow internally and return an empty string when
+they still cannot read a value. A caller no longer has to know which shape
+a column holds. The new test in dates.test.ts is the one that was missing:
+it takes a built Engagement and pushes every receivedAt through the
+formatter, which is the seam every scoring test walked straight past.
+
+### The top bar at the bottom of the page
+
+Each screen rendered its own ScreenBar. Fine on a plain block root, wrong
+on a grid with named areas: Today declares input, suggest, list and strip,
+Manager declares input and list, and an item with no grid area is auto
+placed into an implicit row after every named one. That dropped the bar to
+the bottom of the page. Output, Parents and Settings were unaffected, and
+it was never rendered twice.
+
+The bar is now rendered once by the shell, in ScreenFrame. Screens send
+their subtitle and actions into it through a portal rather than lifting
+that state upwards, because the action buttons close over the screen's
+live values and anything copying them into the shell would have to list
+every dependency correctly or fire with stale ones. Through a portal the
+buttons stay in their own tree.
+
+### Renaming the screens
+
+daily_notes_settings.nav_labels holds the display text. src/lib/navLabels.ts
+falls back per value, not per object, so one blank name never takes the
+rest with it, and the app can never show an empty label. useNavLabels reads
+it once and holds it beside the colour scheme; Settings calls back into it
+after a save so a rename reaches every screen with no refresh.
+
+The internal keys never change. Renaming touches display text only, and a
+test asserts the key lists stay put even when every name is blanked.
+
+A twenty character name does not fit a fifth of a 320px phone bar at any
+readable size. The label shrinks to 8.5px at the tightest widths and then
+truncates with an ellipsis inside its own tab. Worth recording how that
+was found: the measurement passed while the labels were 123 to 149 pixels
+wide inside 58 pixel tabs, because it compared each label against itself
+and the overflow was visible rather than scrolling. The check now compares
+the label to its tab. That is the third time this exact mistake has been
+made, after the stat labels and the sidebar rows.
+
 ## Suggestion strip on Today, 21 August 2026
 
 A quiet strip below the input card naming up to five students whose parent
