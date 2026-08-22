@@ -45,6 +45,7 @@ import {
   hasGoneQuiet,
   type ParentEmail,
 } from "../lib/engagement";
+import { normaliseParentName } from "../lib/focus";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { touchCountWord, touchDisplay, touchRestOfLine, type TouchDisplay } from "../lib/touchDots";
 import { supabase } from "../lib/supabase";
@@ -174,10 +175,6 @@ function TouchDots({ touch }: { touch: TouchDisplay }) {
       </span>
     </>
   );
-}
-
-function normaliseParentName(name: string | null | undefined): string {
-  return (name ?? "").trim().toLowerCase();
 }
 
 export function TrackerScreen({ pinGate }: TrackerScreenProps) {
