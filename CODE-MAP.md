@@ -153,6 +153,42 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Touch points cell redesigned, 21 August 2026
+
+The filled accent badge with a big number was the loudest thing in the row
+for what is only a count, and it shouted over the engagement bar beside it.
+It is now a row of dots above a line of text: one dot per touch point, up
+to five, filled for a reply and hollow otherwise, then "5 sent, 3 replied"
+underneath. The column narrowed from 132px to 128px, which goes to the
+student names.
+
+src/lib/touchDots.ts holds the shape. Worth knowing why it counts rather
+than pairs: there is no per touch point reply link in the data. Touch
+points come from daily_notes matched to a student by name; replies come
+from parent_emails matched to a parent by address. Nothing joins one to the
+other, so of N dots the first R are filled. That also satisfies the rule
+that a reply is never hidden behind the cap.
+
+Because replies belong to a parent and touch points to a student, siblings
+share a reply count. The reply count is therefore clamped to the number
+sent, or a row could read "2 sent, 3 replied", which is nonsense on one
+student's row.
+
+Engagement gained a `replies` field for this. It counts every touch point
+reply in the term regardless of the week 3 rule, the same way
+daysSinceLast does: the week 3 rule is about scoring engagement, not about
+whether a parent replied.
+
+Two notes on the spec as given. It described a separate replies chip
+stacked under the badge, which did not exist in the code; there was only
+the badge. And the hollow dot's 1.5px border is declared as asked, but
+Chromium floors a fractional border width to 1px at every device pixel
+ratio, so it renders at 1px. It still reads as hollow, dark included,
+where the filled dot is solid pale blue grey against a dark centre with a
+pale ring.
+
+--chip-shadow went with the badge, which was its only consumer.
+
 ## Engagement column, 21 August 2026
 
 Built from parent_emails, a table a weekly job fills. The app only reads
