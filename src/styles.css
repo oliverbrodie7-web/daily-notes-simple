@@ -136,7 +136,6 @@ svg {
   --warning-ink: #96590a;
   --warning-contrast: #2b1a02;
   --bar-glass: rgba(255, 255, 255, 0.72);
-  --chip-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
   --engage-very: #15803d;
   --engage-engaged: #2f8f4e;
   --engage-warm: #a16207;
@@ -202,7 +201,6 @@ svg {
   --warning-ink: #96590a;
   --warning-contrast: #2b1a02;
   --bar-glass: rgba(255, 255, 255, 0.72);
-  --chip-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
   --engage-very: #15803d;
   --engage-engaged: #2f8f4e;
   --engage-warm: #a16207;
@@ -280,7 +278,6 @@ svg {
   --warning-ink: #e2a355;
   --warning-contrast: #2b1a02;
   --bar-glass: rgba(38, 44, 52, 0.86);
-  --chip-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   --engage-very: #4ade80;
   --engage-engaged: #86efac;
   --engage-warm: #fbbf24;
@@ -2442,7 +2439,7 @@ svg {
 .roster-table {
   /* Column four holds Log plus two 44px squares, which needs 167px, so it
      is 178px rather than the 152px first sketched. */
-  --roster-cols: minmax(0, 1fr) 150px 148px 132px 178px;
+  --roster-cols: minmax(0, 1fr) 150px 148px 128px 178px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -2918,59 +2915,82 @@ svg {
   min-width: 0;
 }
 
-.touch-badge {
+/* Touch points: a row of dots above a line of text. Quieter than the badge
+   it replaces, so it does not shout over the engagement bar beside it. */
+.touch-block {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 0;
+  gap: 4px;
   width: 100%;
-  min-height: 46px;
-  padding: 4px 8px;
+  /* Padding rather than a taller block, so the shape stays short while the
+     tappable area reaches 44px. */
+  min-height: 44px;
+  padding: 6px 4px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+}
+
+button.touch-block:hover {
+  background: var(--accent-soft);
+}
+
+.touch-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.touch-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+/* A reply. Filled, so it reads as done at a glance. */
+.touch-dot-filled {
   background: var(--accent);
-  color: var(--accent-contrast);
-  box-shadow: var(--chip-shadow);
-  text-align: center;
 }
 
-.touch-badge.is-empty {
-  background: var(--badge-neutral-bg);
-  color: var(--badge-neutral-text);
-  box-shadow: none;
+/* Sent, no reply yet. The border carries the shape in dark, where the
+   accent is a pale blue grey and a filled dot would otherwise look much
+   like a tinted one. */
+.touch-dot-hollow {
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
 }
 
-.touch-badge-icon {
-  flex: none;
-  opacity: 0.85;
-}
-
-.touch-badge-count {
-  font-size: 17px;
+.touch-more {
+  margin-left: 2px;
+  color: var(--text-faint);
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.touch-badge-label {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.75;
+.touch-line {
+  color: var(--text-soft);
+  font-size: 10.5px;
   line-height: 1.2;
   white-space: nowrap;
 }
 
-/* The icon sits to the left of the number, with the words underneath. */
-.touch-badge-icon,
-.touch-badge-count {
-  display: inline-block;
-  vertical-align: middle;
+.touch-line.is-empty {
+  color: var(--text-faint);
 }
 
-.touch-badge-icon {
-  margin-right: 5px;
+.touch-line-count {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.touch-line.is-empty .touch-line-count {
+  color: inherit;
+  font-weight: inherit;
 }
 
 /* Column four: Log, history, and the overflow menu holding the rest. */

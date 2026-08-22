@@ -46,6 +46,7 @@ import {
   type ParentEmail,
 } from "../lib/engagement";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
+import { touchCountWord, touchDisplay, touchRestOfLine, type TouchDisplay } from "../lib/touchDots";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
@@ -152,6 +153,27 @@ const SHORT_METHODS: Record<string, string> = {
 function shortMethod(method: string | null): string {
   const key = (method ?? "").trim().toLowerCase();
   return SHORT_METHODS[key] ?? method ?? "Contact";
+}
+
+// The dots are decorative: the block carries an aria-label with the same
+// wording, so a screen reader hears one sentence rather than a list.
+function TouchDots({ touch }: { touch: TouchDisplay }) {
+  return (
+    <>
+      {touch.dots.length > 0 ? (
+        <span className="touch-dots" aria-hidden="true">
+          {touch.dots.map((dot, index) => (
+            <span key={index} className={`touch-dot touch-dot-${dot}`} />
+          ))}
+          {touch.remainder > 0 ? <span className="touch-more">+{touch.remainder}</span> : null}
+        </span>
+      ) : null}
+      <span className={`touch-line${touch.tappable ? "" : " is-empty"}`} aria-hidden="true">
+        <span className="touch-line-count">{touchCountWord(touch)}</span>
+        {touchRestOfLine(touch)}
+      </span>
+    </>
+  );
 }
 
 function normaliseParentName(name: string | null | undefined): string {
@@ -1007,14 +1029,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                         : [];
                     const touch = touchPointsByStudent.get(String(student.id));
                     const touchCount = touch?.count ?? 0;
-                    const touchWord = touchCount === 1 ? "Touch point" : "Touch points";
-                    const touchLabel = touch
-                      ? `${touchCount} touch ${touchCount === 1 ? "point" : "points"}${
-                          touch.latestDate
-                            ? `, latest ${formatSydneyFullDate(touch.latestDate)}`
-                            : ""
-                        }`
-                      : "";
+                    // Replies come from the parent, touch points from the
+                    // student, and nothing joins one to the other, so the
+                    // cell counts rather than pairs.
+                    const touchView = touchDisplay(touchCount, emails.replies);
+                    const touchLine = `${student.student_name} touch points: ${touchView.line}`;
+                    const touchTitle = touch?.latestDate
+                      ? `${touchView.line}, latest ${formatSydneyFullDate(touch.latestDate)}`
+                      : touchView.line;
                     // Green when done, red when overdue, amber when due this
                     // week, neutral otherwise.
                     const tone = done ? "good" : overdue ? "danger" : focus ? "warn" : "neutral";
@@ -1064,26 +1086,19 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                         </div>
 
                         <div className="col-touch">
-                          {touchCount > 0 ? (
+                          {touchView.tappable ? (
                             <button
                               type="button"
-                              className="touch-badge"
-                              aria-label={touchLabel}
-                              title={touchLabel}
+                              className="touch-block"
+                              aria-label={touchLine}
+                              title={touchTitle}
                               onClick={() => openPanel("touch", student.id)}
                             >
-                              <MailIcon className="touch-badge-icon" size={13} />
-                              <span className="touch-badge-count">{touchCount}</span>
-                              <span className="touch-badge-label">{touchWord}</span>
+                              <TouchDots touch={touchView} />
                             </button>
                           ) : (
-                            <span
-                              className="touch-badge is-empty"
-                              aria-label={`No touch points for ${student.student_name}`}
-                            >
-                              <MailIcon className="touch-badge-icon" size={13} />
-                              <span className="touch-badge-count">0</span>
-                              <span className="touch-badge-label">{touchWord}</span>
+                            <span className="touch-block" aria-label={touchLine}>
+                              <TouchDots touch={touchView} />
                             </span>
                           )}
                         </div>
