@@ -153,6 +153,60 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Engagement column, 21 August 2026
+
+Built from parent_emails, a table a weekly job fills. The app only reads
+it and never writes to it, the same arrangement as manager_touch_points
+and calendly_mismatches.
+
+src/lib/engagement.ts holds the whole rule. A student is matched to their
+emails on parent_email, trimmed and lowercased on both sides. Siblings
+share an address, so they share one entry and show identical figures,
+which is intended rather than a duplicate.
+
+An email the parent started is worth 1. A reply to an email you sent about
+their child is worth a third: still contact, just contact you started.
+Weights add up across the term and the total only ever goes up, so a
+parent who was in touch early keeps the credit. Nothing before week 3
+counts, week 3 beginning fourteen days after the term start, because the
+first fortnight is timetable season and would flatter every family
+equally.
+
+The last email line deliberately ignores the week 3 rule, so it always
+reflects reality: a parent who emailed in week 1 and then went silent
+reads as a real silence rather than as never having emailed. That split
+matters for the Gone quiet tile too. "Emailed at least once this term"
+means the term, not week 3 onwards, so a parent whose only email came in
+the first fortnight can still go quiet even though it scored nothing.
+Only a parent who has sent nothing at all is exempt, because going quiet
+requires having spoken first. The tests cover both halves of that.
+
+Six levels by total weight: 6 or more Very engaged, 3 Engaged, 1.5 Warm,
+0.5 Cooling, above zero Cold, exactly zero Nothing. Five new colours per
+scheme, --engage-very through --engage-cold, plus --engage-empty for the
+unfilled segments. The light and mist values are darker than a first
+sketch because the label sits at 10.5px and has to read: measured on the
+table surface they run from 4.9 to 6.5 to 1. That does push gold and
+orange closer together in hue than they would otherwise be, which is a
+deliberate trade of hue separation for legibility, and the labels say
+Warm and Cooling anyway.
+
+The bar is a real button only when there is something to open. With
+nothing to show it is a plain element, so it never sits in the tab order
+as a dead control, and the level and last email line are still announced
+through a visually hidden line.
+
+Known and accepted: the Nothing label, the Counting from week 3 label and
+a quiet last email line all use --text-faint, which the spec named. That
+measures 2.66 on light, 2.35 on mist and 3.12 on dark. It is the app's own
+faint token used everywhere else, but at 10px it is the weakest text in
+the app, and --text-soft would fix it in one line if that is ever wanted.
+
+P2 Rate lost its tile to Gone quiet. It was the one tile that never
+filtered, because a percentage is not a list of students; every tile
+filters now. The rate itself is unchanged and still drives the progress
+bar underneath.
+
 ## Sidebar and screen bar, 21 August 2026 (part one of two)
 
 Layout only. The attention counts and the phone tab bar are part two.
