@@ -153,6 +153,57 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Re-engagement panel on Parents, 23 August 2026
+
+The way in is an item in the existing dots menu on a student row, reading
+"Draft a re-engagement email", in its own group above Delete student. The
+panel is presentation only: every rule already lived in src/lib/reengage.ts
+and none of it moved into the component.
+
+The facts the panel judges by come off the row it was opened from.
+hasEmailed is keyed off daysSinceLast rather than the number of emails,
+which is the same trap the engagement column fell into: an email count
+counts what is loaded, and what is loaded starts at week three.
+assessmentSoon is passed as null on purpose. This screen cannot see
+assessment dates, so the first rule never fires today. If those dates ever
+land, pass them in that one field and the rule starts working with nothing
+else changed, rather than the panel guessing now and being wrong quietly.
+
+The detail a template can mention comes from latestTidiedText, the newest
+tidied wording on a note matched to that student. A template that needs a
+detail and has none is listed but greyed with "needs a recent note about
+this student", not hidden. Hiding it would make the list a different
+length for every student and take away the one thing worth knowing, which
+is why it cannot be used. When none of the five can be filled the greyed
+list stays and one line is added above it saying to write a note on the
+Today screen first.
+
+Nothing loading at all is a separate message. Blaming the note when the
+read failed would send you off to write one for no reason, so no templates
+means "the wording could not be loaded", and the list is not rendered.
+The reengagement_templates read on this screen is never fatal for the same
+reason the panel is not: the rest of the screen has nothing to do with it.
+
+The panel creates no draft, sends no email and writes nothing. A test
+reads the component's own source and asserts that supabase, .insert(,
+.update(, .delete(, .upsert( and fetch( appear nowhere in it, the same
+guard already on reengage.ts. A second test asserts the copying goes
+through the shared copyText helper rather than navigator.clipboard
+directly, so the fallback cannot be bypassed by a later edit.
+
+Copied is one key, not a set, so only the button that was tapped changes
+and it changes back after two seconds. Copy all is the subject, a blank
+line, then the body, which is what pasting into an email client wants.
+
+Measured rather than asserted, at 1440, 1180, 1024, 900, 768, 430, 390,
+360 and 320, in all three schemes, for the full panel, the all greyed
+panel and the nothing loaded panel: capped at 620 wide, inside the
+viewport, filling a phone, scrolling rather than growing, nothing escaping
+the padding box, every control at least 44 tall, exactly one template
+recommended and that one open, greyed exactly where it cannot be filled,
+the email keeping its line breaks, and the over 160 count readable against
+the surface it sits on.
+
 ## Templates, the sixth screen, 22 August 2026
 
 Editing the five re-engagement templates. In the Setup group below

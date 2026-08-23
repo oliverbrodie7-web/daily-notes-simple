@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   CHOICE_REASONS,
+  NEEDS_NOTE_NOTE,
   canFill,
   choiceOf,
   fillAll,
@@ -286,5 +287,45 @@ describe("nothing here writes anything", () => {
     ]) {
       expect(source).not.toContain(forbidden);
     }
+  });
+});
+
+describe("the panel itself", () => {
+  const panelSource = require("node:fs").readFileSync(
+    new URL("../components/ReengagePanel.tsx", import.meta.url).pathname,
+    "utf8",
+  ) as string;
+
+  it("creates no draft, sends nothing and writes nothing", () => {
+    for (const forbidden of [
+      "supabase",
+      ".insert(",
+      ".update(",
+      ".delete(",
+      ".upsert(",
+      "fetch(",
+    ]) {
+      expect(panelSource).not.toContain(forbidden);
+    }
+  });
+
+  it("copies through the shared helper, which has a fallback", () => {
+    expect(panelSource).toContain("copyText");
+    expect(panelSource).not.toContain("navigator.clipboard");
+  });
+
+  it("says the same thing about a missing note as the rules do", () => {
+    expect(panelSource).toContain("NEEDS_NOTE_NOTE");
+    expect(panelSource).toContain("NOTHING_AVAILABLE_NOTE");
+    expect(NEEDS_NOTE_NOTE).toBe("needs a recent note about this student");
+  });
+
+  it("is reachable from the student row menu", () => {
+    const screenSource = require("node:fs").readFileSync(
+      new URL("../components/TrackerScreen.tsx", import.meta.url).pathname,
+      "utf8",
+    ) as string;
+    expect(screenSource).toContain("Draft a re-engagement email");
+    expect(screenSource).toContain("<ReengagePanel");
   });
 });
