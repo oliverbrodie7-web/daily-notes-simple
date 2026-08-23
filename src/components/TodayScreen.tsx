@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { noteKey, parseBulkDocument, type BulkParseResult } from "../lib/bulkNotes";
 import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { focusSuggestions, mondayOf, type FocusRow } from "../lib/focus";
 import { pickTermForDate, type TermRow } from "../lib/terms";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
+import { BulkUploadPanel } from "./BulkUploadPanel";
 import { FocusSuggestions } from "./FocusSuggestions";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
-import { TickIcon, WarningIcon } from "./Icons";
+import { TickIcon, UploadIcon, WarningIcon } from "./Icons";
 
 type TodayNote = {
   id: string;
@@ -55,30 +57,46 @@ export function TodayScreen() {
   const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
   const [termNotes, setTermNotes] = useState<TouchPointNote[] | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
+  // The document being previewed, held only while the panel is open. Nothing
+  // about it is written until the panel's own button is pressed.
+  const [bulk, setBulk] = useState<{
+    fileName: string;
+    result: BulkParseResult | null;
+    readFailed: boolean;
+  } | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const liveRef = useRef(true);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const uploadRef = useRef<HTMLButtonElement | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const staffRef = useRef<HTMLInputElement | null>(null);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    supabase
+  // Read once on open, and again after a bulk upload has saved. Nothing else
+  // reloads it: a note added or removed here is applied to the list in place.
+  const loadNotes = useCallback(async () => {
+    const { data, error } = await supabase
       .from("daily_notes")
       .select(NOTE_COLUMNS)
       .eq("note_date", sydneyTodayIso())
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setLoadFailed(true);
-          setNotes([]);
-          return;
-        }
-        setNotes((data ?? []) as TodayNote[]);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .order("created_at", { ascending: false });
+    if (!liveRef.current) return;
+    if (error) {
+      setLoadFailed(true);
+      setNotes([]);
+      return;
+    }
+    setLoadFailed(false);
+    setNotes((data ?? []) as TodayNote[]);
   }, []);
+
+  useEffect(() => {
+    liveRef.current = true;
+    void loadNotes();
+    return () => {
+      liveRef.current = false;
+    };
+  }, [loadNotes]);
 
   // The active roster, used only to work out which student each note is
   // about. Nothing here is written unless a person taps a candidate.
@@ -228,6 +246,34 @@ export function TodayScreen() {
     setRemovingId(null);
   }
 
+  // Only a .docx is offered, and only a .docx is accepted. The picker's own
+  // filter can be talked round on some systems, so the name is checked again
+  // here rather than trusted.
+  async function handleFile(file: File | null | undefined) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      setUploadMessage("That is not a Word document. Choose a file ending in .docx.");
+      return;
+    }
+    setUploadMessage(null);
+    // Focus lands back here when the panel closes, so it has to be here when
+    // the panel opens rather than on the hidden picker.
+    uploadRef.current?.focus();
+    setBulk({ fileName: file.name, result: null, readFailed: false });
+    try {
+      const buffer = await file.arrayBuffer();
+      // Loaded only when a document is actually chosen, and read here in the
+      // browser. The file is never sent anywhere.
+      const mammoth = await import("mammoth/mammoth.browser.js");
+      const read = await mammoth.default.extractRawText({ arrayBuffer: buffer });
+      if (!liveRef.current) return;
+      setBulk({ fileName: file.name, result: parseBulkDocument(read.value), readFailed: false });
+    } catch {
+      if (!liveRef.current) return;
+      setBulk({ fileName: file.name, result: null, readFailed: true });
+    }
+  }
+
   // Worked out at display time with the same shared module the Parents
   // screen uses, so the two screens can never disagree about a note.
   const matches = useMemo(() => {
@@ -249,6 +295,17 @@ export function TodayScreen() {
       mondayOf(sydneyTodayIso()),
     );
   }, [students, focusRows, termNotes]);
+
+  // One array, so the panel below is not handed a new roster on every render
+  // and made to work out every match again.
+  const roster = useMemo(() => students ?? [], [students]);
+
+  // Today's notes as name and text squashed together, which is what makes a
+  // note from a document the same note as one already on the list.
+  const existingKeys = useMemo(
+    () => new Set((notes ?? []).map((note) => noteKey(note.student_name, note.note_text))),
+    [notes],
+  );
 
   const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
   const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
@@ -348,6 +405,38 @@ export function TodayScreen() {
           <kbd className="key-chip">Enter</kbd> in the note to save,{" "}
           <kbd className="key-chip">Shift</kbd> <kbd className="key-chip">Enter</kbd> for a new line
         </p>
+
+        <p className="today-or">
+          <span>or</span>
+        </p>
+        <input
+          className="today-file"
+          type="file"
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          ref={fileRef}
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            // Cleared straight away so choosing the same file twice in a row
+            // still counts as a change.
+            event.target.value = "";
+            void handleFile(file);
+          }}
+        />
+        <button
+          type="button"
+          className="today-upload"
+          ref={uploadRef}
+          onClick={() => fileRef.current?.click()}
+        >
+          <UploadIcon className="today-upload-icon" size={16} />
+          Upload a document
+        </button>
+        {uploadMessage ? (
+          <p className="today-form-message today-upload-message" role="alert">
+            {uploadMessage}
+          </p>
+        ) : null}
       </div>
 
       <FocusSuggestions students={suggestions} />
@@ -443,6 +532,18 @@ export function TodayScreen() {
         <strong>7:30 pm tonight:</strong> these notes collate automatically and land on the Output
         screen.
       </p>
+
+      {bulk ? (
+        <BulkUploadPanel
+          fileName={bulk.fileName}
+          result={bulk.result}
+          readFailed={bulk.readFailed}
+          students={roster}
+          existingKeys={existingKeys}
+          onClose={() => setBulk(null)}
+          onSaved={() => void loadNotes()}
+        />
+      ) : null}
 
       {picking && pickingMatch && pickingMatch.kind !== "matched" ? (
         <MatchStudentPanel
