@@ -1,24 +1,44 @@
 import { describe, expect, it } from "bun:test";
 import {
   batchCount,
+  cellLines,
+  decodeEntities,
   duplicateWarning,
   duplicateWarnings,
+  htmlToText,
   inBatch,
   noteKey,
   noteTextFrom,
+  ordinal,
   parseBulkDocument,
+  readDocument,
   squash,
   toCards,
   stripTutorInitials,
-  toLines,
   topicToWords,
 } from "./bulkNotes";
 
-// What mammoth gives back: every paragraph followed by a blank line of its
-// own, so an empty paragraph arrives as an extra pair. Building the fixtures
-// this way keeps the tests honest about the text the app actually sees.
+// Fixtures are built the way mammoth really writes a document, with empty
+// paragraphs kept and the greater than sign escaped, so the tests are honest
+// about what the app actually sees.
+function escape(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function asDocument(lines: string[]): string {
-  return lines.map((line) => `${line}\n\n`).join("");
+  return lines.map((line) => `<p>${escape(line)}</p>`).join("");
+}
+
+// One cell per student, its lines joined by soft breaks inside a single
+// paragraph, which is what pressing shift and enter in Word produces.
+function asTable(cells: string[][]): string {
+  const rows = cells
+    .map((lines) => {
+      const body = lines.length === 0 ? "<p></p>" : `<p>${lines.map(escape).join("<br />")}</p>`;
+      return `<tr><td>${body}</td></tr>`;
+    })
+    .join("");
+  return `<table>${rows}</table>`;
 }
 
 const THREE_STUDENTS = asDocument([
@@ -35,22 +55,203 @@ const THREE_STUDENTS = asDocument([
   "Needed a reminder about common denominators. AB",
 ]);
 
-describe("turning a document into lines", () => {
+describe("reading the document", () => {
   it("puts the paragraphs back, blanks and all", () => {
-    expect(toLines(asDocument(["One", "", "Two"]))).toEqual(["One", "", "Two", ""]);
+    expect(readDocument(asDocument(["One", "", "Two"])).lines).toEqual(["One", "", "Two", ""]);
   });
 
   it("trims each line, so a stray space is not a line of its own", () => {
-    expect(toLines("Alice D  \n\n   \n\nBob T\n\n")).toEqual(["Alice D", "", "Bob T", ""]);
+    expect(readDocument("<p>Alice D  </p><p>   </p><p>Bob T</p>").lines).toEqual([
+      "Alice D",
+      "",
+      "Bob T",
+      "",
+    ]);
   });
 
-  it("copes with Windows line endings", () => {
-    // The same three paragraphs, the middle one empty, written with carriage
-    // returns the way Word writes them.
-    expect(toLines("Alice D\r\n\r\n\r\n\r\nBob T\r\n\r\n")).toEqual(["Alice D", "", "Bob T", ""]);
+  it("finds no cells in a document with no table", () => {
+    expect(readDocument(asDocument(["One", "", "Two"])).cells).toEqual([]);
+  });
+
+  it("takes every cell in document order, breaks and all", () => {
+    const html = asTable([["Alice D", "Decimals", "All good. JD"], [], ["Bob T"]]);
+    expect(readDocument(html).cells).toEqual([
+      "Alice D\nDecimals\nAll good. JD\n",
+      "\n",
+      "Bob T\n",
+    ]);
+  });
+
+  it("keeps the paragraphs outside a table separate from the cells", () => {
+    const html = `<p>Loose</p>${asTable([["Alice D", "Decimals", "All good. JD"]])}<p></p>`;
+    const shape = readDocument(html);
+    expect(shape.cells).toHaveLength(1);
+    expect(shape.lines).toEqual(["Loose", "", ""]);
+  });
+
+  it("drops formatting without dropping the words", () => {
+    expect(htmlToText("<p><strong>Alice D</strong><br /><em>Decimals</em></p>")).toBe(
+      "Alice D\nDecimals\n",
+    );
+  });
+
+  it("puts the greater than sign back", () => {
+    expect(decodeEntities("Multiply &gt; Algorithm")).toBe("Multiply > Algorithm");
+    expect(decodeEntities("Tom &amp; Jerry &#39;s &#x41;")).toBe("Tom & Jerry 's A");
+  });
+
+  it("does not let a table inside a cell end the outer one early", () => {
+    const inner = "<table><tr><td><p>Nested</p></td></tr></table>";
+    const html = `<table><tr><td><p>Alice D<br />Decimals<br />All good. JD</p>${inner}</td></tr><tr><td><p>Bob T<br />Fractions<br />Fine. AB</p></td></tr></table>`;
+    expect(readDocument(html).cells).toHaveLength(2);
+  });
+
+  it("splits a cell into its lines and drops the blank ones", () => {
+    expect(cellLines("\nAlice D\n\n  \nDecimals\nAll good. JD\n")).toEqual([
+      "Alice D",
+      "Decimals",
+      "All good. JD",
+    ]);
   });
 });
 
+describe("a table document", () => {
+  it("makes one student out of every cell", () => {
+    const html = asTable([
+      ["Alice D", "Decimals", "All good. JD"],
+      ["Bob T", "Fractions", "Fine. AB"],
+      ["Charlie S", "Times tables", "Quick today. E Lov"],
+    ]);
+    const result = parseBulkDocument(html);
+    expect(result.ok).toBe(true);
+    expect(result.students.map((student) => student.name)).toEqual([
+      "Alice D",
+      "Bob T",
+      "Charlie S",
+    ]);
+  });
+
+  it("splits the soft line breaks inside a cell", () => {
+    const html = asTable([["Alice D", "Multiply > Algorithm", "Worked hard today. JD"]]);
+    const student = parseBulkDocument(html).students[0];
+    expect(student?.name).toBe("Alice D");
+    expect(student?.topic).toBe("Multiply > Algorithm");
+    expect(student?.note).toBe("Worked hard today. JD");
+    expect(student?.noteText).toBe("Multiply, Algorithm. Worked hard today.");
+  });
+
+  it("discards the empty lines before taking the first, the last and the middle", () => {
+    const html = asTable([["", "Alice D", "", "Decimals", "", "All good. JD", ""]]);
+    const student = parseBulkDocument(html).students[0];
+    expect(student?.name).toBe("Alice D");
+    expect(student?.topic).toBe("Decimals");
+    expect(student?.note).toBe("All good. JD");
+  });
+
+  it("joins the middle lines of a four line cell with a comma", () => {
+    const html = asTable([["Alice D", "Fractions", "Adding", "All good. JD"]]);
+    const student = parseBulkDocument(html).students[0];
+    expect(student?.topic).toBe("Fractions, Adding");
+    expect(student?.noteText).toBe("Fractions, Adding. All good.");
+  });
+
+  it("ignores an empty cell rather than refusing it", () => {
+    const html = asTable([["Alice D", "Decimals", "All good. JD"], [], ["", "  ", ""]]);
+    const result = parseBulkDocument(html);
+    expect(result.ok).toBe(true);
+    expect(result.students).toHaveLength(1);
+  });
+
+  it("refuses a cell with two lines, naming the cell", () => {
+    const html = asTable([
+      ["Alice D", "Decimals", "All good. JD"],
+      [],
+      ["Bob T", "Fractions"],
+      ["Charlie S", "Times tables", "Quick today. AB"],
+    ]);
+    const result = parseBulkDocument(html);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.where).toBe("cell");
+    expect(result.at).toBe(3);
+    expect(result.text).toBe("Bob T\nFractions");
+    expect(result.reason).toBe("It holds only two lines, and a student needs three.");
+    // The good cell before it is still offered, and the one after is not read.
+    expect(result.students.map((student) => student.name)).toEqual(["Alice D"]);
+  });
+
+  it("refuses a cell with one line, naming the cell", () => {
+    const result = parseBulkDocument(asTable([["Alice D"]]));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.at).toBe(1);
+    expect(result.reason).toBe("It holds only one line, and a student needs three.");
+  });
+
+  it("refuses a table with nothing in any cell", () => {
+    const result = parseBulkDocument(asTable([[], []]));
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.reason).toBe("Every cell in this document is empty.");
+  });
+
+  it("uses the table and ignores loose paragraphs around it", () => {
+    const html = [
+      asDocument(["Zoe Q", "Algebra", "Not a real student. XX", ""]),
+      asTable([["Alice D", "Decimals", "All good. JD"]]),
+      asDocument(["", "Yves R", "Geometry", "Also not real. YY"]),
+    ].join("");
+    const result = parseBulkDocument(html);
+    expect(result.ok).toBe(true);
+    expect(result.students.map((student) => student.name)).toEqual(["Alice D"]);
+  });
+
+  it("records the cell each student came from", () => {
+    const html = asTable([[], ["Alice D", "Decimals", "All good. JD"]]);
+    expect(parseBulkDocument(html).students[0]?.at).toBe(2);
+  });
+});
+
+describe("the real table example", () => {
+  // Exactly what mammoth returned for the document Ollie described, empty
+  // paragraphs kept, copied out of the reader rather than imagined.
+  const REAL =
+    "<p></p><p></p><table><tr><td><p>Alice D<br /><br /><br />Multiply &gt; Algorithm<br />Worked through the harder ones without help today. JD</p></td></tr><tr><td><p><br />Alyssa H<br /><br />Decimals<br />Slower today but got there in the end. E Lov</p></td></tr><tr><td><p></p></td></tr></table><p></p><p></p>";
+
+  const result = parseBulkDocument(REAL);
+
+  it("finds exactly two students", () => {
+    expect(result.ok).toBe(true);
+    expect(result.students.map((student) => student.name)).toEqual(["Alice D", "Alyssa H"]);
+  });
+
+  it("reads both topics, with the greater than sign turned into a comma", () => {
+    expect(result.students.map((student) => student.noteText)).toEqual([
+      "Multiply, Algorithm. Worked through the harder ones without help today.",
+      "Decimals. Slower today but got there in the end.",
+    ]);
+  });
+
+  it("ignores the third cell and the four empty paragraphs", () => {
+    expect(result.students).toHaveLength(2);
+  });
+});
+
+describe("saying where it stopped", () => {
+  it("counts in words up to ten", () => {
+    expect(ordinal(1)).toBe("first");
+    expect(ordinal(4)).toBe("fourth");
+    expect(ordinal(10)).toBe("tenth");
+  });
+
+  it("falls back to digits past that", () => {
+    expect(ordinal(11)).toBe("11th");
+    expect(ordinal(21)).toBe("21st");
+    expect(ordinal(22)).toBe("22nd");
+    expect(ordinal(23)).toBe("23rd");
+    expect(ordinal(24)).toBe("24th");
+  });
+});
 describe("a well formed document", () => {
   const result = parseBulkDocument(THREE_STUDENTS);
 
@@ -82,11 +283,11 @@ describe("a well formed document", () => {
   });
 
   it("records the line each student started on", () => {
-    expect(result.students.map((student) => student.line)).toEqual([1, 5, 9]);
+    expect(result.students.map((student) => student.at)).toEqual([1, 5, 9]);
   });
 
-  it("tolerates trailing whitespace and empty lines at the end of the file", () => {
-    const padded = `${THREE_STUDENTS}\n\n   \n\n\n\n`;
+  it("tolerates trailing whitespace and empty paragraphs at the end of the file", () => {
+    const padded = `${THREE_STUDENTS}${asDocument(["", "   ", "", ""])}`;
     const same = parseBulkDocument(padded);
     expect(same.ok).toBe(true);
     expect(same.students).toHaveLength(3);
@@ -98,7 +299,7 @@ describe("a well formed document", () => {
     expect(led.ok).toBe(true);
     expect(led.students).toHaveLength(3);
     // The line numbers still point at the real document.
-    expect(led.students[0]?.line).toBe(3);
+    expect(led.students[0]?.at).toBe(3);
   });
 
   it("reads a single student on its own", () => {
@@ -121,7 +322,7 @@ describe("a document that does not parse", () => {
     const result = parseBulkDocument(doc);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
-    expect(result.line).toBe(4);
+    expect(result.at).toBe(4);
     expect(result.text).toBe("Bob T");
     expect(result.reason).toBe("Expected a blank line here, before the next student.");
     // Everything read cleanly before it stopped is still offered.
@@ -145,7 +346,7 @@ describe("a document that does not parse", () => {
     const result = parseBulkDocument(doc);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
-    expect(result.line).toBe(7);
+    expect(result.at).toBe(7);
     expect(result.text).toBe("");
     expect(result.reason).toBe("Expected the note on this line, under the topic.");
     expect(result.students).toHaveLength(1);
@@ -156,7 +357,7 @@ describe("a document that does not parse", () => {
     const result = parseBulkDocument(doc);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
-    expect(result.line).toBe(5);
+    expect(result.at).toBe(5);
     expect(result.text).toBe("Bob T");
     expect(result.reason).toBe("This student has only two lines, and the document ends here.");
     expect(result.students).toHaveLength(1);
@@ -184,7 +385,7 @@ describe("a document that does not parse", () => {
     const result = parseBulkDocument(doc);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
-    expect(result.line).toBe(5);
+    expect(result.at).toBe(5);
     expect(result.reason).toBe("Expected the next student's name here, but this line is blank.");
   });
 

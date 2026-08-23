@@ -1,12 +1,27 @@
 // Reading a Word document that holds several students, one note each.
 //
-// Every student is exactly three lines: the name, the topic, then the note.
-// A blank line separates one student from the next. The reader is strict on
-// purpose. A reader that skips lines looking for a pattern is how a student
-// is silently missed, which is the whole reason this exists, so anything
-// that is not that shape is refused with the line that stopped it.
+// The documents come in two shapes and both are read here.
 //
-// Nothing here touches the network or the database. It takes the text the
+// A table document is a one column table with one student per cell, and the
+// lines inside a cell are soft line breaks rather than separate paragraphs.
+// A paragraph document is three lines per student with a blank line between
+// one student and the next.
+//
+// When there is a table the table is what counts and any loose paragraphs
+// around it are ignored, because that is where the students are.
+//
+// Either way the reader is strict. A reader that skips lines looking for a
+// pattern is how a student is silently missed, which is the whole reason
+// this exists, so anything that is not one of those two shapes is refused
+// with the line, or the cell, that stopped it.
+//
+// The input is mammoth's HTML rather than its plain text. Its plain text
+// throws away the soft line breaks inside a cell, so a whole student runs
+// together into one unreadable line. The HTML keeps the table, the cells and
+// every break, and it has to be asked to keep empty paragraphs, which is
+// what separates one student from the next in a paragraph document.
+//
+// Nothing here touches the network or the database. It takes what the
 // document gave up and returns what would be saved, and the panel does the
 // saving only when a person presses the button.
 
@@ -19,9 +34,14 @@ export type BulkStudent = {
   note: string;
   // The two joined, which is what a saved note carries.
   noteText: string;
-  // Where the name sat in the document, so a card can point back at it.
-  line: number;
+  // Where it came from: the line the name sat on in a paragraph document, or
+  // the cell number in a table. Enough for a card to point back at it.
+  at: number;
 };
+
+// Which of the two shapes was being read, so a refusal can name a cell or a
+// line rather than always saying line.
+export type BulkWhere = "line" | "cell";
 
 export type BulkParseResult =
   | { ok: true; students: BulkStudent[] }
@@ -29,7 +49,8 @@ export type BulkParseResult =
       ok: false;
       // Everything read cleanly before it stopped, which can still be added.
       students: BulkStudent[];
-      line: number;
+      where: BulkWhere;
+      at: number;
       text: string;
       reason: string;
     };
@@ -37,16 +58,133 @@ export type BulkParseResult =
 export const SHAPE_NOTE =
   "Each student needs three lines, the name, then the topic, then the note, with a blank line before the next one.";
 
-// What mammoth hands back is one paragraph after another, each followed by a
-// blank line of its own, so a paragraph the person left empty arrives as an
-// empty entry. Splitting on the pair puts the paragraphs back, which is what
-// a person means by a line when they look at the document.
-export function toLines(raw: string): string[] {
-  return (raw ?? "")
-    .replace(/\r\n?/g, "\n")
-    .split("\n\n")
-    .flatMap((part) => part.split("\n"))
+export const CELL_SHAPE_NOTE =
+  "Each cell needs at least three lines, the name, then the topic, then the note, with the lines in between making up the topic.";
+
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+};
+
+// The topics are written with a greater than sign, which mammoth escapes, so
+// this is not optional decoration: without it every topic keeps an &gt; in
+// the middle of it.
+export function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (whole, body: string) => {
+    const named = ENTITIES[body.toLowerCase()];
+    if (named) return named;
+    if (!body.startsWith("#")) return whole;
+    const code =
+      body[1] === "x" || body[1] === "X"
+        ? parseInt(body.slice(2), 16)
+        : parseInt(body.slice(1), 10);
+    if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return whole;
+    return String.fromCodePoint(code);
+  });
+}
+
+// A break, or the end of a block, is a new line. Every other tag is
+// formatting and is dropped, because a bold student name is still a student
+// name and a document that uses italics is not a different shape.
+export function htmlToText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(?:p|h[1-6]|li|div|tr)\s*>/gi, "\n")
+      .replace(/<[^>]*>/g, ""),
+  );
+}
+
+// Pulls out the contents of every outermost run of one tag, and hands back
+// everything that was not inside one. Depth is counted rather than matched
+// with a lazy pattern, so a table inside a cell cannot end the outer one
+// early and quietly swallow the rest of the document.
+function carve(html: string, tag: string): { inside: string[]; outside: string } {
+  const marks = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+  const inside: string[] = [];
+  let outside = "";
+  let depth = 0;
+  let start = 0;
+  let cursor = 0;
+  let found = marks.exec(html);
+  while (found) {
+    if (found[1] === "/") {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0) {
+          inside.push(html.slice(start, found.index));
+          cursor = found.index + found[0].length;
+        }
+      }
+    } else {
+      if (depth === 0) {
+        outside += html.slice(cursor, found.index);
+        start = found.index + found[0].length;
+      }
+      depth += 1;
+    }
+    found = marks.exec(html);
+  }
+  outside += html.slice(cursor);
+  return { inside, outside };
+}
+
+export type DocumentShape = {
+  // Every cell of every table, in document order, each still carrying its own
+  // line breaks. Empty when the document holds no table.
+  cells: string[];
+  // Every paragraph outside a table, one entry each, blanks included.
+  lines: string[];
+};
+
+export function readDocument(html: string): DocumentShape {
+  const tables = carve(html ?? "", "table");
+  const cells: string[] = [];
+  for (const table of tables.inside) {
+    for (const cell of carve(table, "t[dh]").inside) cells.push(htmlToText(cell));
+  }
+  const lines = htmlToText(tables.outside)
+    .split("\n")
     .map((line) => line.trim());
+  return { cells, lines };
+}
+
+// The lines a person actually typed in a cell, with the blank ones dropped.
+// A cell often opens or closes with a stray break, and those are spacing
+// rather than content.
+export function cellLines(cell: string): string[] {
+  return cell
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+}
+
+const ORDINALS = [
+  "",
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+  "tenth",
+];
+
+export function ordinal(count: number): string {
+  const word = ORDINALS[count];
+  if (word) return word;
+  const teens = count % 100;
+  if (teens >= 11 && teens <= 13) return `${count}th`;
+  const last = count % 10;
+  const suffix = last === 1 ? "st" : last === 2 ? "nd" : last === 3 ? "rd" : "th";
+  return `${count}${suffix}`;
 }
 
 // The greater than sign is how the topics are written, and it reads as a
@@ -105,20 +243,68 @@ function fail(
   return {
     ok: false,
     students,
-    line: index + 1,
+    where: "line",
+    at: index + 1,
     text: lines[index] ?? "",
     reason,
   };
 }
 
-export function parseBulkDocument(raw: string): BulkParseResult {
-  const lines = toLines(raw);
+// A table document. Every non empty cell is one student, in document order.
+// Inside a cell the first line is the name, the last is the note, and
+// whatever sits between them is the topic.
+export function parseCells(cells: string[]): BulkParseResult {
+  const students: BulkStudent[] = [];
+  for (let index = 0; index < cells.length; index += 1) {
+    const cell = cells[index] ?? "";
+    const lines = cellLines(cell);
+    // An empty cell is spacing, not a student, so it is passed over rather
+    // than refused. A cell with something in it but not enough is refused.
+    if (lines.length === 0) continue;
+    if (lines.length < 3) {
+      return {
+        ok: false,
+        students,
+        where: "cell",
+        at: index + 1,
+        text: cell.trim(),
+        reason: `It holds only ${lines.length === 1 ? "one line" : "two lines"}, and a student needs three.`,
+      };
+    }
+    const name = lines[0] ?? "";
+    const note = lines[lines.length - 1] ?? "";
+    const topic = lines.slice(1, -1).join(", ");
+    students.push({ name, topic, note, noteText: noteTextFrom(topic, note), at: index + 1 });
+  }
+  if (students.length === 0) {
+    return {
+      ok: false,
+      students,
+      where: "cell",
+      at: 1,
+      text: "",
+      reason: "Every cell in this document is empty.",
+    };
+  }
+  return { ok: true, students };
+}
+
+export function parseBulkDocument(html: string): BulkParseResult {
+  const { cells, lines } = readDocument(html);
+  // A table is where the students are, so loose paragraphs around it are
+  // ignored rather than read as a second, different document.
+  if (cells.length > 0) return parseCells(cells);
+  return parseParagraphs(lines);
+}
+
+export function parseParagraphs(lines: string[]): BulkParseResult {
   const first = lines.findIndex((line) => line !== "");
   if (first < 0) {
     return {
       ok: false,
       students: [],
-      line: 1,
+      where: "line",
+      at: 1,
       text: "",
       reason: "There is no text in this document.",
     };
@@ -147,7 +333,7 @@ export function parseBulkDocument(raw: string): BulkParseResult {
     if (!note) {
       return fail(students, i + 2, lines, "Expected the note on this line, under the topic.");
     }
-    students.push({ name, topic, note, noteText: noteTextFrom(topic, note), line: i + 1 });
+    students.push({ name, topic, note, noteText: noteTextFrom(topic, note), at: i + 1 });
     i += 3;
     if (i > last) break;
     if (lines[i] !== "") {
@@ -209,7 +395,7 @@ export type BulkCard = {
 
 export function toCards(students: BulkStudent[], existingKeys: Set<string>): BulkCard[] {
   return students.map((student, index) => ({
-    key: `${index}-${student.line}`,
+    key: `${index}-${student.at}`,
     student,
     studentId: null,
     skipped: false,
