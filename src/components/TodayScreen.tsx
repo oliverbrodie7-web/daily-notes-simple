@@ -264,8 +264,17 @@ export function TodayScreen() {
       const buffer = await file.arrayBuffer();
       // Loaded only when a document is actually chosen, and read here in the
       // browser. The file is never sent anywhere.
+      //
+      // The HTML rather than the plain text, because the plain text drops the
+      // soft line breaks inside a table cell and a whole student runs
+      // together into one line. Empty paragraphs have to be kept as well:
+      // mammoth throws them away by default, and in a paragraph document they
+      // are what separates one student from the next.
       const mammoth = await import("mammoth/mammoth.browser.js");
-      const read = await mammoth.default.extractRawText({ arrayBuffer: buffer });
+      const read = await mammoth.default.convertToHtml(
+        { arrayBuffer: buffer },
+        { ignoreEmptyParagraphs: false },
+      );
       if (!liveRef.current) return;
       setBulk({ fileName: file.name, result: parseBulkDocument(read.value), readFailed: false });
     } catch {
