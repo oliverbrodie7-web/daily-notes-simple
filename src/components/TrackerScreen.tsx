@@ -46,13 +46,15 @@ import {
   type ParentEmail,
 } from "../lib/engagement";
 import { normaliseParentName } from "../lib/focus";
-import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
+import { latestTidiedText, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
+import { TEMPLATE_COLUMNS, type ReengagementTemplate } from "../lib/reengagement";
 import { touchCountWord, touchDisplay, touchRestOfLine, type TouchDisplay } from "../lib/touchDots";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
 import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { EngagementBar, EngagementPanel } from "./Engagement";
+import { ReengagePanel } from "./ReengagePanel";
 import { MismatchPanel } from "./MismatchPanel";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
 import { SortArrow, SortMenu } from "./SortMenu";
@@ -189,6 +191,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [mismatches, setMismatches] = useState<CalendlyMismatch[]>([]);
   const [mismatchOpen, setMismatchOpen] = useState(false);
   const [engageId, setEngageId] = useState<string | null>(null);
+  // The re-engagement wording. Read only: this screen never writes to that
+  // table, and the panel it feeds writes nothing at all.
+  const [reengageTemplates, setReengageTemplates] = useState<ReengagementTemplate[]>([]);
+  const [reengageId, setReengageId] = useState<string | null>(null);
   // Deliberately not persisted anywhere. The screen unmounts when another
   // view is opened, so a filter never survives leaving and coming back.
   const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
@@ -340,6 +346,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       .order("received_at", { ascending: false });
     if (!liveRef.current) return;
     setParentEmails((emailsRes.data ?? []) as ParentEmail[]);
+
+    // Never fatal: without them the menu item simply has nothing to offer.
+    const templatesRes = await supabase
+      .from("reengagement_templates")
+      .select(TEMPLATE_COLUMNS)
+      .order("sort_order", { ascending: true });
+    if (!liveRef.current) return;
+    setReengageTemplates((templatesRes.data ?? []) as ReengagementTemplate[]);
   }, []);
 
   useEffect(() => {
@@ -507,6 +521,14 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const engageRow = engageId
     ? decorated.find((row) => String(row.student.id) === engageId)
     : undefined;
+  const reengageRow = reengageId
+    ? decorated.find((row) => String(row.student.id) === reengageId)
+    : undefined;
+  // The newest tidied wording about that student, which is what the templates
+  // that mention a detail are filled from.
+  const reengageDetail = reengageRow
+    ? latestTidiedText(touchPointsByStudent.get(String(reengageRow.student.id)))
+    : null;
   const sortColumn = findSort(sortKey).column;
 
   // The sorted column heading takes the accent colour and an arrow. The
@@ -1171,6 +1193,20 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                                   <button
                                     type="button"
                                     role="menuitem"
+                                    className="action-menu-item"
+                                    onClick={() => {
+                                      setRowMenuId(null);
+                                      setReengageId(String(student.id));
+                                    }}
+                                  >
+                                    Draft a re-engagement email
+                                    <MailIcon className="action-menu-icon" />
+                                  </button>
+                                </div>
+                                <div className="action-menu-group">
+                                  <button
+                                    type="button"
+                                    role="menuitem"
                                     className="action-menu-item action-menu-item-danger"
                                     onClick={() => {
                                       setRowMenuId(null);
@@ -1349,6 +1385,26 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           )}
         </>
       )}
+      {reengageRow ? (
+        <ReengagePanel
+          studentName={reengageRow.student.student_name}
+          parentName={reengageRow.student.parent_name}
+          templates={reengageTemplates}
+          detail={reengageDetail}
+          facts={{
+            // Assessments are not something this screen can see, so that
+            // rule is skipped rather than guessed at.
+            assessmentSoon: null,
+            engagementLevel: reengageRow.emails.level,
+            hasEmailed: reengageRow.emails.daysSinceLast !== null,
+            daysSinceLast: reengageRow.emails.daysSinceLast,
+            p2Done: reengageRow.done,
+            hasDetail: Boolean(reengageDetail),
+          }}
+          onClose={() => setReengageId(null)}
+        />
+      ) : null}
+
       {engageRow ? (
         <EngagementPanel
           studentName={engageRow.student.student_name}
