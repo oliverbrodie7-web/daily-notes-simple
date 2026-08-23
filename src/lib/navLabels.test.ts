@@ -19,6 +19,7 @@ const RENAMED: NavLabels = {
     parents: "Families",
     manager: "Jobs",
     settings: "Options",
+    templates: "Wording",
   },
 };
 
@@ -48,6 +49,7 @@ describe("falling back to the built in names", () => {
     expect(read.screens.output).toBe("Output");
     expect(read.screens.manager).toBe("Manager");
     expect(read.screens.settings).toBe("Settings");
+    expect(read.screens.templates).toBe("Templates");
   });
 
   it("falls back for a blank value, so no label is ever empty", () => {
@@ -161,6 +163,7 @@ describe("the internal keys are never touched by a rename", () => {
       "output",
       "parents",
       "settings",
+      "templates",
       "today",
     ]);
   });
@@ -168,7 +171,7 @@ describe("the internal keys are never touched by a rename", () => {
   it("keeps the key list stable even when every name is blanked", () => {
     const read = readNavLabels({
       groups: { daily: "", followUp: "", setup: "" },
-      screens: { today: "", output: "", parents: "", manager: "", settings: "" },
+      screens: { today: "", output: "", parents: "", manager: "", settings: "", templates: "" },
     });
     expect(GROUP_KEYS.every((key) => key in read.groups)).toBe(true);
     expect(SCREEN_KEYS.every((key) => key in read.screens)).toBe(true);

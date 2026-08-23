@@ -23,7 +23,7 @@ type SidebarProps = {
 const GROUPS: { key: "daily" | "followUp" | "setup"; items: AppView[] }[] = [
   { key: "daily", items: ["today", "output"] },
   { key: "followUp", items: ["parents", "manager"] },
-  { key: "setup", items: ["settings"] },
+  { key: "setup", items: ["settings", "templates"] },
 ];
 
 // The rail. Shown from the tab bar's breakpoint upwards, where it replaces

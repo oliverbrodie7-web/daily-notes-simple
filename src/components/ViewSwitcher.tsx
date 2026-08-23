@@ -1,8 +1,8 @@
 import type { NavLabels } from "../lib/navLabels";
 
-export type AppView = "today" | "output" | "parents" | "manager" | "settings";
+export type AppView = "today" | "output" | "parents" | "manager" | "settings" | "templates";
 
-const VIEWS: AppView[] = ["today", "output", "parents", "manager", "settings"];
+const VIEWS: AppView[] = ["today", "output", "parents", "manager", "settings", "templates"];
 
 type ViewSwitcherProps = {
   view: AppView;
@@ -13,7 +13,7 @@ type ViewSwitcherProps = {
   labels: NavLabels;
 };
 
-export const PIN_PROTECTED: AppView[] = ["parents", "manager", "settings"];
+export const PIN_PROTECTED: AppView[] = ["parents", "manager", "settings", "templates"];
 
 export type GlyphProps = {
   size?: number;
@@ -75,6 +75,16 @@ export function TickGlyph(props: GlyphProps) {
   );
 }
 
+export function TemplateGlyph(props: GlyphProps) {
+  return (
+    <svg {...glyphProps(props)}>
+      <rect x="7.5" y="3.5" width="12" height="14" rx="2.5" />
+      <path d="M10.5 7.5h6M10.5 10.5h6M10.5 13.5h3.5" />
+      <path d="M15.5 20.5H6.5A2 2 0 0 1 4.5 18.5V7.5" />
+    </svg>
+  );
+}
+
 export function CogGlyph(props: GlyphProps) {
   return (
     <svg {...glyphProps(props)}>
@@ -91,6 +101,7 @@ export const GLYPHS: Record<AppView, (props: GlyphProps) => ReturnType<typeof Ca
   parents: PeopleGlyph,
   manager: TickGlyph,
   settings: CogGlyph,
+  templates: TemplateGlyph,
 };
 
 // A tiny padlock beside a protected screen's label while it is locked. It

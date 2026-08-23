@@ -1028,13 +1028,11 @@ svg {
 
 /* The narrowest phones get a slightly smaller label, tighter gaps, and a
    smaller padlock rather than any word being truncated or wrapped. */
-@media (max-width: 329px) {
-  .bar-item-label {
-    font-size: 8.5px;
-  }
-}
-
-@media (max-width: 379px) {
+/* Six tabs, and Templates is the longest name at 60px wide. These steps
+   are what it takes for the full word to fit rather than truncate, measured
+   against the tab widths each viewport actually produces. Narrowest block
+   last, so it wins. */
+@media (max-width: 429px) {
   .view-bar-inner {
     gap: 2px;
     padding: 6px 4px;
@@ -1055,6 +1053,12 @@ svg {
   .bar-item-label .view-lock svg {
     width: 8px;
     height: 8px;
+  }
+}
+
+@media (max-width: 369px) {
+  .bar-item-label {
+    font-size: 8px;
   }
 }
 
@@ -1783,6 +1787,164 @@ svg {
 }
 
 /* Screen names. Two labelled groups of fields inside the one card. */
+/* Re-engagement templates. One card per template, each saving on its own. */
+.templates-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.template-card {
+  width: 100%;
+}
+
+.template-email {
+  min-height: 260px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.template-sms {
+  min-height: 76px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.template-count {
+  margin-top: -6px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.template-count.is-over {
+  color: var(--warning-ink);
+  font-weight: 700;
+}
+
+.template-count-note {
+  font-weight: 700;
+}
+
+/* A warning, never a block: a template with no name in it may well be
+   deliberate. */
+.template-warning {
+  margin-top: 6px;
+  margin-bottom: 4px;
+  color: var(--warning-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+.template-placeholders {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.template-placeholder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--text-soft);
+  font-size: 12.5px;
+}
+
+.template-placeholder-list > li {
+  overflow-wrap: anywhere;
+}
+
+.template-token {
+  color: var(--accent);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.template-placeholder-note {
+  margin-top: 8px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.template-preview-button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.template-preview-button:hover {
+  background: var(--accent-soft);
+}
+
+.template-preview {
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.template-preview-subject {
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+/* The wording is shown as written, line breaks and all. */
+.template-preview-body {
+  margin-top: 8px;
+  color: var(--text-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.template-preview-label {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.template-preview-sms {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.template-reset {
+  margin-top: 8px;
+}
+
 .names-group-head {
   margin-top: 16px;
   font-size: 11px;

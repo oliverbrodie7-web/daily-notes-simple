@@ -5,7 +5,7 @@
 // navigates, stores or matches is touched by it.
 
 export type NavGroupKey = "daily" | "followUp" | "setup";
-export type NavScreenKey = "today" | "output" | "parents" | "manager" | "settings";
+export type NavScreenKey = "today" | "output" | "parents" | "manager" | "settings" | "templates";
 
 export type NavLabels = {
   groups: Record<NavGroupKey, string>;
@@ -26,11 +26,19 @@ export const DEFAULT_NAV_LABELS: NavLabels = {
     parents: "Parents",
     manager: "Manager",
     settings: "Settings",
+    templates: "Templates",
   },
 };
 
 export const GROUP_KEYS: NavGroupKey[] = ["daily", "followUp", "setup"];
-export const SCREEN_KEYS: NavScreenKey[] = ["today", "output", "parents", "manager", "settings"];
+export const SCREEN_KEYS: NavScreenKey[] = [
+  "today",
+  "output",
+  "parents",
+  "manager",
+  "settings",
+  "templates",
+];
 
 // What each screen is for, rather than what it is called. Used to label the
 // fields on Settings, so a label does not change as the person types.
@@ -40,6 +48,7 @@ export const SCREEN_FIELD_LABELS: Record<NavScreenKey, string> = {
   parents: "Parent tracker",
   manager: "Manager touch points",
   settings: "This screen",
+  templates: "Re-engagement templates",
 };
 
 // A name long enough to break the sidebar or the phone bar.
@@ -77,6 +86,7 @@ export function readNavLabels(stored: unknown): NavLabels {
       parents: pick(screens, "parents", DEFAULT_NAV_LABELS.screens.parents),
       manager: pick(screens, "manager", DEFAULT_NAV_LABELS.screens.manager),
       settings: pick(screens, "settings", DEFAULT_NAV_LABELS.screens.settings),
+      templates: pick(screens, "templates", DEFAULT_NAV_LABELS.screens.templates),
     },
   };
 }
@@ -119,6 +129,7 @@ export function tidyNavLabels(labels: NavLabels): NavLabels {
       parents: labels.screens.parents.trim(),
       manager: labels.screens.manager.trim(),
       settings: labels.screens.settings.trim(),
+      templates: labels.screens.templates.trim(),
     },
   };
 }
