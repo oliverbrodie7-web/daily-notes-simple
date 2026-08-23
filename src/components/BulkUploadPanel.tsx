@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
+  CELL_SHAPE_NOTE,
   SHAPE_NOTE,
   duplicateWarnings,
   inBatch,
+  ordinal,
   toCards,
   type BulkCard,
   type BulkParseResult,
@@ -244,13 +246,21 @@ export function BulkUploadPanel({
                     } cleanly before it stopped.`}
               </p>
               <p className="bulk-error-line">
-                Line {result.line} stopped it. {result.reason}
+                {result.where === "cell"
+                  ? `It stopped at the ${ordinal(result.at)} cell. ${result.reason}`
+                  : `Line ${result.at} stopped it. ${result.reason}`}
               </p>
               <p className="bulk-error-found">
-                {result.text ? `Line ${result.line} reads: ${result.text}` : "That line is blank."}
+                {result.where === "cell"
+                  ? result.text
+                    ? `That cell held this:\n${result.text}`
+                    : "That cell is empty."
+                  : result.text
+                    ? `Line ${result.at} reads: ${result.text}`
+                    : "That line is blank."}
               </p>
             </div>
-            <p className="bulk-shape">{SHAPE_NOTE}</p>
+            <p className="bulk-shape">{result.where === "cell" ? CELL_SHAPE_NOTE : SHAPE_NOTE}</p>
           </>
         ) : (
           <>

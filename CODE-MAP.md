@@ -176,18 +176,55 @@ real browser and reading a real .docx through it.
 
 ### What a line is
 
-mammoth's extractRawText puts "\n\n" after every paragraph, so a document
-where each line is its own paragraph arrives with a blank line between all
-of them, and the empty paragraph a person typed between students arrives as
-two. Splitting the text on the pair puts the paragraphs back, and an empty
-paragraph comes through as an empty entry, which is exactly what a person
-means by a blank line when they look at the document. This was verified
-against a real .docx rather than assumed, in Node and again in the browser.
+The first version read mammoth's plain text. That was wrong for the real
+documents and the reason is worth keeping.
+
+extractRawText puts "\n\n" after every paragraph, so a paragraph document
+arrives with a blank line between all of them and the empty paragraph a
+person typed between students arrives as two. Splitting on the pair puts the
+paragraphs back. That part worked.
+
+What it cannot do is a table. A soft line break inside a cell is a break
+element, and raw text drops it entirely: the real document came back as
+"Alice DMultiply > AlgorithmWorked through the harder ones..." with a whole
+student run together into one unreadable line. Its four document paragraphs
+were all empty, so the paragraph reader found nothing at all in it.
+
+convertToHtml keeps everything: the table, the cells, and every break, as
+<table><tr><td><p>Alice D<br /><br />Multiply &gt; Algorithm<br />...</p>.
+So the reader now takes HTML and the plain text path is gone.
+
+Two things about that call are load bearing. ignoreEmptyParagraphs must be
+false, because mammoth throws empty paragraphs away by default and in a
+paragraph document those are what separate one student from the next.
+And the entities have to be decoded, because mammoth escapes the greater
+than sign and every topic is written with one.
+
+Verified with real .docx files, built here, read through the actual built
+browser chunk in Chromium rather than through the Node entry, for the table
+shape, the paragraph shape and a broken one of each.
+
+### Two shapes
+
+A table document is a one column table with one student per cell, and the
+lines inside a cell are soft breaks. A paragraph document is three lines per
+student with a blank line between them. When a document holds a table, the
+table is what counts and loose paragraphs around it are ignored, because
+that is where the students are and reading both would invent students.
+
+Inside a cell the blank lines are dropped first, then the first line is the
+name, the last is the note, and everything between them is the topic joined
+with a comma. That is what makes a cell of four lines work without a
+separate rule. An empty cell is spacing, so it is passed over rather than
+refused; a cell with one or two lines in it is refused and named.
+
+A cell is counted in document order including the empty ones, because that
+is what a person sees when they count down the table.
 
 ### Strictness
 
-Three lines, then one blank line, then the next student. Nothing else is
-accepted. Blank lines at either end of the file are tolerated, because they
+In a paragraph document: three lines, then one blank line, then the next
+student. Nothing else is accepted. Blank lines at either end of the file are tolerated, because they
 are an artefact of Word and cannot hide a student, and the line numbers
 still point at the real document. Everything else is refused with the line
 that stopped it, its exact text, and what was expected there. Whatever was
@@ -198,6 +235,16 @@ A tolerant reader is the failure this feature exists to prevent, so the
 parser never skips a line looking for the pattern. The test that matters
 most asserts that a well formed student further down a broken document is
 NOT read.
+
+### Saying where it stopped
+
+The error panel keeps its shape and its wording changes with the shape it
+was reading. A paragraph refusal still says which line stopped it and quotes
+that line. A table refusal says which cell, in words up to the tenth, and
+shows the cell's text on its own lines, which the found box already renders
+with its breaks kept. The sentence underneath changes too: telling a person
+that each student needs three lines with a blank line between them is wrong
+advice when the document is a table.
 
 ### The tutor initials
 
@@ -236,7 +283,7 @@ its background, which is not a way back. The one faint colour is the
 times and "Added by" lines on that screen already use.
 
 Measured at 1440, 1180, 1024, 900, 768, 430, 390, 360 and 320, in all three
-schemes, for the preview, the error state and the Today card: capped at 600
+schemes, for the preview, both error states and the Today card: capped at 600
 wide, inside the viewport, filling a phone, scrolling rather than growing,
 nothing escaping the padding box, every control at least 44 tall, the note
 clamped to three lines, and nothing less readable than the app's own
