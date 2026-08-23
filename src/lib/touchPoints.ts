@@ -42,6 +42,9 @@ export type TouchPointNote = {
   student_name: string | null;
   note_date: string | null;
   note_text: string | null;
+  // The nightly job's tidied wording, which is what a re-engagement email
+  // quotes. Read only, and never used for counting.
+  tidied_text: string | null;
   added_by: string | null;
   draft_created: boolean | null;
 };
@@ -49,6 +52,7 @@ export type TouchPointNote = {
 export type TouchPointEntry = {
   date: string | null;
   text: string | null;
+  tidied: string | null;
   addedBy: string | null;
 };
 
@@ -192,6 +196,7 @@ export function matchTouchPoints<T extends MatchableStudent>(
     summary.entries.push({
       date: note.note_date,
       text: note.note_text,
+      tidied: note.tidied_text,
       addedBy: note.added_by,
     });
     if (note.note_date && (!summary.latestDate || note.note_date > summary.latestDate)) {
@@ -200,9 +205,22 @@ export function matchTouchPoints<T extends MatchableStudent>(
     summaries.set(id, summary);
   }
 
+  // The most recent tidied wording, for a re-engagement email to quote.
+  // Null when no counting note has one.
   // Newest first, so the panel reads the way the contact history does.
   for (const summary of summaries.values()) {
     summary.entries.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
   }
   return summaries;
+}
+
+// The most recent tidied wording among a student's counting notes, which is
+// what a re-engagement email quotes. Null when none of them has one.
+export function latestTidiedText(summary: TouchPointSummary | undefined): string | null {
+  if (!summary) return null;
+  for (const entry of summary.entries) {
+    const tidied = (entry.tidied ?? "").trim();
+    if (tidied) return tidied;
+  }
+  return null;
 }

@@ -322,7 +322,9 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     const windowStart = activeTerm?.term_start_date ?? fallbackWindowStart();
     const notesRes = await supabase
       .from("daily_notes")
-      .select("student_id, student_name, note_date, note_text, added_by, draft_created")
+      .select(
+        "student_id, student_name, note_date, note_text, tidied_text, added_by, draft_created",
+      )
       .gte("note_date", windowStart)
       .order("note_date", { ascending: false });
     if (!liveRef.current) return;

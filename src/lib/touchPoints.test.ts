@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { closestStudents, matchNote, matchTouchPoints, normaliseStudentName } from "./touchPoints";
+import {
+  closestStudents,
+  latestTidiedText,
+  matchNote,
+  matchTouchPoints,
+  normaliseStudentName,
+} from "./touchPoints";
 
 const STUDENTS = [
   { id: 1, student_name: "Aiden Chen" },
@@ -18,6 +24,7 @@ function note(
     student_name,
     note_date,
     note_text: "Worked on fractions.",
+    tidied_text: null,
     added_by,
     draft_created,
   };
@@ -387,5 +394,47 @@ describe("the closest students the picker offers", () => {
   it("returns nothing for an empty roster rather than throwing", () => {
     expect(() => closestStudents("Charlie", [])).not.toThrow();
     expect(closestStudents("Charlie", [])).toEqual([]);
+  });
+});
+
+describe("the tidied wording a re-engagement email quotes", () => {
+  function tidied(note_date: string, tidied_text: string | null) {
+    return {
+      student_id: null,
+      student_name: "Aiden Chen",
+      note_date,
+      note_text: "Raw note.",
+      tidied_text,
+      added_by: "Sarah",
+      draft_created: true,
+    };
+  }
+
+  it("takes the most recent one", () => {
+    const matched = matchTouchPoints(
+      [tidied("2026-08-03", "Older tidied"), tidied("2026-08-11", "Newer tidied")],
+      STUDENTS,
+    );
+    expect(latestTidiedText(matched.get("1"))).toBe("Newer tidied");
+  });
+
+  it("skips a note with no tidied wording and takes the next", () => {
+    const matched = matchTouchPoints(
+      [tidied("2026-08-11", null), tidied("2026-08-09", "   "), tidied("2026-08-07", "Has one")],
+      STUDENTS,
+    );
+    expect(latestTidiedText(matched.get("1"))).toBe("Has one");
+  });
+
+  it("gives nothing when no counting note has any", () => {
+    const matched = matchTouchPoints([tidied("2026-08-11", null)], STUDENTS);
+    expect(latestTidiedText(matched.get("1"))).toBeNull();
+    expect(latestTidiedText(undefined)).toBeNull();
+  });
+
+  it("never takes one from a note that did not count", () => {
+    // No draft, so it is not a touch point and not a source for a quote.
+    const held = { ...tidied("2026-08-11", "Held back"), draft_created: false };
+    expect(latestTidiedText(matchTouchPoints([held], STUDENTS).get("1"))).toBeNull();
   });
 });
