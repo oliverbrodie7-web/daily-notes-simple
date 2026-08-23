@@ -5,7 +5,10 @@ import { closestStudents, normaliseStudentName, type MatchableStudent } from "..
 export type PickerStudent = MatchableStudent & { student_name: string };
 
 type MatchStudentPanelProps<T extends PickerStudent> = {
-  noteId: string;
+  // Null when the note has not been saved yet, as on a bulk upload preview.
+  // There is no row to point at, so nothing is written and the choice is
+  // simply handed back to whoever opened the picker.
+  noteId: string | null;
   typedName: string;
   candidates: T[];
   students: T[];
@@ -65,6 +68,10 @@ export function MatchStudentPanel<T extends PickerStudent>({
 
   async function handlePick(student: T) {
     if (busy) return;
+    if (!noteId) {
+      onMatched(student);
+      return;
+    }
     setBusy(true);
     setMessage(null);
     // The id is what the app matches on from now on. The name is overwritten
