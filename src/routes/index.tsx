@@ -8,6 +8,7 @@ import { SettingsScreen } from "../components/SettingsScreen";
 import { ScreenFrame, SidebarControlProvider } from "../components/ScreenBar";
 import { Sidebar } from "../components/Sidebar";
 import { SignIn } from "../components/SignIn";
+import { TemplatesScreen } from "../components/TemplatesScreen";
 import { TodayScreen } from "../components/TodayScreen";
 import { TrackerScreen } from "../components/TrackerScreen";
 import { ViewSwitcher, type AppView } from "../components/ViewSwitcher";
@@ -39,6 +40,7 @@ function Index() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<AppView>("today");
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [templatesDirty, setTemplatesDirty] = useState(false);
 
   // One shared PIN lock for the Manager and Settings screens, held in
   // memory only in this single hook instance.
@@ -55,6 +57,13 @@ function Index() {
       );
       if (!leave) return;
       setSettingsDirty(false);
+    }
+    if (view === "templates" && templatesDirty) {
+      const leave = window.confirm(
+        "There are unsaved changes to the templates. Leave this screen and lose them?",
+      );
+      if (!leave) return;
+      setTemplatesDirty(false);
     }
     setView(next);
   }
@@ -84,6 +93,7 @@ function Index() {
   // would warn about changes that no longer exist.
   function handleLockNow() {
     setSettingsDirty(false);
+    setTemplatesDirty(false);
     pinGate.lockNow();
   }
 
@@ -126,6 +136,8 @@ function Index() {
                     <TrackerScreen pinGate={pinGate} />
                   ) : view === "manager" ? (
                     <ManagerScreen pinGate={pinGate} />
+                  ) : view === "templates" ? (
+                    <TemplatesScreen onDirtyChange={setTemplatesDirty} pinGate={pinGate} />
                   ) : view === "settings" ? (
                     <SettingsScreen
                       onDirtyChange={setSettingsDirty}
