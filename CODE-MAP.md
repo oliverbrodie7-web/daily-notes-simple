@@ -153,6 +153,42 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Templates, the sixth screen, 22 August 2026
+
+Editing the five re-engagement templates. In the Setup group below
+Settings, behind the same shared PIN, and named through nav_labels like
+the others with a fallback of Templates.
+
+src/lib/reengagement.ts holds the rules. updatePayload builds the update
+rather than the call site doing it, so only email_subject, email_body,
+sms_body and updated_at can ever leave: an extra column cannot creep in
+by accident. The app never inserts or deletes a row and never writes key,
+name, when_to_use, needs_detail, id or sort_order.
+
+Each card holds its own draft keyed by the template's key, so editing one
+cannot reach another and an unsaved card never blocks saving a different
+one. The warnings and the character count only ever warn. A template with
+no name placeholder in it may well be deliberate, and an SMS over 160
+characters is worth saying but not worth blocking.
+
+ORIGINAL_TEMPLATES IS DELIBERATELY EMPTY and this matters. The five rows
+and their original wording live in the database and are not knowable from
+here. Filling that constant with invented copy would make Reset destroy
+the real templates rather than restore them, so it ships empty and Reset
+falls back to the wording the screen loaded, which undoes the current
+session's edits and can never lose anything already saved. The
+confirmation says which of the two it is about to do. Paste the real
+originals into the constant and Reset uses them instead, with no other
+change needed.
+
+The sixth tab is what made the phone bar tight. Templates is the longest
+name at 60px wide, against tabs of 63px at 430, 56px at 390, 53px at 360
+and 47px at 320. The label steps to 9px at 429 and 8px at 369, measured
+rather than guessed, so the whole word fits at every width instead of
+truncating. Found while doing it: the 329px rule added the day before sat
+BEFORE the 379px block and was silently overridden, so it had never
+applied. The blocks are now ordered narrowest last.
+
 ## Three fixes and a rename feature, 22 August 2026
 
 ### The engagement panel crash
