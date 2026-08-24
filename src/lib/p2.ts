@@ -46,6 +46,16 @@ export function isP2Done(status: ContactStatus): boolean {
   return status === "p2_complete" || status === "email_report" || status === "low_risk";
 }
 
+// One number for the progress bar. The width it draws and the percentage it
+// says come from here, so the two can never disagree. Rounded to the nearest
+// whole number, never above 100, and 0 with nobody on the roster rather than
+// a division by zero.
+export function p2Rate(complete: number, total: number): number {
+  if (total <= 0) return 0;
+  const done = Math.max(0, Math.min(complete, total));
+  return Math.round((done / total) * 100);
+}
+
 // The exact vocabulary written to contact_log. The strings matter:
 // deriveStatus, the agents, and old Janice all read these values.
 export const CONTACT_METHODS = [

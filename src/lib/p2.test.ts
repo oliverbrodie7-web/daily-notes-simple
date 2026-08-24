@@ -6,6 +6,7 @@ import {
   TOUCH_POINT_METHOD,
   deriveStatus,
   isP2Done,
+  p2Rate,
   isTouchPointEntry,
   latestPerStudent,
   latestStatusEntryPerStudent,
@@ -233,5 +234,40 @@ describe("the contact vocabulary", () => {
     // The contact log holds only these two today: 23 and 2 rows.
     expect(isP2Done(deriveStatus({ method: "FULL P2", outcome: "Reached" }))).toBe(true);
     expect(isP2Done(deriveStatus({ method: "Low Risk Parent", outcome: "Noted" }))).toBe(true);
+  });
+});
+
+describe("the progress bar percentage", () => {
+  it("rounds to the nearest whole number", () => {
+    expect(p2Rate(42, 162)).toBe(26);
+    expect(p2Rate(81, 162)).toBe(50);
+    expect(p2Rate(1, 3)).toBe(33);
+    expect(p2Rate(2, 3)).toBe(67);
+  });
+
+  it("says nought when none are done", () => {
+    expect(p2Rate(0, 162)).toBe(0);
+  });
+
+  it("says a hundred when every one is done", () => {
+    expect(p2Rate(162, 162)).toBe(100);
+    expect(p2Rate(1, 1)).toBe(100);
+  });
+
+  it("says nought rather than dividing by zero on an empty roster", () => {
+    expect(p2Rate(0, 0)).toBe(0);
+    expect(p2Rate(5, 0)).toBe(0);
+  });
+
+  it("never goes above a hundred or below nought", () => {
+    expect(p2Rate(200, 162)).toBe(100);
+    expect(p2Rate(-5, 162)).toBe(0);
+  });
+
+  it("rounds down with one still outstanding at this roster size", () => {
+    // 161 of 162 is 99.4, so it reads 99 rather than claiming the term is
+    // finished. Plain rounding does reach a hundred one short of the lot on a
+    // roster of a thousand, which this one is nowhere near.
+    expect(p2Rate(161, 162)).toBe(99);
   });
 });
