@@ -153,6 +153,60 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Touch point history on Today, 24 August 2026
+
+A note in Added today that matches a student now says how many touch points
+that student has had this term, and the line opens their history when there
+is any. Nothing else on the screen changed.
+
+The count is not a second calculation. It reads the map matchTouchPoints
+already builds, which is what the Parents screen counts by, so the two
+cannot say different numbers about the same student. matchCount turns that
+map into what the line shows and whether there is anything to open, and
+returns null when there is nothing to count from, which is what makes a
+failed read a missing count rather than a broken list.
+
+A note just written has no draft, so it is counted nowhere, and the wording
+makes no claim about it: "No touch points yet this term" rather than
+anything that could read as including it.
+
+The panel is the one the Parents screen already had, pulled out into
+TouchPointsBody. The Parents screen still shows it inline under a row,
+exactly as it did. Today wraps the same body in a dialog, because the list
+underneath is where a person is working and it has to close on escape, close
+on a tap outside, trap focus and hand it back. That is the only difference
+between them, and the wording, the dates and the order come from one place.
+
+The brief said this screen does not read the term, the roster or past notes.
+It does, as of the tally strip the day before, so this needed no new read at
+all. The one thing added is that the term's notes are read again after a
+note is added or removed, on top of being kept in step in place, so the
+counts are right against the database and not only against what the screen
+believes.
+
+### Two things the numbers missed
+
+A screenshot caught both, which is the second time on this feature that the
+boxes all measured correctly while the page was wrong.
+
+flex-wrap was on the tappable variant of the match line and not on the line
+itself. The count holds its width, so on a plain line the name was the only
+thing that could give, and "Matched to Bob Turner" collapsed to one letter
+per line. Every box was still inside the note and every word was still
+correct, so nothing failed. The check now asserts the name is no more than
+three lines tall and wider than a letter, and that check was proved by
+putting the bug back.
+
+The tick was a flex item of its own, so a long name wrapped to the next line
+and left it stranded. The tick and the name are now one item.
+
+### Nothing marks the tappable line at rest
+
+The line has no border or underline until it is hovered, which is the same
+convention the tappable touch dots on the Parents screen already use. It
+means a person cannot tell by looking which lines open. Left that way for
+consistency rather than decided.
+
 ## Touch point tally strip on Today, 24 August 2026
 
 A strip across the top of the Today screen, above the input card and across

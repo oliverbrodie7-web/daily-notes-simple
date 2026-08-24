@@ -4,13 +4,14 @@ import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { focusSuggestions, mondayOf, type FocusRow } from "../lib/focus";
 import { tallyView } from "../lib/tally";
 import { pickTermForDate, type TermRow } from "../lib/terms";
-import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
+import { matchCount, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
 import { BulkUploadPanel } from "./BulkUploadPanel";
 import { FocusSuggestions } from "./FocusSuggestions";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
+import { TouchPointsDialog } from "./TouchPoints";
 import { TouchTallyStrip } from "./TouchTallyStrip";
 import { TickIcon, UploadIcon, WarningIcon } from "./Icons";
 
@@ -65,13 +66,16 @@ export function TodayScreen() {
   // strip shows nothing at all while it is still loading.
   const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
   const [termNotes, setTermNotes] = useState<TermNote[] | null>(null);
-  // Set when the read behind the tally strip fails. The strip then shows
-  // nothing at all rather than a number that is not true.
-  const [tallyFailed, setTallyFailed] = useState(false);
+  // Set when the term's notes or the roster could not be read. The tally
+  // strip then shows nothing at all rather than a number that is not true,
+  // and the Added today list simply goes without its counts.
+  const [termDataFailed, setTallyFailed] = useState(false);
   // Kept so the term's notes can be read again after a bulk upload without
   // working the window out a second time.
   const [termWindowStart, setTermWindowStart] = useState<string | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
+  // The student whose touch points are open, by id.
+  const [historyId, setHistoryId] = useState<string | null>(null);
   // The document being previewed, held only while the panel is open. Nothing
   // about it is written until the panel's own button is pressed.
   const [bulk, setBulk] = useState<{
@@ -123,8 +127,9 @@ export function TodayScreen() {
       .eq("enrolment_status", "Active")
       .then(({ data, error }) => {
         if (cancelled) return;
-        // The roster is half of what the tally strip counts, so losing it
-        // hides the strip. The rest of the screen carries on without it.
+        // The roster is half of what both the tally strip and the counts on
+        // the list are worked out from. Losing it drops those, and the rest
+        // of the screen carries on without them.
         if (error) setTallyFailed(true);
         setStudents((data ?? []) as PickerStudent[]);
       });
@@ -241,6 +246,10 @@ export function TodayScreen() {
             },
           ],
     );
+    // Straight away above, then read again, so the counts are right against
+    // the database rather than only against what this screen believes. The
+    // nightly job may have drafted something since the screen opened.
+    if (termWindowStart) void loadTermNotes(termWindowStart);
     // The staff member field keeps its value because the same person usually
     // adds several notes in a row.
     setStudentName("");
@@ -305,6 +314,7 @@ export function TodayScreen() {
     setTermNotes((current) =>
       current === null ? current : current.filter((item) => item.id !== note.id),
     );
+    if (termWindowStart) void loadTermNotes(termWindowStart);
     setRemovingId(null);
   }
 
@@ -354,30 +364,38 @@ export function TodayScreen() {
     return found;
   }, [notes, students]);
 
+  // Every student's touch points for the term, worked out once for the whole
+  // list rather than per note, through the same function the Parents screen
+  // counts by. Null when there is nothing to count from, which is a missing
+  // count rather than a broken list.
+  const touchByStudent = useMemo(() => {
+    if (termDataFailed || !termNotes || !students) return null;
+    return matchTouchPoints(termNotes, students);
+  }, [termDataFailed, termNotes, students]);
+
   // In this week's focus and not yet written about this term. Empty while
   // anything is still loading, so the strip never flashes a stale list.
   const suggestions = useMemo(() => {
-    if (!students || !focusRows || !termNotes) return [];
-    const touched = matchTouchPoints(termNotes, students);
+    if (!students || !focusRows || !touchByStudent) return [];
     return focusSuggestions(
       students,
       focusRows,
-      new Set(touched.keys()),
+      new Set(touchByStudent.keys()),
       mondayOf(sydneyTodayIso()),
     );
-  }, [students, focusRows, termNotes]);
+  }, [students, focusRows, touchByStudent]);
 
   // Everything the tally strip needs, worked out in one place so the numbers
   // and the bar can never be derived from different sets.
   const tally = useMemo(
     () =>
       tallyView({
-        failed: tallyFailed,
+        failed: termDataFailed,
         notes: termNotes,
         students,
         today: sydneyTodayIso(),
       }),
-    [tallyFailed, termNotes, students],
+    [termDataFailed, termNotes, students],
   );
 
   // One array, so the panel below is not handed a new roster on every render
@@ -390,6 +408,16 @@ export function TodayScreen() {
     () => new Set((notes ?? []).map((note) => noteKey(note.student_name, note.note_text))),
     [notes],
   );
+
+  // The open history, if any. Resolved from the same map the counts come
+  // from, so the panel can never show something the count did not.
+  const history = useMemo(() => {
+    if (!historyId || !touchByStudent || !students) return null;
+    const touch = touchByStudent.get(historyId);
+    const student = students.find((one) => String(one.id) === historyId);
+    if (!touch || !student) return null;
+    return { name: student.student_name, touch };
+  }, [historyId, touchByStudent, students]);
 
   const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
   const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
@@ -572,10 +600,42 @@ export function TodayScreen() {
                   <div className="today-item-foot">
                     {match ? (
                       match.kind === "matched" ? (
-                        <span className="today-match today-match-good">
-                          <TickIcon className="today-match-icon" size={13} />
-                          Matched to {match.student.student_name}
-                        </span>
+                        (() => {
+                          // Null when the term's notes could not be read or
+                          // have not arrived. The line then shows without a
+                          // count rather than the list breaking.
+                          const history = matchCount(touchByStudent, match.student.id);
+                          const inside = (
+                            <>
+                              {/* The tick and the name are one item, so a
+                                  long name wraps its own words rather than
+                                  leaving the tick alone on a line. */}
+                              <span className="today-match-headline">
+                                <TickIcon className="today-match-icon" size={13} />
+                                <span className="today-match-name">
+                                  Matched to {match.student.student_name}
+                                </span>
+                              </span>
+                              {history ? (
+                                <span className="today-match-count">{history.line}</span>
+                              ) : null}
+                            </>
+                          );
+                          // Nothing to open with no history, so it stays
+                          // plain text and out of the keyboard order.
+                          return history?.canOpen ? (
+                            <button
+                              type="button"
+                              className="today-match today-match-good today-match-open"
+                              aria-label={`${match.student.student_name}, ${history.line.toLowerCase()}. Show them`}
+                              onClick={() => setHistoryId(String(match.student.id))}
+                            >
+                              {inside}
+                            </button>
+                          ) : (
+                            <span className="today-match today-match-good">{inside}</span>
+                          );
+                        })()
                       ) : (
                         <span className="today-match today-match-warn">
                           <WarningIcon className="today-match-icon" size={15} />
@@ -618,6 +678,14 @@ export function TodayScreen() {
         <strong>7:30 pm tonight:</strong> these notes collate automatically and land on the Output
         screen.
       </p>
+
+      {history ? (
+        <TouchPointsDialog
+          studentName={history.name}
+          touch={history.touch}
+          onClose={() => setHistoryId(null)}
+        />
+      ) : null}
 
       {bulk ? (
         <BulkUploadPanel
