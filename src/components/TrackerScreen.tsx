@@ -63,6 +63,7 @@ import { EngagementBar, EngagementPanel } from "./Engagement";
 import { ReengagePanel } from "./ReengagePanel";
 import { MismatchPanel } from "./MismatchPanel";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
+import { TouchPointsBody } from "./TouchPoints";
 import { SortArrow, SortMenu } from "./SortMenu";
 import { TemplateManagerPanel } from "./TemplateManagerPanel";
 import { TemplatePanel } from "./TemplatePanel";
@@ -1233,26 +1234,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                         ) : null}
                         {openKind === "touch" && touch ? (
                           <div className="roster-panel">
-                            <p className="roster-panel-title">
-                              Touch points for {student.student_name}
-                            </p>
-                            <p className="roster-panel-text">
-                              Notes taken on the Today screen. These do not count towards P2 and
-                              never change the status badge.
-                            </p>
-                            <ul className="history-list">
-                              {touch.entries.map((entry, index) => (
-                                <li key={`${entry.date}-${index}`} className="history-entry">
-                                  <div className="history-details">
-                                    <p className="history-line">
-                                      {entry.date ? formatSydneyFullDate(entry.date) : "No date"}
-                                      {entry.addedBy ? `, ${entry.addedBy}` : ""}
-                                    </p>
-                                    <p className="history-when">{entry.text}</p>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
+                            {/* The same body the Today screen shows, so the
+                                two can never disagree about a student's
+                                history. It stays inline here, as it was. */}
+                            <TouchPointsBody studentName={student.student_name} touch={touch} />
                             <div className="roster-panel-actions">
                               <button
                                 type="button"
