@@ -166,9 +166,27 @@ map into what the line shows and whether there is anything to open, and
 returns null when there is nothing to count from, which is what makes a
 failed read a missing count rather than a broken list.
 
-A note just written has no draft, so it is counted nowhere, and the wording
-makes no claim about it: "No touch points yet this term" rather than
-anything that could read as including it.
+### Corrected the same day: the count now excludes today
+
+The first version counted every drafted note this term, today's included, so
+a student written about once today read "1 touch point this term" as though
+they had been contacted before when they had not. The draft rule was not
+enough on its own: the nightly job drafts notes at 7:30pm, so from that
+point a note written this morning starts counting itself.
+
+matchCount now takes today's Sydney date and drops every entry dated today,
+not only the note the line sits on, so a student written about twice today
+and never before reads the same thing on both notes. The wording carries it:
+"2 other touch points this term", "1 other touch point this term", "No other
+touch points this term". The word "other" is load bearing and has to stay.
+
+The panel is untouched and still shows the whole term, today included, which
+is right: it is a record rather than a count, and the two are meant to
+differ. Its own label no longer borrows the count wording, so the "other"
+change could not make it say something untrue.
+
+A line with no earlier touch points is not tappable, even when the panel
+would have today's note in it. The count is the affordance.
 
 The panel is the one the Parents screen already had, pulled out into
 TouchPointsBody. The Parents screen still shows it inline under a row,

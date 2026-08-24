@@ -419,6 +419,9 @@ export function TodayScreen() {
     return { name: student.student_name, touch };
   }, [historyId, touchByStudent, students]);
 
+  // Worked out once for the whole list rather than once per note.
+  const today = sydneyTodayIso();
+
   const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
   const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
 
@@ -604,7 +607,7 @@ export function TodayScreen() {
                           // Null when the term's notes could not be read or
                           // have not arrived. The line then shows without a
                           // count rather than the list breaking.
-                          const history = matchCount(touchByStudent, match.student.id);
+                          const history = matchCount(touchByStudent, match.student.id, today);
                           const inside = (
                             <>
                               {/* The tick and the name are one item, so a

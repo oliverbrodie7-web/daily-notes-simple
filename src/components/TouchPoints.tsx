@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { formatSydneyFullDate } from "../lib/dates";
-import { touchPointsLine, type TouchPointSummary } from "../lib/touchPoints";
+import type { TouchPointSummary } from "../lib/touchPoints";
 
 // A student's touch points for the term, in one place.
 //
@@ -98,7 +98,7 @@ export function TouchPointsDialog({ studentName, touch, onClose }: TouchPointsDi
         className="touch-panel"
         role="dialog"
         aria-modal="true"
-        aria-label={`${studentName}, ${touchPointsLine(touch.count).toLowerCase()}`}
+        aria-label={`Touch points for ${studentName}`}
         ref={panelRef}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
