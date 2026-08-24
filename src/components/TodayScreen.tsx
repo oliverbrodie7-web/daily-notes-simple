@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { noteKey, parseBulkDocument, type BulkParseResult } from "../lib/bulkNotes";
 import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { focusSuggestions, mondayOf, type FocusRow } from "../lib/focus";
+import { tallyView } from "../lib/tally";
 import { pickTermForDate, type TermRow } from "../lib/terms";
 import { matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
@@ -10,6 +11,7 @@ import { BulkUploadPanel } from "./BulkUploadPanel";
 import { FocusSuggestions } from "./FocusSuggestions";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
+import { TouchTallyStrip } from "./TouchTallyStrip";
 import { TickIcon, UploadIcon, WarningIcon } from "./Icons";
 
 type TodayNote = {
@@ -22,6 +24,13 @@ type TodayNote = {
 };
 
 const NOTE_COLUMNS = "id, student_id, student_name, note_text, created_at, added_by";
+
+// The term's notes, which the tally strip counts. The id is what lets a
+// removal be taken out of them without reading the whole term again.
+const TERM_NOTE_COLUMNS =
+  "id, student_id, student_name, note_date, note_text, added_by, draft_created";
+
+type TermNote = TouchPointNote & { id: string };
 
 // With no term to scope to, the same rolling window the Parents screen
 // falls back to, so the two agree about what "this term" means.
@@ -55,7 +64,13 @@ export function TodayScreen() {
   // The suggestion strip's own data. Null until it has all arrived, so the
   // strip shows nothing at all while it is still loading.
   const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
-  const [termNotes, setTermNotes] = useState<TouchPointNote[] | null>(null);
+  const [termNotes, setTermNotes] = useState<TermNote[] | null>(null);
+  // Set when the read behind the tally strip fails. The strip then shows
+  // nothing at all rather than a number that is not true.
+  const [tallyFailed, setTallyFailed] = useState(false);
+  // Kept so the term's notes can be read again after a bulk upload without
+  // working the window out a second time.
+  const [termWindowStart, setTermWindowStart] = useState<string | null>(null);
   const [pickingId, setPickingId] = useState<string | null>(null);
   // The document being previewed, held only while the panel is open. Nothing
   // about it is written until the panel's own button is pressed.
@@ -106,13 +121,32 @@ export function TodayScreen() {
       .from("students")
       .select("id, student_name, parent_name")
       .eq("enrolment_status", "Active")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        // The roster is half of what the tally strip counts, so losing it
+        // hides the strip. The rest of the screen carries on without it.
+        if (error) setTallyFailed(true);
         setStudents((data ?? []) as PickerStudent[]);
       });
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // The term's notes. They feed the suggestion strip, which simply shows
+  // nothing when they are missing, and the tally strip, which hides itself.
+  const loadTermNotes = useCallback(async (windowStart: string) => {
+    const { data, error } = await supabase
+      .from("daily_notes")
+      .select(TERM_NOTE_COLUMNS)
+      .gte("note_date", windowStart);
+    if (!liveRef.current) return;
+    if (error) {
+      setTallyFailed(true);
+      setTermNotes([]);
+      return;
+    }
+    setTermNotes((data ?? []) as TermNote[]);
   }, []);
 
   // This week's focus, and the term's touch points, for the suggestion
@@ -132,20 +166,19 @@ export function TodayScreen() {
       if (cancelled) return;
       setFocusRows((focusRes.data ?? []) as FocusRow[]);
 
-      // The same term window the Parents screen scopes touch points to.
+      // The same term window the Parents screen scopes touch points to. No
+      // term rows is a fallback rather than a failure, so it does not hide
+      // the tally strip.
       const term = pickTermForDate((termRes.data ?? []) as TermRow[], today);
       const windowStart = term?.term_start_date ?? fallbackWindowStart();
-      const notesRes = await supabase
-        .from("daily_notes")
-        .select("student_id, student_name, note_date, note_text, added_by, draft_created")
-        .gte("note_date", windowStart);
       if (cancelled) return;
-      setTermNotes((notesRes.data ?? []) as TouchPointNote[]);
+      setTermWindowStart(windowStart);
+      await loadTermNotes(windowStart);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadTermNotes]);
 
   // The note box starts about four lines tall and grows with the text.
   useEffect(() => {
@@ -166,17 +199,18 @@ export function TodayScreen() {
     }
     setSaving(true);
     setInputMessage(null);
+    const row = {
+      student_name: name,
+      note_text: note,
+      note_date: sydneyTodayIso(),
+      collated: false,
+      draft_created: false,
+      no_match: false,
+      added_by: staff,
+    };
     const { data, error } = await supabase
       .from("daily_notes")
-      .insert({
-        student_name: name,
-        note_text: note,
-        note_date: sydneyTodayIso(),
-        collated: false,
-        draft_created: false,
-        no_match: false,
-        added_by: staff,
-      })
+      .insert(row)
       .select(NOTE_COLUMNS)
       .single();
     if (error || !data) {
@@ -184,7 +218,29 @@ export function TodayScreen() {
       setSaving(false);
       return;
     }
-    setNotes((current) => [data as TodayNote, ...(current ?? [])]);
+    const saved = data as TodayNote;
+    setNotes((current) => [saved, ...(current ?? [])]);
+    // Straight into the term's notes as well, built from the row that was
+    // just written rather than guessed at, so the tally strip is working
+    // from the same set. None of its numbers move: a note with no draft
+    // yet has not reached a parent, and that is the point.
+    setTermNotes((current) =>
+      current === null
+        ? current
+        : [
+            ...current,
+            {
+              id: saved.id,
+              student_id: null,
+              student_name: row.student_name,
+              note_date: row.note_date,
+              note_text: row.note_text,
+              tidied_text: null,
+              added_by: row.added_by,
+              draft_created: row.draft_created,
+            },
+          ],
+    );
     // The staff member field keeps its value because the same person usually
     // adds several notes in a row.
     setStudentName("");
@@ -243,6 +299,12 @@ export function TodayScreen() {
       return;
     }
     setNotes((current) => (current ?? []).filter((item) => item.id !== note.id));
+    // Out of the term's notes too. This one can move the numbers: a note
+    // written earlier today and drafted this evening still sits on the list
+    // until midnight.
+    setTermNotes((current) =>
+      current === null ? current : current.filter((item) => item.id !== note.id),
+    );
     setRemovingId(null);
   }
 
@@ -305,6 +367,19 @@ export function TodayScreen() {
     );
   }, [students, focusRows, termNotes]);
 
+  // Everything the tally strip needs, worked out in one place so the numbers
+  // and the bar can never be derived from different sets.
+  const tally = useMemo(
+    () =>
+      tallyView({
+        failed: tallyFailed,
+        notes: termNotes,
+        students,
+        today: sydneyTodayIso(),
+      }),
+    [tallyFailed, termNotes, students],
+  );
+
   // One array, so the panel below is not handed a new roster on every render
   // and made to work out every match again.
   const roster = useMemo(() => students ?? [], [students]);
@@ -336,6 +411,8 @@ export function TodayScreen() {
 
   return (
     <section className="today-screen">
+      <TouchTallyStrip view={tally} />
+
       <ScreenSubtitle>
         {countLabel === "0 notes" ? "No notes yet" : `${countLabel} added`}
       </ScreenSubtitle>
@@ -550,7 +627,13 @@ export function TodayScreen() {
           students={roster}
           existingKeys={existingKeys}
           onClose={() => setBulk(null)}
-          onSaved={() => void loadNotes()}
+          onSaved={() => {
+            void loadNotes();
+            // The new notes have no drafts, so nothing on the strip moves.
+            // Reading them in anyway keeps it working from the whole term
+            // rather than from a set that is quietly out of date.
+            if (termWindowStart) void loadTermNotes(termWindowStart);
+          }}
         />
       ) : null}
 

@@ -153,6 +153,63 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Touch point tally strip on Today, 24 August 2026
+
+A strip across the top of the Today screen, above the input card and across
+both columns on a wide screen. Nothing else on the screen changed.
+
+Two different questions sit in one panel and keeping them apart is the whole
+point. The three numbers count notes written: today, this week, this term.
+The bar underneath counts students reached at least once this term, which is
+the goal, one touch point per student. Somebody can write ninety six notes
+and have reached only sixty of the roster. The labels carry the difference:
+"today", "this week", "this term" against "Students reached this term".
+
+One rule runs through all of it. A note counts only once draft_created is
+true. A note held back with no draft never reached a parent and is counted
+nowhere, which is the same rule the Parents screen counts touch points by
+and is already inside matchTouchPoints for the bar.
+
+The bar reuses matchTouchPoints rather than a second version of it, so a
+student with five notes counts once, an ambiguous name counts nowhere, and
+the Parents screen and this strip can never disagree about who was reached.
+studentsReached hands back the count and the percentage together so the bar
+and the wording beside it come from one calculation, and it rounds with
+p2Rate so the two bars in this app never round a percentage differently.
+
+tallyView decides all three states in one tested function: hidden when a
+read failed, loading until both the notes and the roster have arrived, and
+the numbers otherwise. A wrong number would be read as a real one, so a
+failure shows nothing at all rather than zeros, and loading shows a dash
+rather than a nought so a slow read is never mistaken for a bad day.
+
+The term's notes now carry their id, which is what lets a removal be taken
+out of them without reading the term again. A note added goes into them as
+well, built from the row that was just written. None of the numbers move
+when one is added, because it has no draft yet, and that is correct rather
+than a bug to work around. Removing one can move them: a note written this
+morning and drafted this evening still sits on the list until midnight.
+
+### The browser's own list indent
+
+A ul keeps a 40px padding-inline-start that the reset at the top of
+styles.css does not clear, because that reset only zeroes margin. The tally
+row was silently indented and its labels squeezed, and the numbers said
+everything was fine because the boxes were all still inside the panel. A
+screenshot caught it. The check now asserts the row's padding is zero and
+that no unit's words run into the ones before them.
+
+The same thing is true of .bulk-list and .bulk-chips in the bulk upload
+panel, which are indented 40px and 40px narrower than they should be. NOT
+fixed here, because this task said not to change the bulk upload. It needs
+one line on each rule.
+
+Measured at nine widths in all three schemes across six states, including
+three figures on every unit and a deliberately absurd four figure one: the
+three stay on one row at every width, stepping down at 379 and again at 329
+rather than wrapping, and the label shortens rather than colliding if the
+numbers are ever larger than that.
+
 ## Progress bar percentage, 24 August 2026
 
 The P2 bar's right hand side now reads the percentage in bold green, then
