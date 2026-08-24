@@ -214,6 +214,28 @@ export function matchTouchPoints<T extends MatchableStudent>(
   return summaries;
 }
 
+// How a count of touch points reads in a sentence. It says nothing about a
+// note that has just been written: one with no draft yet has not reached a
+// parent and is counted nowhere, so the wording must not imply it was.
+export function touchPointsLine(count: number): string {
+  if (count <= 0) return "No touch points yet this term";
+  return `${count} touch point${count === 1 ? "" : "s"} this term`;
+}
+
+// What a matched note's line says about that student's history, and whether
+// there is anything to open. Null when there is nothing to count from,
+// either because the read failed or because it has not arrived: the line
+// then shows without a count, because a missing count is a small problem
+// and a broken list is not.
+export function matchCount(
+  summaries: Map<string, TouchPointSummary> | null,
+  studentId: string | number,
+): { count: number; line: string; canOpen: boolean } | null {
+  if (!summaries) return null;
+  const count = summaries.get(String(studentId))?.count ?? 0;
+  return { count, line: touchPointsLine(count), canOpen: count > 0 };
+}
+
 // The most recent tidied wording among a student's counting notes, which is
 // what a re-engagement email quotes. Null when none of them has one.
 export function latestTidiedText(summary: TouchPointSummary | undefined): string | null {

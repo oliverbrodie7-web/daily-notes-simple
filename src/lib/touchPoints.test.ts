@@ -3,8 +3,10 @@ import {
   closestStudents,
   latestTidiedText,
   matchNote,
+  matchCount,
   matchTouchPoints,
   normaliseStudentName,
+  touchPointsLine,
 } from "./touchPoints";
 
 const STUDENTS = [
@@ -436,5 +438,100 @@ describe("the tidied wording a re-engagement email quotes", () => {
     // No draft, so it is not a touch point and not a source for a quote.
     const held = { ...tidied("2026-08-11", "Held back"), draft_created: false };
     expect(latestTidiedText(matchTouchPoints([held], STUDENTS).get("1"))).toBeNull();
+  });
+});
+
+describe("the count on a note in Added today", () => {
+  // The same map the Parents screen counts from, so this is not a second
+  // calculation but the same one read a different way.
+  function countFor(notes: Parameters<typeof matchTouchPoints>[0], id: string): number {
+    return matchTouchPoints(notes, STUDENTS).get(id)?.count ?? 0;
+  }
+
+  it("says the same number the Parents screen shows for that student", () => {
+    const notes = [note("Aiden C"), note("Aiden C", "2026-08-11"), note("Bella N")];
+    const summaries = matchTouchPoints(notes, STUDENTS);
+    // What the Parents screen reads.
+    expect(summaries.get("1")?.count).toBe(2);
+    // What the line on Today reads, out of the very same map.
+    expect(touchPointsLine(countFor(notes, "1"))).toBe("2 touch points this term");
+    expect(touchPointsLine(countFor(notes, "2"))).toBe("1 touch point this term");
+  });
+
+  it("does not count the note just added, because it has no draft yet", () => {
+    const already = [note("Aiden C")];
+    const justAdded = { ...note("Aiden C", "2026-08-24"), draft_created: false };
+    expect(countFor(already, "1")).toBe(1);
+    expect(countFor([...already, justAdded], "1")).toBe(1);
+    expect(touchPointsLine(countFor([...already, justAdded], "1"))).toBe("1 touch point this term");
+  });
+
+  it("says nothing has happened yet when the only note has no draft", () => {
+    const justAdded = [{ ...note("Aiden C"), draft_created: false }];
+    expect(countFor(justAdded, "1")).toBe(0);
+    expect(touchPointsLine(countFor(justAdded, "1"))).toBe("No touch points yet this term");
+  });
+
+  it("is singular at one and plural at everything else", () => {
+    expect(touchPointsLine(1)).toBe("1 touch point this term");
+    expect(touchPointsLine(2)).toBe("2 touch points this term");
+    expect(touchPointsLine(5)).toBe("5 touch points this term");
+  });
+
+  it("says none at nought, and never a negative", () => {
+    expect(touchPointsLine(0)).toBe("No touch points yet this term");
+    expect(touchPointsLine(-3)).toBe("No touch points yet this term");
+  });
+
+  it("never claims a touch point for a note that matched nobody", () => {
+    expect(countFor([note("Somebody Else")], "1")).toBe(0);
+  });
+
+  it("counts a student once per note, not once per student", () => {
+    const notes = [note("Aiden C"), note("Aiden C"), note("Aiden C")];
+    expect(countFor(notes, "1")).toBe(3);
+    expect(touchPointsLine(countFor(notes, "1"))).toBe("3 touch points this term");
+  });
+
+  it("has something to open exactly when the count is above nought", () => {
+    const none = matchTouchPoints([{ ...note("Aiden C"), draft_created: false }], STUDENTS);
+    const some = matchTouchPoints([note("Aiden C")], STUDENTS);
+    // Nothing in the map means plain text and no button on the line.
+    expect(none.get("1")).toBeUndefined();
+    expect(some.get("1")?.entries).toHaveLength(1);
+  });
+});
+
+describe("what the line shows when the read went wrong", () => {
+  const notes = [note("Aiden C"), note("Aiden C", "2026-08-11")];
+  const summaries = matchTouchPoints(notes, STUDENTS);
+
+  it("shows the count and offers to open it when there is history", () => {
+    expect(matchCount(summaries, 1)).toEqual({
+      count: 2,
+      line: "2 touch points this term",
+      canOpen: true,
+    });
+  });
+
+  it("shows the count but offers nothing to open when there is none", () => {
+    expect(matchCount(summaries, 2)).toEqual({
+      count: 0,
+      line: "No touch points yet this term",
+      canOpen: false,
+    });
+  });
+
+  it("leaves the line alone entirely when there is nothing to count from", () => {
+    // A failed read, or one that has not arrived. No count, no button, and
+    // the note itself still renders: a missing count is a small problem and
+    // a broken Added today list is not.
+    expect(matchCount(null, 1)).toBeNull();
+    expect(matchCount(null, 2)).toBeNull();
+  });
+
+  it("takes a number or a string id, since ids come back as both", () => {
+    expect(matchCount(summaries, "1")?.count).toBe(2);
+    expect(matchCount(summaries, 1)?.count).toBe(2);
   });
 });
