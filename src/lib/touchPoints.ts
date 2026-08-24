@@ -214,12 +214,13 @@ export function matchTouchPoints<T extends MatchableStudent>(
   return summaries;
 }
 
-// How a count of touch points reads in a sentence. It says nothing about a
-// note that has just been written: one with no draft yet has not reached a
-// parent and is counted nowhere, so the wording must not imply it was.
-export function touchPointsLine(count: number): string {
-  if (count <= 0) return "No touch points yet this term";
-  return `${count} touch point${count === 1 ? "" : "s"} this term`;
+// How a count of OTHER touch points reads in a sentence. The line this goes
+// on sits under a note written today, so a number that included today would
+// read as though the student had been contacted before when they had not.
+// The word "other" is what carries that, and it has to stay in the wording.
+export function otherTouchPointsLine(count: number): string {
+  if (count <= 0) return "No other touch points this term";
+  return `${count} other touch point${count === 1 ? "" : "s"} this term`;
 }
 
 // What a matched note's line says about that student's history, and whether
@@ -227,13 +228,22 @@ export function touchPointsLine(count: number): string {
 // either because the read failed or because it has not arrived: the line
 // then shows without a count, because a missing count is a small problem
 // and a broken list is not.
+//
+// Every note dated today is left out, not just the one the line is attached
+// to. A student written about twice today and never before has still not
+// been contacted before, and the line has to say so on both notes.
+//
+// The panel this opens is unaffected: it is a record of the term and shows
+// today's notes as well, which is right, because it is not a count.
 export function matchCount(
   summaries: Map<string, TouchPointSummary> | null,
   studentId: string | number,
+  today: string,
 ): { count: number; line: string; canOpen: boolean } | null {
   if (!summaries) return null;
-  const count = summaries.get(String(studentId))?.count ?? 0;
-  return { count, line: touchPointsLine(count), canOpen: count > 0 };
+  const entries = summaries.get(String(studentId))?.entries ?? [];
+  const count = entries.filter((entry) => (entry.date ?? "").slice(0, 10) !== today).length;
+  return { count, line: otherTouchPointsLine(count), canOpen: count > 0 };
 }
 
 // The most recent tidied wording among a student's counting notes, which is

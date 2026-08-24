@@ -6,7 +6,7 @@ import {
   matchCount,
   matchTouchPoints,
   normaliseStudentName,
-  touchPointsLine,
+  otherTouchPointsLine,
 } from "./touchPoints";
 
 const STUDENTS = [
@@ -442,96 +442,114 @@ describe("the tidied wording a re-engagement email quotes", () => {
 });
 
 describe("the count on a note in Added today", () => {
-  // The same map the Parents screen counts from, so this is not a second
-  // calculation but the same one read a different way.
-  function countFor(notes: Parameters<typeof matchTouchPoints>[0], id: string): number {
-    return matchTouchPoints(notes, STUDENTS).get(id)?.count ?? 0;
+  const TODAY = "2026-08-24";
+  const EARLIER = "2026-08-17";
+  const EARLIER_STILL = "2026-08-10";
+
+  function counted(notes: Parameters<typeof matchTouchPoints>[0], id: string) {
+    return matchCount(matchTouchPoints(notes, STUDENTS), id, TODAY);
   }
 
-  it("says the same number the Parents screen shows for that student", () => {
-    const notes = [note("Aiden C"), note("Aiden C", "2026-08-11"), note("Bella N")];
+  it("never counts a note from today", () => {
+    const notes = [note("Aiden C", TODAY)];
+    expect(counted(notes, "1")?.count).toBe(0);
+    expect(counted(notes, "1")?.line).toBe("No other touch points this term");
+  });
+
+  it("counts what the Parents screen counts, less anything dated today", () => {
+    const notes = [
+      note("Aiden C", EARLIER_STILL),
+      note("Aiden C", EARLIER),
+      note("Aiden C", TODAY),
+    ];
     const summaries = matchTouchPoints(notes, STUDENTS);
-    // What the Parents screen reads.
-    expect(summaries.get("1")?.count).toBe(2);
-    // What the line on Today reads, out of the very same map.
-    expect(touchPointsLine(countFor(notes, "1"))).toBe("2 touch points this term");
-    expect(touchPointsLine(countFor(notes, "2"))).toBe("1 touch point this term");
+    // What the Parents screen shows: every drafted note this term.
+    expect(summaries.get("1")?.count).toBe(3);
+    // What the line on Today shows: the same, less today's.
+    expect(matchCount(summaries, "1", TODAY)?.count).toBe(2);
+    expect(matchCount(summaries, "1", TODAY)?.line).toBe("2 other touch points this term");
   });
 
-  it("does not count the note just added, because it has no draft yet", () => {
-    const already = [note("Aiden C")];
-    const justAdded = { ...note("Aiden C", "2026-08-24"), draft_created: false };
-    expect(countFor(already, "1")).toBe(1);
-    expect(countFor([...already, justAdded], "1")).toBe(1);
-    expect(touchPointsLine(countFor([...already, justAdded], "1"))).toBe("1 touch point this term");
+  it("agrees with that subtraction at every shape of history", () => {
+    for (const todayCount of [0, 1, 2, 3]) {
+      for (const earlierCount of [0, 1, 2, 5]) {
+        const notes = [
+          ...Array.from({ length: earlierCount }, () => note("Aiden C", EARLIER)),
+          ...Array.from({ length: todayCount }, () => note("Aiden C", TODAY)),
+        ];
+        const summaries = matchTouchPoints(notes, STUDENTS);
+        const parents = summaries.get("1")?.count ?? 0;
+        expect(parents).toBe(earlierCount + todayCount);
+        expect(matchCount(summaries, "1", TODAY)?.count).toBe(parents - todayCount);
+      }
+    }
   });
 
-  it("says nothing has happened yet when the only note has no draft", () => {
-    const justAdded = [{ ...note("Aiden C"), draft_created: false }];
-    expect(countFor(justAdded, "1")).toBe(0);
-    expect(touchPointsLine(countFor(justAdded, "1"))).toBe("No touch points yet this term");
+  it("shows nought on both notes when a student is written about twice today", () => {
+    const notes = [note("Aiden C", TODAY), note("Aiden C", TODAY)];
+    const summaries = matchTouchPoints(notes, STUDENTS);
+    // Both notes read the same map, so both lines say the same thing.
+    const first = matchCount(summaries, "1", TODAY);
+    const second = matchCount(summaries, "1", TODAY);
+    expect(first?.count).toBe(0);
+    expect(second?.count).toBe(0);
+    expect(first?.line).toBe("No other touch points this term");
+    expect(first?.canOpen).toBe(false);
   });
 
   it("is singular at one and plural at everything else", () => {
-    expect(touchPointsLine(1)).toBe("1 touch point this term");
-    expect(touchPointsLine(2)).toBe("2 touch points this term");
-    expect(touchPointsLine(5)).toBe("5 touch points this term");
+    expect(otherTouchPointsLine(1)).toBe("1 other touch point this term");
+    expect(otherTouchPointsLine(2)).toBe("2 other touch points this term");
+    expect(otherTouchPointsLine(5)).toBe("5 other touch points this term");
   });
 
-  it("says none at nought, and never a negative", () => {
-    expect(touchPointsLine(0)).toBe("No touch points yet this term");
-    expect(touchPointsLine(-3)).toBe("No touch points yet this term");
+  it("says No other at nought, and never a negative", () => {
+    expect(otherTouchPointsLine(0)).toBe("No other touch points this term");
+    expect(otherTouchPointsLine(-3)).toBe("No other touch points this term");
   });
 
-  it("never claims a touch point for a note that matched nobody", () => {
-    expect(countFor([note("Somebody Else")], "1")).toBe(0);
+  it("still leaves a note with no draft out, today or not", () => {
+    const notes = [
+      { ...note("Aiden C", EARLIER), draft_created: false },
+      { ...note("Aiden C", TODAY), draft_created: false },
+    ];
+    expect(counted(notes, "1")?.count).toBe(0);
   });
 
-  it("counts a student once per note, not once per student", () => {
-    const notes = [note("Aiden C"), note("Aiden C"), note("Aiden C")];
-    expect(countFor(notes, "1")).toBe(3);
-    expect(touchPointsLine(countFor(notes, "1"))).toBe("3 touch points this term");
+  it("reads a timestamp as its date, so today is still today", () => {
+    const notes = [note("Aiden C", `${TODAY}T09:15:00Z`), note("Aiden C", EARLIER)];
+    expect(counted(notes, "1")?.count).toBe(1);
+    expect(counted(notes, "1")?.line).toBe("1 other touch point this term");
   });
 
-  it("has something to open exactly when the count is above nought", () => {
-    const none = matchTouchPoints([{ ...note("Aiden C"), draft_created: false }], STUDENTS);
-    const some = matchTouchPoints([note("Aiden C")], STUDENTS);
-    // Nothing in the map means plain text and no button on the line.
-    expect(none.get("1")).toBeUndefined();
-    expect(some.get("1")?.entries).toHaveLength(1);
-  });
-});
-
-describe("what the line shows when the read went wrong", () => {
-  const notes = [note("Aiden C"), note("Aiden C", "2026-08-11")];
-  const summaries = matchTouchPoints(notes, STUDENTS);
-
-  it("shows the count and offers to open it when there is history", () => {
-    expect(matchCount(summaries, 1)).toEqual({
-      count: 2,
-      line: "2 touch points this term",
-      canOpen: true,
-    });
-  });
-
-  it("shows the count but offers nothing to open when there is none", () => {
-    expect(matchCount(summaries, 2)).toEqual({
-      count: 0,
-      line: "No touch points yet this term",
-      canOpen: false,
-    });
+  it("opens only when there is something earlier to open", () => {
+    expect(counted([note("Aiden C", TODAY)], "1")?.canOpen).toBe(false);
+    expect(counted([note("Aiden C", EARLIER)], "1")?.canOpen).toBe(true);
   });
 
   it("leaves the line alone entirely when there is nothing to count from", () => {
     // A failed read, or one that has not arrived. No count, no button, and
-    // the note itself still renders: a missing count is a small problem and
-    // a broken Added today list is not.
-    expect(matchCount(null, 1)).toBeNull();
-    expect(matchCount(null, 2)).toBeNull();
+    // the note itself still renders.
+    expect(matchCount(null, 1, TODAY)).toBeNull();
   });
 
   it("takes a number or a string id, since ids come back as both", () => {
-    expect(matchCount(summaries, "1")?.count).toBe(2);
-    expect(matchCount(summaries, 1)?.count).toBe(2);
+    const summaries = matchTouchPoints([note("Aiden C", EARLIER)], STUDENTS);
+    expect(matchCount(summaries, "1", TODAY)?.count).toBe(1);
+    expect(matchCount(summaries, 1, TODAY)?.count).toBe(1);
+  });
+
+  it("says nothing about a student who was never written about", () => {
+    expect(counted([note("Aiden C", EARLIER)], "2")?.count).toBe(0);
+    expect(counted([note("Aiden C", EARLIER)], "2")?.canOpen).toBe(false);
+  });
+
+  it("leaves the panel showing everything, today included", () => {
+    // The count is about what came before. The panel is a record, so it
+    // still holds today's note and the two are meant to differ.
+    const notes = [note("Aiden C", EARLIER), note("Aiden C", TODAY)];
+    const summaries = matchTouchPoints(notes, STUDENTS);
+    expect(matchCount(summaries, "1", TODAY)?.count).toBe(1);
+    expect(summaries.get("1")?.entries).toHaveLength(2);
   });
 });
