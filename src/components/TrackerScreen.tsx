@@ -8,7 +8,13 @@ import {
   formatSydneyTime,
   sydneyTodayIso,
 } from "../lib/dates";
-import { deriveStatus, isP2Done, latestStatusEntryPerStudent, type ContactStatus } from "../lib/p2";
+import {
+  deriveStatus,
+  isP2Done,
+  latestStatusEntryPerStudent,
+  p2Rate,
+  type ContactStatus,
+} from "../lib/p2";
 import { parentEmailPairs, parentFirstNames, type MessageTemplate } from "../lib/templates";
 import {
   lastTermEnd,
@@ -508,12 +514,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
   const stats = useMemo(() => {
     const total = decorated.length;
-    const rate = total === 0 ? 0 : Math.round((counts.complete / total) * 100);
     return {
       total,
       complete: counts.complete,
       outstanding: counts.outstanding,
-      rate,
+      // The one number the bar is drawn from and the one the head says.
+      rate: p2Rate(counts.complete, total),
     };
   }, [decorated, counts]);
 
@@ -780,7 +786,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             <div className="p2-progress-head">
               <span className="p2-progress-label">P2 progress this term</span>
               <span className="p2-progress-value">
-                {stats.complete} of {stats.total} done
+                <span className="p2-progress-percent">{stats.rate}%</span>
+                <span className="p2-progress-count">
+                  {stats.complete} of {stats.total} done
+                </span>
               </span>
             </div>
             <div
@@ -990,20 +999,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </p>
           ) : (
             <>
+              {/* The count only. Sorting is the one control in the top bar,
+                  and the column headings, so there is nothing to keep in
+                  step here. */}
               <div className="roster-tools">
                 <span className="roster-count">
                   {filtered.length} {filtered.length === 1 ? "student" : "students"}
                 </span>
-                <SortMenu
-                  sortKey={sortKey}
-                  direction={sortDirection}
-                  onChange={(key, next) => {
-                    // Never touches filterKey: a sort change leaves the
-                    // filter exactly as it was.
-                    setSortKey(key);
-                    setSortDirection(next);
-                  }}
-                />
               </div>
 
               <div className="roster-table">

@@ -4250,9 +4250,10 @@ button.touch-block:hover {
 
 .p2-progress-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 4px 10px;
 }
 
 .p2-progress-label {
@@ -4264,10 +4265,26 @@ button.touch-block:hover {
 }
 
 .p2-progress-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
   font-size: 12.5px;
   font-weight: 700;
   color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* The same token the bar is filled with, so the number and the bar cannot
+   end up two different greens. */
+.p2-progress-percent {
+  color: var(--badge-success-text);
+  font-weight: 700;
+}
+
+/* Unchanged from what it was before the percentage went in front of it. */
+.p2-progress-count {
+  color: var(--text-soft);
 }
 
 .p2-progress-track {
@@ -4288,6 +4305,28 @@ button.touch-block:hover {
 @media (prefers-reduced-motion: reduce) {
   .p2-progress-fill {
     transition: none;
+  }
+}
+
+/* The percentage made the right hand side wider, and on a phone the label
+   was what pushed it onto a second line. The label is the decorative half,
+   so it gives up the room rather than the numbers. Measured: this keeps the
+   whole head on one line at 430 and 390 at every value up to 162 of 162.
+   Narrower than that it drops the value under the label, which is tidy and
+   still never breaks the value itself. */
+@media (max-width: 430px) {
+  .p2-progress-label {
+    font-size: 9.5px;
+    letter-spacing: 0.03em;
+  }
+}
+
+/* Narrowest last, the way the rest of this file is ordered, or this step
+   would be silently overridden by the one above it. */
+@media (max-width: 379px) {
+  .p2-progress-label {
+    font-size: 8.5px;
+    letter-spacing: 0.02em;
   }
 }
 

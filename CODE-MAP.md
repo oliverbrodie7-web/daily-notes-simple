@@ -153,6 +153,35 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Progress bar percentage, 24 August 2026
+
+The P2 bar's right hand side now reads the percentage in bold green, then
+the count in the softer colour at the size it always was.
+
+The percentage comes from p2Rate in p2.ts rather than from an expression in
+the component, so the width the bar draws and the number it says are the one
+value. It rounds to the nearest whole number, clamps at 0 and 100, and
+returns 0 on an empty roster rather than dividing by zero. Plain rounding
+does reach a hundred one short of the lot on a roster of a thousand, which
+this centre is nowhere near, and the tests say so.
+
+Adding a percentage made the right hand side wider, and on a phone that
+pushed the whole head onto two lines where it used to be one. The label is
+the decorative half, so it gives up the room: it steps to 9.5px at 430 and
+8.5px at 379, narrowest last the way the rest of this file is ordered.
+Measured, the head stays on one line at 430 and 390 at every value up to 162
+of 162, at 360 for everything except 162 of 162, and drops the value under
+the label at 320. The value itself never breaks, at any width.
+
+The second Sort control, the one above the table, is gone. The top bar has
+one and the column headings sort as well, so the row above the table now
+carries the student count and nothing else.
+
+Checked at nine values including 0 of 0, 0 of 162, 161 of 162 and 162 of 162,
+at nine widths in all three schemes, with the percentage on screen compared
+against the count printed beside it rather than against the function that
+drew it.
+
 ## Bulk upload on Today, 23 August 2026
 
 A Word document holding several students becomes one note per student. The
