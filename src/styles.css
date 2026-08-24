@@ -1070,10 +1070,175 @@ svg {
   display: grid;
   gap: 18px;
   grid-template-areas:
+    "tally"
     "input"
     "suggest"
     "list"
     "strip";
+}
+
+/* The touch point tally. Two different questions in one panel: the three
+   numbers count notes written, the bar underneath counts students reached.
+   The labels carry the difference, so neither is mistaken for the other. */
+.tally-strip {
+  grid-area: tally;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 13px;
+}
+
+/* padding: 0 is not decoration. A ul keeps the browser's own 40px indent,
+   which the reset at the top of this file does not clear, and it would push
+   the three units in and squeeze the labels. */
+.tally-units {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+/* Three across, always. On a phone they shrink rather than dropping onto a
+   second row, which is why nothing here is allowed to wrap. */
+.tally-unit {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* Equal thirds so none of them can squeeze another out, with the outer two
+   pushed to the edges so they line up with the label and the count on the
+   row underneath and the panel reads as one block. */
+.tally-unit:first-child {
+  justify-content: flex-start;
+}
+
+.tally-unit:last-child {
+  justify-content: flex-end;
+}
+
+.tally-number {
+  flex: none;
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tally-number.is-accent {
+  color: var(--accent);
+}
+
+/* The same green a completed P2 is drawn in, which is also the bar's fill. */
+.tally-number.is-good {
+  color: var(--badge-success-text);
+}
+
+/* The number is the content, so the label is what gives way if a unit is
+   ever handed more digits than there is room for. It shortens rather than
+   running into the unit beside it. */
+.tally-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.tally-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.tally-bar-label {
+  color: var(--text-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.tally-bar-value {
+  color: var(--text-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tally-bar-percent {
+  color: var(--badge-success-text);
+  font-weight: 700;
+}
+
+.tally-bar-track {
+  margin-top: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.tally-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--badge-success-text);
+  transition: width 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tally-bar-fill {
+    transition: none;
+  }
+}
+
+/* Three units on one row is the rule, so on the narrowest phones they get
+   smaller rather than wrapping or running into each other. Measured: this
+   holds three figures on every unit, labels in full, down to 320. */
+@media (max-width: 379px) {
+  .tally-units {
+    gap: 4px;
+  }
+
+  .tally-unit {
+    gap: 4px;
+  }
+
+  .tally-number {
+    font-size: 18px;
+  }
+
+  .tally-label {
+    font-size: 10.5px;
+  }
+}
+
+/* Narrowest last, the way the rest of this file is ordered. */
+@media (max-width: 329px) {
+  .tally-units {
+    gap: 3px;
+  }
+
+  .tally-unit {
+    gap: 3px;
+  }
+
+  .tally-number {
+    font-size: 16px;
+  }
+
+  .tally-label {
+    font-size: 9.5px;
+  }
 }
 
 .today-input-card {
@@ -5025,8 +5190,9 @@ button.touch-block:hover {
 
   .today-screen {
     grid-template-columns: 42fr 58fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
+      "tally tally"
       "input list"
       "suggest list"
       "strip list";
