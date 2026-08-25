@@ -54,7 +54,7 @@ import {
 import { normaliseParentName } from "../lib/focus";
 import { latestTidiedText, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { TEMPLATE_COLUMNS, type ReengagementTemplate } from "../lib/reengagement";
-import { touchCountWord, touchDisplay, touchRestOfLine, type TouchDisplay } from "../lib/touchDots";
+import { touchDisplay } from "../lib/touchDots";
 import { supabase } from "../lib/supabase";
 import { ImportHelpPanel } from "./ImportHelpPanel";
 import { LockGate } from "./LockGate";
@@ -62,6 +62,11 @@ import { LogContactPanel, type SavedContactLog } from "./LogContactPanel";
 import { EngagementBar, EngagementPanel } from "./Engagement";
 import { ReengagePanel } from "./ReengagePanel";
 import { MismatchPanel } from "./MismatchPanel";
+import { ContactHistoryPanel } from "./ContactHistoryPanel";
+import { TouchDots } from "./TouchDots";
+import { RosterBoard } from "./RosterBoard";
+import { RosterViewSwitcher } from "./RosterViewSwitcher";
+import { useRosterView } from "../hooks/useRosterView";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
 import { TouchPointsBody } from "./TouchPoints";
 import { SortArrow, SortMenu } from "./SortMenu";
@@ -165,27 +170,6 @@ function shortMethod(method: string | null): string {
   return SHORT_METHODS[key] ?? method ?? "Contact";
 }
 
-// The dots are decorative: the block carries an aria-label with the same
-// wording, so a screen reader hears one sentence rather than a list.
-function TouchDots({ touch }: { touch: TouchDisplay }) {
-  return (
-    <>
-      {touch.dots.length > 0 ? (
-        <span className="touch-dots" aria-hidden="true">
-          {touch.dots.map((dot, index) => (
-            <span key={index} className={`touch-dot touch-dot-${dot}`} />
-          ))}
-          {touch.remainder > 0 ? <span className="touch-more">+{touch.remainder}</span> : null}
-        </span>
-      ) : null}
-      <span className={`touch-line${touch.tappable ? "" : " is-empty"}`} aria-hidden="true">
-        <span className="touch-line-count">{touchCountWord(touch)}</span>
-        {touchRestOfLine(touch)}
-      </span>
-    </>
-  );
-}
-
 export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const unlocked = pinGate.state === "unlocked";
 
@@ -207,6 +191,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
   // Also not persisted. Leaving the screen unmounts it, so both the sort and
   // the filter start fresh on every visit.
+  // Table, Cards or Board. Remembered per device in a key of its own, and
+  // forced back to the table below 900px where the board does not fit.
+  const { view, showing, wide, chooseView } = useRosterView();
+
   const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT_KEY);
   const [sortDirection, setSortDirection] = useState<SortDirection>(DEFAULT_SORT_DIRECTION);
   const [smsTemplates, setSmsTemplates] = useState<MessageTemplate[]>([]);
@@ -459,7 +447,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       // uses, read from the one map rather than recomputed.
       const touchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
       // The same entry the row's last contact line shows.
-      const lastContacted = latestByStudent.get(String(student.id))?.date_contacted ?? null;
+      const lastEntry = latestByStudent.get(String(student.id));
+      const lastContacted = lastEntry?.date_contacted ?? null;
+      // Built once here rather than in each view, so the table row and the
+      // board card cannot word it differently.
+      const lastContact = lastEntry?.date_contacted
+        ? `${shortMethod(lastEntry.method)}, ${formatSydneyShortDate(lastEntry.date_contacted)}`
+        : null;
       const engagement = engagementFor(student.parent_email, engagementByParent);
       return {
         student,
@@ -469,6 +463,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         focus,
         touchPoints,
         lastContacted,
+        lastContact,
         engagement: engagement.score,
         emails: engagement,
         // Nothing has gone quiet while the first fortnight is still running.
@@ -808,16 +803,22 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
           <ScreenSubtitle>{termLine}</ScreenSubtitle>
           <ScreenActions>
-            <SortMenu
-              sortKey={sortKey}
-              direction={sortDirection}
-              onChange={(key, next) => {
-                // Never touches filterKey: a sort change leaves the filter
-                // exactly as it was.
-                setSortKey(key);
-                setSortDirection(next);
-              }}
-            />
+            {/* The board has no order to change, so the control goes away
+                rather than sitting there doing nothing. sortKey and
+                sortDirection are untouched, so the table comes back exactly
+                as it was left. */}
+            {showing === "board" ? null : (
+              <SortMenu
+                sortKey={sortKey}
+                direction={sortDirection}
+                onChange={(key, next) => {
+                  // Never touches filterKey: a sort change leaves the filter
+                  // exactly as it was.
+                  setSortKey(key);
+                  setSortDirection(next);
+                }}
+              />
+            )}
             <div className="tracker-menu-wrap" ref={menuRef}>
               <button
                 type="button"
@@ -1000,374 +1001,369 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </p>
           ) : (
             <>
-              {/* The count only. Sorting is the one control in the top bar,
-                  and the column headings, so there is nothing to keep in
-                  step here. */}
+              {/* The switcher and the count. Sorting is the one control in
+                  the top bar, and the column headings, so there is nothing
+                  to keep in step here. */}
               <div className="roster-tools">
+                {wide ? <RosterViewSwitcher view={view} onChange={chooseView} /> : null}
                 <span className="roster-count">
                   {filtered.length} {filtered.length === 1 ? "student" : "students"}
                 </span>
               </div>
 
-              <div className="roster-table">
-                <div className="roster-head">
-                  {(
-                    [
-                      ["student", "Student"],
-                      ["status", "P2 status"],
-                      ["engagement", "Engagement"],
-                      ["touch", "Touch points"],
-                    ] as [SortColumn, string][]
-                  ).map(([column, name]) => {
-                    const active = sortColumn === column;
+              {showing === "board" ? (
+                <RosterBoard
+                  rows={filtered}
+                  counting={countingYet}
+                  openId={panel && panel.kind === "history" ? panel.studentId : null}
+                  onOpen={(studentId) => openPanel("history", studentId)}
+                  panelFor={(row) => {
+                    const id = String(row.student.id);
+                    if (!panel || panel.kind !== "history" || panel.studentId !== id) return null;
+                    // The very same panel the table expands under a row.
+                    // There is one definition of it, and one piece of state
+                    // saying whose is open, so a card and a row cannot
+                    // disagree or both be open at once.
                     return (
-                      <button
-                        key={column}
-                        type="button"
-                        className={`col-${column} head-sort${active ? " is-sorted" : ""}`}
-                        aria-label={headingLabel(column, name)}
-                        aria-pressed={active}
-                        onClick={() => tapHeading(column)}
-                      >
-                        {name}
-                        {/* Rendered whether or not it shows, so the heading
-                            never shifts sideways when the sort changes. */}
-                        <SortArrow sortKey={sortKey} direction={sortDirection} />
-                      </button>
+                      <ContactHistoryPanel
+                        studentName={row.student.student_name}
+                        entries={logs.filter((log) => String(log.student_id) === id)}
+                        busyId={entryBusyId}
+                        message={rowMessage}
+                        onDelete={handleEntryDelete}
+                        onClose={() => setPanel(null)}
+                      />
                     );
-                  })}
-                  <span className="col-actions" />
-                </div>
-                <ul className="roster-body">
-                  {filtered.map(({ student, status, done, overdue, focus, emails }) => {
-                    const statusLabel = STATUS_LABELS[status];
-                    const openKind =
-                      panel && panel.studentId === String(student.id) ? panel.kind : null;
-                    const historyEntries =
-                      openKind === "history"
-                        ? logs.filter((log) => String(log.student_id) === String(student.id))
-                        : [];
-                    const touch = touchPointsByStudent.get(String(student.id));
-                    const touchCount = touch?.count ?? 0;
-                    // Replies come from the parent, touch points from the
-                    // student, and nothing joins one to the other, so the
-                    // cell counts rather than pairs.
-                    const touchView = touchDisplay(touchCount, emails.replies);
-                    const touchLine = `${student.student_name} touch points: ${touchView.line}`;
-                    const touchTitle = touch?.latestDate
-                      ? `${touchView.line}, latest ${formatSydneyFullDate(touch.latestDate)}`
-                      : touchView.line;
-                    // Green when done, red when overdue, amber when due this
-                    // week, neutral otherwise.
-                    const tone = done ? "good" : overdue ? "danger" : focus ? "warn" : "neutral";
-                    const lastEntry = latestByStudent.get(String(student.id));
-                    const lastContact =
-                      lastEntry && lastEntry.date_contacted
-                        ? `${shortMethod(lastEntry.method)}, ${formatSydneyShortDate(lastEntry.date_contacted)}`
-                        : null;
-                    const rowMenu = rowMenuId === String(student.id);
-                    return (
-                      <li
-                        key={student.id}
-                        className={`roster-row${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
-                      >
-                        <div className="col-student">
-                          <p className="row-name">
-                            {student.is_priority ? (
-                              <StarIcon className="roster-star" size={12} />
-                            ) : null}
-                            <span className="row-name-text">{student.student_name}</span>
-                          </p>
-                          <p className="row-sub">
-                            <span className="row-parent">
-                              {student.parent_name ?? "No parent name"}
-                            </span>
-                            {student.parent_phone ? (
-                              <span className="row-phone">{student.parent_phone}</span>
-                            ) : null}
-                          </p>
-                        </div>
-
-                        <div className="col-status">
-                          <span className={`status-pill status-pill-${tone}`}>
-                            <span className="status-dot" aria-hidden="true" />
-                            {statusLabel}
-                          </span>
-                          {lastContact ? <span className="status-last">{lastContact}</span> : null}
-                        </div>
-
-                        <div className="col-engagement">
-                          <EngagementBar
-                            engagement={emails}
-                            counting={countingYet}
-                            studentName={student.student_name}
-                            onOpen={() => setEngageId(String(student.id))}
-                          />
-                        </div>
-
-                        <div className="col-touch">
-                          {touchView.tappable ? (
-                            <button
-                              type="button"
-                              className="touch-block"
-                              aria-label={touchLine}
-                              title={touchTitle}
-                              onClick={() => openPanel("touch", student.id)}
-                            >
-                              <TouchDots touch={touchView} />
-                            </button>
-                          ) : (
-                            <span className="touch-block" aria-label={touchLine}>
-                              <TouchDots touch={touchView} />
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="col-actions">
-                          <button
-                            type="button"
-                            className="row-log-button"
-                            aria-label={`Log contact for ${student.student_name}`}
-                            onClick={() => openPanel("log", student.id)}
+                  }}
+                />
+              ) : (
+                <div className="roster-table">
+                  <div className="roster-head">
+                    {(
+                      [
+                        ["student", "Student"],
+                        ["status", "P2 status"],
+                        ["engagement", "Engagement"],
+                        ["touch", "Touch points"],
+                      ] as [SortColumn, string][]
+                    ).map(([column, name]) => {
+                      const active = sortColumn === column;
+                      return (
+                        <button
+                          key={column}
+                          type="button"
+                          className={`col-${column} head-sort${active ? " is-sorted" : ""}`}
+                          aria-label={headingLabel(column, name)}
+                          aria-pressed={active}
+                          onClick={() => tapHeading(column)}
+                        >
+                          {name}
+                          {/* Rendered whether or not it shows, so the heading
+                            never shifts sideways when the sort changes. */}
+                          <SortArrow sortKey={sortKey} direction={sortDirection} />
+                        </button>
+                      );
+                    })}
+                    <span className="col-actions" />
+                  </div>
+                  <ul className="roster-body">
+                    {filtered.map(
+                      ({ student, status, done, overdue, focus, emails, lastContact }) => {
+                        const statusLabel = STATUS_LABELS[status];
+                        const openKind =
+                          panel && panel.studentId === String(student.id) ? panel.kind : null;
+                        const historyEntries =
+                          openKind === "history"
+                            ? logs.filter((log) => String(log.student_id) === String(student.id))
+                            : [];
+                        const touch = touchPointsByStudent.get(String(student.id));
+                        const touchCount = touch?.count ?? 0;
+                        // Replies come from the parent, touch points from the
+                        // student, and nothing joins one to the other, so the
+                        // cell counts rather than pairs.
+                        const touchView = touchDisplay(touchCount, emails.replies);
+                        const touchLine = `${student.student_name} touch points: ${touchView.line}`;
+                        const touchTitle = touch?.latestDate
+                          ? `${touchView.line}, latest ${formatSydneyFullDate(touch.latestDate)}`
+                          : touchView.line;
+                        // Green when done, red when overdue, amber when due this
+                        // week, neutral otherwise.
+                        const tone = done
+                          ? "good"
+                          : overdue
+                            ? "danger"
+                            : focus
+                              ? "warn"
+                              : "neutral";
+                        const rowMenu = rowMenuId === String(student.id);
+                        return (
+                          <li
+                            key={student.id}
+                            className={`roster-row${overdue ? " is-overdue" : focus ? " is-focus" : ""}`}
                           >
-                            <PlusIcon size={15} />
-                            Log
-                          </button>
-                          <button
-                            type="button"
-                            className="row-square-button"
-                            aria-label={`Contact history for ${student.student_name}`}
-                            title="History"
-                            onClick={() => openPanel("history", student.id)}
-                          >
-                            <HistoryIcon />
-                          </button>
-                          <div className="row-menu-wrap" ref={rowMenu ? rowMenuRef : undefined}>
-                            <button
-                              type="button"
-                              className="row-square-button"
-                              aria-haspopup="menu"
-                              aria-expanded={rowMenu}
-                              aria-label={`More actions for ${student.student_name}`}
-                              title="More actions"
-                              onClick={() =>
-                                setRowMenuId((current) =>
-                                  current === String(student.id) ? null : String(student.id),
-                                )
-                              }
-                            >
-                              <MoreIcon size={16} />
-                            </button>
-                            {rowMenu ? (
-                              <div
-                                className="action-menu row-menu"
-                                role="menu"
-                                aria-label={`More actions for ${student.student_name}`}
+                            <div className="col-student">
+                              <p className="row-name">
+                                {student.is_priority ? (
+                                  <StarIcon className="roster-star" size={12} />
+                                ) : null}
+                                <span className="row-name-text">{student.student_name}</span>
+                              </p>
+                              <p className="row-sub">
+                                <span className="row-parent">
+                                  {student.parent_name ?? "No parent name"}
+                                </span>
+                                {student.parent_phone ? (
+                                  <span className="row-phone">{student.parent_phone}</span>
+                                ) : null}
+                              </p>
+                            </div>
+
+                            <div className="col-status">
+                              <span className={`status-pill status-pill-${tone}`}>
+                                <span className="status-dot" aria-hidden="true" />
+                                {statusLabel}
+                              </span>
+                              {lastContact ? (
+                                <span className="status-last">{lastContact}</span>
+                              ) : null}
+                            </div>
+
+                            <div className="col-engagement">
+                              <EngagementBar
+                                engagement={emails}
+                                counting={countingYet}
+                                studentName={student.student_name}
+                                onOpen={() => setEngageId(String(student.id))}
+                              />
+                            </div>
+
+                            <div className="col-touch">
+                              {touchView.tappable ? (
+                                <button
+                                  type="button"
+                                  className="touch-block"
+                                  aria-label={touchLine}
+                                  title={touchTitle}
+                                  onClick={() => openPanel("touch", student.id)}
+                                >
+                                  <TouchDots touch={touchView} />
+                                </button>
+                              ) : (
+                                <span className="touch-block" aria-label={touchLine}>
+                                  <TouchDots touch={touchView} />
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="col-actions">
+                              <button
+                                type="button"
+                                className="row-log-button"
+                                aria-label={`Log contact for ${student.student_name}`}
+                                onClick={() => openPanel("log", student.id)}
                               >
-                                <div className="action-menu-group">
+                                <PlusIcon size={15} />
+                                Log
+                              </button>
+                              <button
+                                type="button"
+                                className="row-square-button"
+                                aria-label={`Contact history for ${student.student_name}`}
+                                title="History"
+                                onClick={() => openPanel("history", student.id)}
+                              >
+                                <HistoryIcon />
+                              </button>
+                              <div className="row-menu-wrap" ref={rowMenu ? rowMenuRef : undefined}>
+                                <button
+                                  type="button"
+                                  className="row-square-button"
+                                  aria-haspopup="menu"
+                                  aria-expanded={rowMenu}
+                                  aria-label={`More actions for ${student.student_name}`}
+                                  title="More actions"
+                                  onClick={() =>
+                                    setRowMenuId((current) =>
+                                      current === String(student.id) ? null : String(student.id),
+                                    )
+                                  }
+                                >
+                                  <MoreIcon size={16} />
+                                </button>
+                                {rowMenu ? (
+                                  <div
+                                    className="action-menu row-menu"
+                                    role="menu"
+                                    aria-label={`More actions for ${student.student_name}`}
+                                  >
+                                    <div className="action-menu-group">
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="action-menu-item"
+                                        disabled={!student.parent_phone}
+                                        onClick={() => {
+                                          setRowMenuId(null);
+                                          openPanel("sms", student.id);
+                                        }}
+                                      >
+                                        {student.parent_phone ? "Send an SMS" : "No phone number"}
+                                        <MessageIcon className="action-menu-icon" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="action-menu-item"
+                                        disabled={!student.parent_email}
+                                        onClick={() => {
+                                          setRowMenuId(null);
+                                          openPanel("email", student.id);
+                                        }}
+                                      >
+                                        {student.parent_email
+                                          ? "Send an email"
+                                          : "No email address"}
+                                        <MailIcon className="action-menu-icon" />
+                                      </button>
+                                    </div>
+                                    <div className="action-menu-group">
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="action-menu-item"
+                                        onClick={() => {
+                                          setRowMenuId(null);
+                                          setReengageId(String(student.id));
+                                        }}
+                                      >
+                                        Draft a re-engagement email
+                                        <MailIcon className="action-menu-icon" />
+                                      </button>
+                                    </div>
+                                    <div className="action-menu-group">
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="action-menu-item action-menu-item-danger"
+                                        onClick={() => {
+                                          setRowMenuId(null);
+                                          openPanel("delete", student.id);
+                                        }}
+                                      >
+                                        Delete student
+                                        <TrashIcon className="action-menu-icon" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                            {openKind === "log" ? (
+                              <LogContactPanel
+                                studentId={student.id}
+                                studentName={student.student_name}
+                                onClose={() => setPanel(null)}
+                                onSaved={handleLogSaved}
+                              />
+                            ) : null}
+                            {openKind === "touch" && touch ? (
+                              <div className="roster-panel">
+                                {/* The same body the Today screen shows, so the
+                                two can never disagree about a student's
+                                history. It stays inline here, as it was. */}
+                                <TouchPointsBody studentName={student.student_name} touch={touch} />
+                                <div className="roster-panel-actions">
                                   <button
                                     type="button"
-                                    role="menuitem"
-                                    className="action-menu-item"
-                                    disabled={!student.parent_phone}
-                                    onClick={() => {
-                                      setRowMenuId(null);
-                                      openPanel("sms", student.id);
-                                    }}
+                                    className="row-button"
+                                    onClick={() => setPanel(null)}
                                   >
-                                    {student.parent_phone ? "Send an SMS" : "No phone number"}
-                                    <MessageIcon className="action-menu-icon" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="action-menu-item"
-                                    disabled={!student.parent_email}
-                                    onClick={() => {
-                                      setRowMenuId(null);
-                                      openPanel("email", student.id);
-                                    }}
-                                  >
-                                    {student.parent_email ? "Send an email" : "No email address"}
-                                    <MailIcon className="action-menu-icon" />
-                                  </button>
-                                </div>
-                                <div className="action-menu-group">
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="action-menu-item"
-                                    onClick={() => {
-                                      setRowMenuId(null);
-                                      setReengageId(String(student.id));
-                                    }}
-                                  >
-                                    Draft a re-engagement email
-                                    <MailIcon className="action-menu-icon" />
-                                  </button>
-                                </div>
-                                <div className="action-menu-group">
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="action-menu-item action-menu-item-danger"
-                                    onClick={() => {
-                                      setRowMenuId(null);
-                                      openPanel("delete", student.id);
-                                    }}
-                                  >
-                                    Delete student
-                                    <TrashIcon className="action-menu-icon" />
+                                    Close
                                   </button>
                                 </div>
                               </div>
                             ) : null}
-                          </div>
-                        </div>
-                        {openKind === "log" ? (
-                          <LogContactPanel
-                            studentId={student.id}
-                            studentName={student.student_name}
-                            onClose={() => setPanel(null)}
-                            onSaved={handleLogSaved}
-                          />
-                        ) : null}
-                        {openKind === "touch" && touch ? (
-                          <div className="roster-panel">
-                            {/* The same body the Today screen shows, so the
-                                two can never disagree about a student's
-                                history. It stays inline here, as it was. */}
-                            <TouchPointsBody studentName={student.student_name} touch={touch} />
-                            <div className="roster-panel-actions">
-                              <button
-                                type="button"
-                                className="row-button"
-                                onClick={() => setPanel(null)}
-                              >
-                                Close
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                        {openKind === "sms" && student.parent_phone ? (
-                          <TemplatePanel
-                            mode="sms"
-                            studentName={student.student_name}
-                            parentName={student.parent_name}
-                            target={student.parent_phone}
-                            templates={smsTemplates}
-                            onClose={() => setPanel(null)}
-                          />
-                        ) : null}
-                        {openKind === "email" && student.parent_email ? (
-                          <TemplatePanel
-                            mode="email"
-                            studentName={student.student_name}
-                            parentName={student.parent_name}
-                            target={student.parent_email}
-                            templates={emailTemplates}
-                            onClose={() => setPanel(null)}
-                          />
-                        ) : null}
-                        {openKind === "history" ? (
-                          <div className="roster-panel">
-                            <p className="roster-panel-title">
-                              Contact history for {student.student_name}
-                            </p>
-                            {historyEntries.length === 0 ? (
-                              <p className="roster-panel-text">No contact logged yet.</p>
-                            ) : (
-                              <ul className="history-list">
-                                {historyEntries.map((entry) => (
-                                  <li key={entry.id} className="history-entry">
-                                    <div className="history-details">
-                                      <p className="history-line">
-                                        {entry.method ?? "Unknown"}, {entry.outcome ?? "unknown"}
-                                      </p>
-                                      <p className="history-when">
-                                        {entry.date_contacted
-                                          ? formatSydneyFullDate(entry.date_contacted)
-                                          : "No date"}
-                                        {entry.logged_at
-                                          ? `, logged ${formatSydneyTime(entry.logged_at)}`
-                                          : ""}
-                                      </p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="row-button row-button-danger"
-                                      disabled={entryBusyId === entry.id}
-                                      onClick={() => handleEntryDelete(entry)}
-                                    >
-                                      {entryBusyId === entry.id ? "Removing..." : "Delete"}
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            {rowMessage ? (
-                              <p className="roster-panel-message" role="alert">
-                                {rowMessage}
-                              </p>
+                            {openKind === "sms" && student.parent_phone ? (
+                              <TemplatePanel
+                                mode="sms"
+                                studentName={student.student_name}
+                                parentName={student.parent_name}
+                                target={student.parent_phone}
+                                templates={smsTemplates}
+                                onClose={() => setPanel(null)}
+                              />
                             ) : null}
-                            <div className="roster-panel-actions">
-                              <button
-                                type="button"
-                                className="row-button"
-                                onClick={() => setPanel(null)}
-                              >
-                                Close
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                        {openKind === "delete" ? (
-                          <div className="roster-panel">
-                            <p className="roster-panel-title">Delete {student.student_name}?</p>
-                            <p className="roster-panel-text">
-                              This removes the student and their whole contact history. It cannot be
-                              undone.
-                            </p>
-                            <input
-                              className="text-field log-input delete-confirm-field"
-                              type="text"
-                              value={deleteConfirm}
-                              placeholder="Type DELETE to confirm"
-                              aria-label="Type DELETE to confirm"
-                              onChange={(event) => {
-                                setDeleteConfirm(event.target.value);
-                                setRowMessage(null);
-                              }}
-                            />
-                            {rowMessage ? (
-                              <p className="roster-panel-message" role="alert">
-                                {rowMessage}
-                              </p>
+                            {openKind === "email" && student.parent_email ? (
+                              <TemplatePanel
+                                mode="email"
+                                studentName={student.student_name}
+                                parentName={student.parent_name}
+                                target={student.parent_email}
+                                templates={emailTemplates}
+                                onClose={() => setPanel(null)}
+                              />
                             ) : null}
-                            <div className="roster-panel-actions">
-                              <button
-                                type="button"
-                                className="row-button"
-                                onClick={() => setPanel(null)}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                className="primary-button roster-panel-save button-danger"
-                                disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
-                                onClick={() => handleStudentDelete(student)}
-                              >
-                                {deletingStudent ? "Deleting..." : "Delete student"}
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+                            {openKind === "history" ? (
+                              // The same panel the board expands under a card,
+                              // so the two views cannot drift apart.
+                              <ContactHistoryPanel
+                                studentName={student.student_name}
+                                entries={historyEntries}
+                                busyId={entryBusyId}
+                                message={rowMessage}
+                                onDelete={handleEntryDelete}
+                                onClose={() => setPanel(null)}
+                              />
+                            ) : null}
+                            {openKind === "delete" ? (
+                              <div className="roster-panel">
+                                <p className="roster-panel-title">Delete {student.student_name}?</p>
+                                <p className="roster-panel-text">
+                                  This removes the student and their whole contact history. It
+                                  cannot be undone.
+                                </p>
+                                <input
+                                  className="text-field log-input delete-confirm-field"
+                                  type="text"
+                                  value={deleteConfirm}
+                                  placeholder="Type DELETE to confirm"
+                                  aria-label="Type DELETE to confirm"
+                                  onChange={(event) => {
+                                    setDeleteConfirm(event.target.value);
+                                    setRowMessage(null);
+                                  }}
+                                />
+                                {rowMessage ? (
+                                  <p className="roster-panel-message" role="alert">
+                                    {rowMessage}
+                                  </p>
+                                ) : null}
+                                <div className="roster-panel-actions">
+                                  <button
+                                    type="button"
+                                    className="row-button"
+                                    onClick={() => setPanel(null)}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="primary-button roster-panel-save button-danger"
+                                    disabled={deletingStudent || deleteConfirm.trim() !== "DELETE"}
+                                    onClick={() => handleStudentDelete(student)}
+                                  >
+                                    {deletingStudent ? "Deleting..." : "Delete student"}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      },
+                    )}
+                  </ul>
+                </div>
+              )}
             </>
           )}
         </>

@@ -80,6 +80,10 @@ svg {
       opacity 0.15s ease;
   }
 
+  .roster-view-slab {
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
   .view-lock {
     transition: opacity 150ms ease;
   }
@@ -164,6 +168,17 @@ svg {
   --badge-highlight-text: #6d28d9;
   --row-danger-bg: #fef2f2;
   --row-highlight-bg: #f5f3ff;
+  /* The view switcher, which is the segmented control the screen switcher
+     used before the rail replaced it. */
+  --view-track: rgba(66, 5, 90, 0.1);
+  --view-slab: var(--surface);
+  --view-slab-shadow: 0 1px 4px rgba(66, 5, 90, 0.18);
+  /* The four board columns. One per P2 state, dark enough to read as a
+     heading rather than a tint. */
+  --board-danger: #b91c1c;
+  --board-neutral: rgba(66, 5, 90, 0.6);
+  --board-warning: #96590a;
+  --board-good: #166534;
   color-scheme: light;
 }
 
@@ -230,6 +245,13 @@ svg {
   --badge-highlight-text: #6d28d9;
   --row-danger-bg: #fef2f2;
   --row-highlight-bg: #f5f3ff;
+  --view-track: rgba(31, 41, 51, 0.07);
+  --view-slab: var(--surface);
+  --view-slab-shadow: 0 1px 4px rgba(31, 41, 51, 0.18);
+  --board-danger: #b91c1c;
+  --board-neutral: rgba(31, 41, 51, 0.6);
+  --board-warning: #96590a;
+  --board-good: #166534;
   color-scheme: light;
 }
 
@@ -308,6 +330,15 @@ svg {
   --badge-highlight-text: #c6d6e8;
   --row-danger-bg: rgba(248, 113, 113, 0.07);
   --row-highlight-bg: rgba(143, 166, 191, 0.1);
+  --view-track: rgba(255, 255, 255, 0.07);
+  --view-slab: var(--surface-raised);
+  --view-slab-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  /* No purple and no yellow in dark: the warning column takes the same
+     amber the rest of the dark scheme uses. */
+  --board-danger: #f87171;
+  --board-neutral: rgba(232, 235, 239, 0.66);
+  --board-warning: #d38a2e;
+  --board-good: #4ade80;
   color-scheme: dark;
 }
 
@@ -2685,8 +2716,8 @@ svg {
   text-decoration: underline;
 }
 
-/* The control row above the list: the count on the left, Sort on the
-   right. */
+/* The control row above the list: the view switcher on the left, the count
+   on the right. */
 .roster-tools {
   display: flex;
   align-items: center;
@@ -2700,6 +2731,306 @@ svg {
   color: var(--text-soft);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+/* The view switcher: Table, Cards, Board.
+ *
+ * The same shape the screen switcher had before the rail replaced it. A
+ * tinted track, one raised slab that sits under whichever is chosen, and
+ * the slab slides. The slide is in the opt in motion block further down, so
+ * reduced motion still moves the slab, it just arrives at once.
+ */
+.roster-view-control {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--view-track);
+}
+
+.roster-view-slab {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  /* Three items, 3px of padding each side and two 4px gaps. */
+  width: calc((100% - 6px - 8px) / 3);
+  border-radius: 9px;
+  background: var(--view-slab);
+  box-shadow: var(--view-slab-shadow);
+}
+
+.roster-view-item {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.roster-view-item.is-active {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* The Board view.
+ *
+ * Four columns of equal width, aligned to the top and growing to fit what
+ * they hold. The page scrolls, never a column.
+ */
+.roster-board {
+  display: grid;
+  /* minmax(0, 1fr) rather than 1fr, so a long name inside a card can never
+     push a column wider than its share. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+@media (min-width: 1200px) {
+  .roster-board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.board-column {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+.board-column-danger {
+  --board-tone: var(--board-danger);
+}
+
+.board-column-neutral {
+  --board-tone: var(--board-neutral);
+}
+
+.board-column-warning {
+  --board-tone: var(--board-warning);
+}
+
+.board-column-good {
+  --board-tone: var(--board-good);
+}
+
+.board-column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--board-tone);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.board-column-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-column-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An empty Overdue column is good news, so the column stays at its normal
+   width and says so rather than collapsing. */
+.board-empty {
+  padding: 6px 2px 4px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  /* The browser's own list indent is not cleared by the reset. */
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.board-item {
+  min-width: 0;
+}
+
+.board-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.board-card:hover {
+  border-color: var(--accent-border);
+}
+
+.board-card-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-card-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+/* The name gives way, the number never does: half a phone number is worse
+   than none, and it is the shorter of the two anyway. */
+.board-card-parent {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-card-phone {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.board-card-rule {
+  height: 1px;
+  margin: 5px 0 3px;
+  background: var(--border);
+}
+
+/* The engagement bar and the touch points are drawn by the same components
+   the table uses. Inside a card they only lose the row height the table
+   needs. */
+.board-card .engage {
+  min-height: 0;
+  padding: 0;
+}
+
+.board-card-touch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.board-card-last {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The history panel inside a column.
+ *
+ * It is the very same panel the table expands under a row, so only its fit
+ * changes here: the card's surface rather than the column's, so it reads as
+ * attached to the card and not as a hole in the board, and a column's worth
+ * of room rather than a table row's. The Delete button drops below its
+ * entry instead of sitting beside it, which is what stopped a date wrapping
+ * to four lines next to it. */
+.board-item .roster-panel {
+  /* Closer to its own card than the gap between cards, so it is obvious
+     whose history this is. */
+  margin-top: 3px;
+  margin-bottom: 0;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.board-item .roster-panel-title {
+  font-size: 12.5px;
+}
+
+.board-item .roster-panel-text,
+.board-item .roster-panel-message {
+  font-size: 11.5px;
+}
+
+.board-item .history-list {
+  margin-top: 7px;
+}
+
+.board-item .history-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 7px 0;
+}
+
+.board-item .history-line {
+  font-size: 12px;
+}
+
+.board-item .history-when {
+  font-size: 11px;
+}
+
+.board-item .history-entry .row-button {
+  align-self: flex-end;
+}
+
+.board-item .roster-panel-actions {
+  margin-top: 8px;
+}
+
+.board-more {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.board-more:hover {
+  background: var(--accent-soft);
 }
 
 .sort-wrap {
@@ -5131,6 +5462,14 @@ button.touch-block:hover {
   .stat-label {
     white-space: normal;
     line-height: 1.15;
+  }
+
+  /* The board needs the width the table needs. Below this the phone card
+     layout is used whatever was stored, so there is nothing to switch
+     between. The screen leaves the control out at this width as well; this
+     is the belt to that pair of braces. */
+  .roster-view-control {
+    display: none;
   }
 
   /* Below the table breakpoint the menu is a panel over the screen rather

@@ -19,7 +19,9 @@ type BarProps = {
   // counting yet and the column says so.
   counting: boolean;
   studentName: string;
-  onOpen: () => void;
+  // Left off on the board, where the whole card is the button and a second
+  // one inside it would be neither valid nor tappable.
+  onOpen?: () => void;
 };
 
 function Segments({ level, counting }: { level: Engagement["level"]; counting: boolean }) {
@@ -36,18 +38,19 @@ function Segments({ level, counting }: { level: Engagement["level"]; counting: b
   );
 }
 
-// A real button only when there is something to open. With nothing to show
-// it is a plain element, so it never sits in the tab order as a dead
-// control.
+// A real button only when there is something to open, and only when the
+// caller wants one. With nothing to show it is a plain element, so it never
+// sits in the tab order as a dead control. That element is a span rather
+// than a div so it stays legal inside the board's card button.
 export function EngagementBar({ engagement, counting, studentName, onOpen }: BarProps) {
   const { level, emails, daysSinceLast } = engagement;
 
   if (!counting) {
     return (
-      <div className="engage">
+      <span className="engage">
         <Segments level="none" counting={false} />
         <span className="engage-label engage-waiting">Counting from week 3</span>
-      </div>
+      </span>
     );
   }
 
@@ -61,14 +64,14 @@ export function EngagementBar({ engagement, counting, studentName, onOpen }: Bar
     </>
   );
 
-  if (emails.length === 0) {
+  if (emails.length === 0 || !onOpen) {
     return (
-      <div className="engage">
+      <span className="engage">
         {body}
         <span className="visually-hidden">
           {studentName}: {LEVEL_LABELS[level]}. {line}.
         </span>
-      </div>
+      </span>
     );
   }
 

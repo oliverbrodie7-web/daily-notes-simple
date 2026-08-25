@@ -153,6 +153,106 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Board view on Parents, 25 August 2026
+
+The table is now one of three views. A switcher sits on the left of the row
+that holds the student count, and the Board is a four column layout of the
+same students.
+
+### The four columns are one calculation, not a second one
+
+lib/board.ts decides nothing about P2. It is handed done, overdue and the
+derived status the table already worked out, and only chooses between them:
+
+    done -> P2 Complete
+    overdue -> Overdue
+    status "none" -> No contact
+    anything else -> Tried
+
+The order matters, because the states overlap: a student past the deadline
+with nothing logged is both overdue and without contact. Asking in that
+order makes the four exclusive and exhaustive, which is what makes the
+counts add up to the roster under any filter. The test suite checks that
+sum against applyFilter for every tile, so a future change to the P2 rule
+cannot silently split the board away from the table.
+
+The board is handed `filtered`, the same array the table maps over, after
+the sort, the tile filter and the search. It cannot show a different set of
+students because it is not given one. Switching views is a rendering choice
+and nothing else.
+
+### One panel, one definition, twice
+
+The card opens the history panel by making the very same openPanel("history")
+call the table's History button makes, and the panel that appears is the same
+ContactHistoryPanel component. It was lifted out of TrackerScreen for this
+and the table now imports it back, so there is one definition of what a
+student's history looks like and one piece of state saying whose is open.
+Two views cannot drift apart or both be open at once.
+
+TouchDots moved out of TrackerScreen for the same reason. EngagementBar's
+onOpen became optional: inside a card the whole card is the button, so a
+second one within it could not be tapped. Its non interactive form is a span
+rather than a div so it stays legal inside a button element.
+
+lastContact moved up into `decorated`, built once, so the row's status line
+and the card's last line are the same string rather than two expressions
+that happen to match today.
+
+### What the screenshots caught that the measurements did not
+
+Every measurement passed on a panel that, in a picture, was invisible: it
+takes --surface-raised, which is exactly what a board column takes, so it
+read as a hole in the board rather than something attached to a card. The
+same picture showed a table sized panel in a 244px column, with a date
+wrapping to four lines beside a Delete button. Both are fixed in CSS scoped
+to .board-item, so the table's panel is untouched: the card's surface, a
+column's worth of padding, and Delete below its entry rather than beside it.
+
+A second picture showed the parent name and the phone number both being
+truncated on a narrow card. Half a phone number is worse than none, so the
+number now holds its width and the name gives way, which is what the table
+already does.
+
+### Widths
+
+.app-main is capped at 1060px, so a 1440px window gives the board about
+1004px whatever the screen. Four columns at 1200px and up, two below that
+so Overdue and No contact sit above Tried and P2 Complete, and below 900px
+the board is not used at all: the phone card layout takes over and the
+switcher is not drawn. The screen leaves the switcher out at that width and
+a media query hides it as well, because a resize can outrun a listener.
+
+Columns never scroll. align-items: start lets them grow to what they hold
+and the page scrolls, which is the point of a board.
+
+### Cards is offered but not built
+
+viewToRender maps "cards" to "table". The option is real, remembered and
+tappable, and it shows the table rather than nothing. The moment a card
+layout exists that function returns it and nothing else changes. The choice
+lives in touch-points-roster-view, a key of its own; the colour scheme key
+and the sidebar key are untouched.
+
+### Sorting
+
+Hidden while the Board shows, because a board has no order to change.
+sortKey and sortDirection are left alone, so switching back to Table
+restores whatever was set.
+
+### Verified
+
+Nine widths, three colour schemes, in Chromium against a copy of the real
+styles.css: no horizontal overflow anywhere, four equal columns aligned to
+the top, no column with an overflow of its own, every card and every control
+at least 44px, names on one line with an ellipsis, an empty column at full
+width saying "Nothing overdue", the slab under the chosen word in all three
+positions, sliding at 200ms with motion and arriving at once without it, and
+a card reachable by Tab announcing "Alice Dominguez-Fitzgerald, Overdue.
+Open the contact history." with a 3px outline. The components themselves
+were rendered with react-dom/server and the markup checked against what the
+harness measured, so the two cannot have been measuring different things.
+
 ## Tally strip corrected, 25 August 2026
 
 Two problems, and the first of them was my specification rather than the
