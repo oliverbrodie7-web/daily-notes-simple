@@ -153,6 +153,67 @@ where method is Touch Point, and the same exactly-one-active-match rule
 applied at write time instead of read time. The p2.ts guard already built
 here is what makes Option A safe to add later.
 
+## Tally strip corrected, 25 August 2026
+
+Two problems, and the first of them was my specification rather than the
+code.
+
+### The counters count notes written now, not drafts
+
+All three counters used to skip any note whose draft_created was not true.
+Drafts are made by the nightly job at 7:30pm, so the today number read zero
+for the whole working day and only filled in after everyone had gone home.
+The Added today list sat directly underneath showing three notes while the
+number above it said nought.
+
+The draft rule is gone from tallyNotes. A note counts the moment it is
+saved. TallyNote is now just { note_date }, so the counters cannot even see
+whether a draft exists, which is what stops the two rules being confused for
+one another again. hasDraft is gone with it rather than left sitting there
+implying the counters still use it.
+
+The bar is untouched and still counts students reached through
+matchTouchPoints, which owns the draft rule. Three notes written this
+afternoon move all three counters at once and move the bar not at all until
+tonight. That difference is the point of the strip.
+
+### Why the week number fell during a day
+
+None of the three suspected causes was it, and all three are ruled out by
+the code rather than by opinion.
+
+The exclude today rule did not leak. It lives in matchCount in
+touchPoints.ts, and tally.ts imports only mondayOf, p2Rate and
+matchTouchPoints. A test now asserts tally.ts contains neither matchCount
+nor a compare against today.
+
+The week boundary was already Sydney. mondayOf(sydneyTodayIso()), with
+sydneyDateIso naming the zone explicitly in Intl, so the ambient zone cannot
+move it.
+
+The counters and the bar were already one fetch. tallyView passes one array
+to both.
+
+The actual cause was staleness. sydneyTodayIso() was called INSIDE the
+useMemo that works the numbers out, and was not in that memo's dependency
+list. Nothing in the list changes at midnight, so a tab left open kept
+yesterday's date, and with it yesterday's Monday. Crossing a Sunday moves
+that boundary back a whole week: mondayOf("2026-08-23") is 2026-08-17,
+mondayOf("2026-08-24") is 2026-08-24. So the strip showed last week's total
+all morning, and snapped down to this week's the moment a note was added,
+which is the number falling while notes were only being added.
+
+Today's Sydney date is now held in state on the Today screen, refreshed on a
+minute timer and when the tab is focused or made visible, and it is a real
+dependency of the numbers, of the suggestion strip and of the match line.
+Those three used to read the clock separately in three places.
+
+### Still outstanding
+
+The term read has no upper bound, so during a school holiday, when
+pickTermForDate holds the term that just finished, notes written after that
+term ended are counted as this term. Not touched here.
+
 ## Touch point history on Today, 24 August 2026
 
 A note in Added today that matches a student now says how many touch points

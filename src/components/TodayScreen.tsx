@@ -76,6 +76,7 @@ export function TodayScreen() {
   const [pickingId, setPickingId] = useState<string | null>(null);
   // The student whose touch points are open, by id.
   const [historyId, setHistoryId] = useState<string | null>(null);
+  const [today, setToday] = useState(sydneyTodayIso);
   // The document being previewed, held only while the panel is open. Nothing
   // about it is written until the panel's own button is pressed.
   const [bulk, setBulk] = useState<{
@@ -184,6 +185,29 @@ export function TodayScreen() {
       cancelled = true;
     };
   }, [loadTermNotes]);
+
+  // Today's Sydney date, held rather than read at the moment it happens to be
+  // needed. It was being read inside a useMemo whose dependency list did not
+  // mention it, so a tab left open across midnight kept yesterday's date, and
+  // with it yesterday's Monday, until something else happened to re-run the
+  // sums. Crossing a Sunday moves that boundary back a whole week, so the
+  // week number showed last week's total and then dropped to this week's the
+  // moment a note was added. That is the number falling while notes were only
+  // being added.
+  useEffect(() => {
+    function check() {
+      const now = sydneyTodayIso();
+      setToday((current) => (current === now ? current : now));
+    }
+    const timer = window.setInterval(check, 60_000);
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("focus", check);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("focus", check);
+    };
+  }, []);
 
   // The note box starts about four lines tall and grows with the text.
   useEffect(() => {
@@ -377,13 +401,8 @@ export function TodayScreen() {
   // anything is still loading, so the strip never flashes a stale list.
   const suggestions = useMemo(() => {
     if (!students || !focusRows || !touchByStudent) return [];
-    return focusSuggestions(
-      students,
-      focusRows,
-      new Set(touchByStudent.keys()),
-      mondayOf(sydneyTodayIso()),
-    );
-  }, [students, focusRows, touchByStudent]);
+    return focusSuggestions(students, focusRows, new Set(touchByStudent.keys()), mondayOf(today));
+  }, [students, focusRows, touchByStudent, today]);
 
   // Everything the tally strip needs, worked out in one place so the numbers
   // and the bar can never be derived from different sets.
@@ -393,9 +412,9 @@ export function TodayScreen() {
         failed: termDataFailed,
         notes: termNotes,
         students,
-        today: sydneyTodayIso(),
+        today,
       }),
-    [termDataFailed, termNotes, students],
+    [termDataFailed, termNotes, students, today],
   );
 
   // One array, so the panel below is not handed a new roster on every render
@@ -418,9 +437,6 @@ export function TodayScreen() {
     if (!touch || !student) return null;
     return { name: student.student_name, touch };
   }, [historyId, touchByStudent, students]);
-
-  // Worked out once for the whole list rather than once per note.
-  const today = sydneyTodayIso();
 
   const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
   const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
