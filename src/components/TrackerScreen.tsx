@@ -67,6 +67,13 @@ import { TouchDots } from "./TouchDots";
 import { RosterBoard } from "./RosterBoard";
 import { RosterViewSwitcher } from "./RosterViewSwitcher";
 import { RowLogSplit } from "./RowLogSplit";
+import { UndoToast } from "./UndoToast";
+import {
+  planDismiss,
+  runUndo,
+  toastFromLog,
+  type UndoToast as UndoToastState,
+} from "../lib/undoToast";
 import {
   LOW_RISK_SELECT,
   logLowRisk,
@@ -221,6 +228,20 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // every row, so writing a row's failure there would land under whichever
   // panel happened to be open.
   const [lowRiskError, setLowRiskError] = useState<RowError>(null);
+  // The confirmation strip. Deliberately not held in, or derived from, the
+  // logs array: this screen reloads the whole roster whenever contact_log
+  // changes, which its own insert does, so anything derived from logs would
+  // vanish a moment after appearing. loadRoster sets only what it fetched,
+  // and never this.
+  const [undoToast, setUndoToast] = useState<UndoToastState>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [undoFailure, setUndoFailure] = useState<string | null>(null);
+  const [undoPaused, setUndoPaused] = useState(false);
+  // How much of the eight seconds this strip has already served, and which
+  // strip that is. Banked whenever the countdown stops, so leaving the
+  // strip resumes rather than restarts, and a replacement starts fresh.
+  const undoServedRef = useRef(0);
+  const undoServedForRef = useRef<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletingStudent, setDeletingStudent] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -638,7 +659,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // One tap, one row, straight into the handler the panel already uses.
   // Everything that decides what gets written lives in lib/lowRisk.ts, so
   // this only supplies the clock, the client and the roster's own state.
-  async function handleLowRisk(studentId: number | string) {
+  async function handleLowRisk(studentId: number | string, studentName: string) {
     await logLowRisk(
       {
         busyId: () => lowRiskBusyRef.current,
@@ -650,12 +671,55 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         // thenable, not a promise.
         save: async (entry) =>
           await supabase.from("contact_log").insert(entry).select(LOW_RISK_SELECT).single(),
-        onSaved: (log) => handleLogSaved(log as SavedContactLog),
+        onSaved: (log) => {
+          handleLogSaved(log as SavedContactLog);
+          // Replaces whatever was there: only one action is undoable.
+          setUndoFailure(null);
+          setUndoPaused(false);
+          setUndoToast(toastFromLog(log, studentName, Date.now()));
+        },
         setError: setLowRiskError,
         today: sydneyTodayIso,
         now: () => new Date().toISOString(),
       },
       studentId,
+    );
+  }
+
+  // The countdown. React's own cleanup is what cancels a stale timer: when
+  // the strip is replaced or cleared, the previous effect tears down first,
+  // so a timer can never outlive the strip it was started for.
+  useEffect(() => {
+    const plan = planDismiss(
+      undoToast,
+      undoPaused,
+      undoServedForRef.current,
+      undoServedRef.current,
+    );
+    undoServedForRef.current = plan.servedFor;
+    undoServedRef.current = plan.served;
+    if (!plan.run) return;
+    const startedAt = Date.now();
+    const handle = window.setTimeout(() => setUndoToast(null), plan.delay);
+    return () => {
+      window.clearTimeout(handle);
+      // Bank what this run served, so a pause resumes from here.
+      undoServedRef.current += Date.now() - startedAt;
+    };
+  }, [undoToast, undoPaused]);
+
+  async function handleUndo() {
+    if (!undoToast) return;
+    await runUndo(
+      {
+        // The same delete handleEntryDelete uses, by id.
+        remove: async (logId) => await supabase.from("contact_log").delete().eq("id", logId),
+        dropLog: (logId) => setLogs((current) => current.filter((log) => String(log.id) !== logId)),
+        clear: () => setUndoToast(null),
+        setBusy: setUndoBusy,
+        setFailure: setUndoFailure,
+      },
+      undoToast.logId,
     );
   }
 
@@ -1203,7 +1267,9 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                                 studentName={student.student_name}
                                 blocked={lowRiskBlocked(status)}
                                 busy={lowRiskBusyId === String(student.id)}
-                                onLowRisk={() => void handleLowRisk(student.id)}
+                                onLowRisk={() =>
+                                  void handleLowRisk(student.id, student.student_name)
+                                }
                                 onOpenPanel={() => openPanel("log", student.id)}
                               />
                               <button
@@ -1440,6 +1506,21 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           parentName={engageRow.student.parent_name}
           engagement={engageRow.emails}
           onClose={() => setEngageId(null)}
+        />
+      ) : null}
+
+      {/* Outside the list, and outside every row. A filter can take the row
+          that was tapped off the screen the moment it is tapped, so the
+          strip cannot live inside it. */}
+      {undoToast ? (
+        <UndoToast
+          studentName={undoToast.studentName}
+          failure={undoFailure}
+          busy={undoBusy}
+          onUndo={() => void handleUndo()}
+          onDismiss={() => setUndoToast(null)}
+          onPause={() => setUndoPaused(true)}
+          onResume={() => setUndoPaused(false)}
         />
       ) : null}
     </section>

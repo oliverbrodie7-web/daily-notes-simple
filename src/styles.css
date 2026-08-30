@@ -84,6 +84,21 @@ svg {
     transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
   }
 
+  .undo-toast {
+    animation: undo-toast-in 160ms ease-out;
+  }
+
+  @keyframes undo-toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .view-lock {
     transition: opacity 150ms ease;
   }
@@ -4446,6 +4461,122 @@ button.touch-block:hover {
   cursor: default;
 }
 
+/* The confirmation strip for a one tap low risk log.
+ *
+ * Fixed and screen level, because the row it is about can leave the list
+ * the instant it is tapped: the complete filter takes it. Above everything
+ * else on the screen, which tops out at 40. */
+.undo-toast {
+  position: fixed;
+  z-index: 45;
+  /* Centred by the auto margins rather than by a transform, so the phone
+     rule below and the entrance animation cannot fight over one property. */
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  /* Wraps so the failure line can take a row of its own. Nothing else ever
+     wraps: the name gives way first. */
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  width: calc(100% - 32px);
+  max-width: 560px;
+  padding: 10px 12px;
+  border: 1px solid var(--good-border);
+  border-radius: 14px;
+  background: var(--surface);
+  /* The card shadow, with a second closer layer under it: this one floats
+     over the content rather than sitting on the page. */
+  box-shadow:
+    var(--card-shadow),
+    0 2px 10px var(--scrim);
+}
+
+.undo-toast-tick {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+/* The name gives way before either button does. A zero basis rather than
+   auto: with the strip able to wrap, an auto basis made a long name push
+   the Undo button onto a line of its own instead of trimming itself. */
+.undo-toast-text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-toast-name {
+  color: var(--text);
+  font-weight: 400;
+}
+
+.undo-toast-said {
+  color: var(--text-soft);
+}
+
+/* Its own line, under the row, and last whatever the markup order is. It
+   is a whole sentence, so squeezing it in beside the button pushed the
+   button off the end of a phone. */
+.undo-toast-failure {
+  flex: 1 0 100%;
+  order: 1;
+  color: var(--badge-danger-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.undo-toast-button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.undo-toast-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.undo-toast-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.undo-toast-dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.undo-toast-dismiss:hover {
+  color: var(--text);
+}
+
 /* One row's failure, under that row and no other. */
 .row-inline-message {
   grid-column: 1 / -1;
@@ -5550,6 +5681,21 @@ button.touch-block:hover {
      between. The screen leaves the control out at this width as well; this
      is the belt to that pair of braces. */
   .roster-view-control {
+    display: none;
+  }
+
+  /* Clear of the floating tab bar, never over it. That bar is 60px tall,
+     from .view-bar-item's 48px and .view-bar-inner's 6px each side, and
+     sits 10px above the safe area. 10 + 60 + 10 of its own gap is 80. */
+  .undo-toast {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  .undo-toast-dismiss {
     display: none;
   }
 
