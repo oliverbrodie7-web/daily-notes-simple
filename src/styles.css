@@ -3266,9 +3266,12 @@ svg {
    touch points, and the row controls. Below 900px each row becomes a card,
    since four columns will never fit a phone. */
 .roster-table {
-  /* Column four holds Log plus two 44px squares, which needs 167px, so it
-     is 178px rather than the 152px first sketched. */
-  --roster-cols: minmax(0, 1fr) 150px 148px 128px 178px;
+  /* Column four holds the split Low risk control plus two 44px squares.
+     The control is 149px at its natural width, which with two 6px gaps and
+     the squares needs 249px on one line. It was 178px when the control was
+     a single Log button, and there is only room for the wider one from
+     1200px up. Below that the cell wraps: see the 1199px block. */
+  --roster-cols: minmax(0, 1fr) 150px 148px 128px 249px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -4372,6 +4375,84 @@ button.touch-block:hover {
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+}
+
+/* The Log control, in two halves.
+ *
+ * The height and the radius are the ones the single button had, so a row is
+ * the same height as it was. The two halves share one background and are
+ * told apart by a hairline of the contrast colour, rather than by a second
+ * colour that would have to be invented for three schemes. */
+.row-log-split {
+  display: inline-flex;
+  align-items: stretch;
+  /* Never squashed. The two halves share one rounded box, so a shrink
+     would push the arrow out through its corner. */
+  flex: none;
+  min-height: 44px;
+  border-radius: 11px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  overflow: hidden;
+}
+
+.row-log-main,
+.row-log-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.row-log-main {
+  gap: 4px;
+  padding: 0 12px;
+}
+
+.row-log-arrow {
+  position: relative;
+  flex: none;
+  width: 40px;
+  padding: 0;
+}
+
+/* The divider between the halves. A pseudo element carrying the contrast
+   colour at low opacity, rather than a border, because a border would have
+   to name a colour and the only faint one available is the contrast colour
+   itself. Insetting it top and bottom keeps it a hairline rather than a
+   full height seam. */
+.row-log-arrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background: var(--accent-contrast);
+  opacity: 0.32;
+}
+
+/* Disabled while a write is in flight, and while the student's P2 is
+   already complete. No grey: the accent simply fades, the way every other
+   filled button in the app does. */
+.row-log-main:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* One row's failure, under that row and no other. */
+.row-inline-message {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  color: var(--badge-danger-text);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .row-log-button {
@@ -5567,6 +5648,46 @@ button.touch-block:hover {
 
   .row-log-button {
     flex: 1;
+  }
+
+  .row-log-split {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .row-log-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .row-log-arrow {
+    width: 48px;
+  }
+}
+
+/* Between the phone layout and the width the actions cell needs on one
+   line. The split control keeps its words, so instead of squeezing it the
+   cell wraps: the control takes the width of the column and the two square
+   buttons sit under it. Costs row height, which is the only thing there is
+   to spend here, and it is spent only in this band. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  .roster-table {
+    --roster-cols: minmax(0, 1fr) 150px 148px 128px 155px;
+  }
+
+  .col-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .row-log-split {
+    flex: 1 0 100%;
+  }
+
+  .row-log-main {
+    flex: 1;
+    min-width: 0;
   }
 }
 

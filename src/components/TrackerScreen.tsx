@@ -66,6 +66,15 @@ import { ContactHistoryPanel } from "./ContactHistoryPanel";
 import { TouchDots } from "./TouchDots";
 import { RosterBoard } from "./RosterBoard";
 import { RosterViewSwitcher } from "./RosterViewSwitcher";
+import { RowLogSplit } from "./RowLogSplit";
+import {
+  LOW_RISK_SELECT,
+  logLowRisk,
+  lowRiskBlocked,
+  rowErrorFor,
+  type RowError,
+  type SavedLowRiskLog,
+} from "../lib/lowRisk";
 import { useRosterView } from "../hooks/useRosterView";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
 import { TouchPointsBody } from "./TouchPoints";
@@ -81,7 +90,6 @@ import {
   MessageIcon,
   MoreIcon,
   PeopleIcon,
-  PlusIcon,
   SearchIcon,
   StarIcon,
   TrashIcon,
@@ -204,6 +212,15 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [panel, setPanel] = useState<RowPanel>(null);
   const [rowMessage, setRowMessage] = useState<string | null>(null);
   const [entryBusyId, setEntryBusyId] = useState<number | string | null>(null);
+  // The one tap low risk write. The ref is the guard and the state is the
+  // disabled attribute: a second tap can land before React has re-rendered,
+  // so the flag it reads has to be the synchronous one.
+  const [lowRiskBusyId, setLowRiskBusyId] = useState<string | null>(null);
+  const lowRiskBusyRef = useRef<string | null>(null);
+  // Its own error, carrying whose it is. rowMessage is one string shared by
+  // every row, so writing a row's failure there would land under whichever
+  // panel happened to be open.
+  const [lowRiskError, setLowRiskError] = useState<RowError>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletingStudent, setDeletingStudent] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -615,6 +632,30 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       copied
         ? `Copied ${pairs.length} email ${pairs.length === 1 ? "address" : "addresses"} for a BCC field.`
         : "The addresses could not be copied. Please try again.",
+    );
+  }
+
+  // One tap, one row, straight into the handler the panel already uses.
+  // Everything that decides what gets written lives in lib/lowRisk.ts, so
+  // this only supplies the clock, the client and the roster's own state.
+  async function handleLowRisk(studentId: number | string) {
+    await logLowRisk(
+      {
+        busyId: () => lowRiskBusyRef.current,
+        setBusyId: (id) => {
+          lowRiskBusyRef.current = id;
+          setLowRiskBusyId(id);
+        },
+        // Awaited here rather than handed over: the client's builder is a
+        // thenable, not a promise.
+        save: async (entry) =>
+          await supabase.from("contact_log").insert(entry).select(LOW_RISK_SELECT).single(),
+        onSaved: (log) => handleLogSaved(log as SavedContactLog),
+        setError: setLowRiskError,
+        today: sydneyTodayIso,
+        now: () => new Date().toISOString(),
+      },
+      studentId,
     );
   }
 
@@ -1096,6 +1137,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                               ? "warn"
                               : "neutral";
                         const rowMenu = rowMenuId === String(student.id);
+                        // Null on every row but the one that failed.
+                        const lowRiskMessage = rowErrorFor(lowRiskError, student.id);
                         return (
                           <li
                             key={student.id}
@@ -1156,15 +1199,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                             </div>
 
                             <div className="col-actions">
-                              <button
-                                type="button"
-                                className="row-log-button"
-                                aria-label={`Log contact for ${student.student_name}`}
-                                onClick={() => openPanel("log", student.id)}
-                              >
-                                <PlusIcon size={15} />
-                                Log
-                              </button>
+                              <RowLogSplit
+                                studentName={student.student_name}
+                                blocked={lowRiskBlocked(status)}
+                                busy={lowRiskBusyId === String(student.id)}
+                                onLowRisk={() => void handleLowRisk(student.id)}
+                                onOpenPanel={() => openPanel("log", student.id)}
+                              />
                               <button
                                 type="button"
                                 className="row-square-button"
@@ -1258,6 +1299,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                                 ) : null}
                               </div>
                             </div>
+                            {lowRiskMessage ? (
+                              <p className="row-inline-message" role="alert">
+                                {lowRiskMessage}
+                              </p>
+                            ) : null}
                             {openKind === "log" ? (
                               <LogContactPanel
                                 studentId={student.id}
