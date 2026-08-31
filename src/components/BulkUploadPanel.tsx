@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
-  CELL_SHAPE_NOTE,
+  ROSTER_MISSING,
   SHAPE_NOTE,
   duplicateWarnings,
   inBatch,
-  ordinal,
+  noteBody,
+  strippedInitials,
   toCards,
   type BulkCard,
   type BulkParseResult,
@@ -68,7 +69,7 @@ export function BulkUploadPanel({
   // throw away what has been skipped or matched by hand.
   if (result && result.ok && builtFor !== result) {
     setBuiltFor(result);
-    setCards(toCards(result.students, existingKeys));
+    setCards(toCards(result.students, result.unrecognised, existingKeys));
   }
 
   // The error state turns into a preview when a person asks for the students
@@ -116,7 +117,12 @@ export function BulkUploadPanel({
 
   const shown = cards ?? NO_CARDS;
   const warnings = useMemo(
-    () => duplicateWarnings(shown.map((card) => card.student)),
+    // Nameless blocks are left out: they all share the empty name and would
+    // warn about each other.
+    () =>
+      duplicateWarnings(
+        shown.map((card) => (card.unrecognised ? { name: "\u0000" } : card.student)),
+      ),
     // The names never change once the cards are built, so the map only has to
     // be worked out when the batch itself does.
     [shown],
@@ -131,7 +137,11 @@ export function BulkUploadPanel({
   );
 
   const matchedCount = statuses.filter((status) => status.kind === "matched").length;
-  const needStudent = statuses.length - matchedCount;
+  const unrecognisedCount = shown.filter((card) => card.unrecognised).length;
+  const namedCount = shown.length - unrecognisedCount;
+  // A nameless block needs a student too, but it is counted as unrecognised
+  // rather than twice.
+  const needStudent = statuses.length - matchedCount - unrecognisedCount;
   const skippedCount = shown.filter((card) => card.skipped).length;
   const alreadyCount = shown.filter((card) => card.alreadyAdded).length;
   const willAdd = shown.filter(inBatch).length;
@@ -234,38 +244,27 @@ export function BulkUploadPanel({
         ) : result && !result.ok && !showing ? (
           <>
             <p className="bulk-title" id="bulk-title">
-              This document could not be read
+              {/* A roster that has not arrived is not the document's fault,
+                  and saying it was sends somebody to check the wrong thing. */}
+              {result.reason === ROSTER_MISSING
+                ? "Not ready yet"
+                : "This document could not be read"}
             </p>
             <p className="bulk-file">{fileName}</p>
             <div className="bulk-error">
-              <p className="bulk-error-line">
-                {result.students.length === 0
-                  ? "It read no students before it stopped."
-                  : `It read ${result.students.length} ${
-                      result.students.length === 1 ? "student" : "students"
-                    } cleanly before it stopped.`}
-              </p>
-              <p className="bulk-error-line">
-                {result.where === "cell"
-                  ? `It stopped at the ${ordinal(result.at)} cell. ${result.reason}`
-                  : `Line ${result.at} stopped it. ${result.reason}`}
-              </p>
-              <p className="bulk-error-found">
-                {result.where === "cell"
-                  ? result.text
-                    ? `That cell held this:\n${result.text}`
-                    : "That cell is empty."
-                  : result.text
-                    ? `Line ${result.at} reads: ${result.text}`
-                    : "That line is blank."}
-              </p>
+              <p className="bulk-error-line">{result.reason}</p>
+              {result.text ? (
+                <p className="bulk-error-found">The document starts: {result.text}</p>
+              ) : null}
             </div>
-            <p className="bulk-shape">{result.where === "cell" ? CELL_SHAPE_NOTE : SHAPE_NOTE}</p>
+            {result.reason === ROSTER_MISSING ? null : <p className="bulk-shape">{SHAPE_NOTE}</p>}
           </>
         ) : (
           <>
             <p className="bulk-title" id="bulk-title">
-              {shown.length} {shown.length === 1 ? "student" : "students"} found
+              {/* Named students only. A block that anchored on nobody has no
+                  name to have been found, and its own chip counts it. */}
+              {namedCount} {namedCount === 1 ? "student" : "students"} found
             </p>
             <p className="bulk-file">{fileName}</p>
 
@@ -282,6 +281,9 @@ export function BulkUploadPanel({
               <li className={`bulk-chip${alreadyCount > 0 ? " is-quiet" : ""}`}>
                 {alreadyCount} already added today
               </li>
+              <li className={`bulk-chip${unrecognisedCount > 0 ? " is-warn" : ""}`}>
+                {unrecognisedCount} unrecognised
+              </li>
             </ul>
 
             <ul className="bulk-list">
@@ -290,6 +292,10 @@ export function BulkUploadPanel({
                 const warning = warnings.get(index);
                 const quiet = card.skipped || (card.alreadyAdded && !card.includeAnyway);
                 const unresolved = Boolean(status) && status!.kind !== "matched";
+                // Everything this card dropped, in one quiet line. Tolerant
+                // reading is only safe to trust if it says what it left out.
+                const initials = strippedInitials(card.student.note);
+                const left = [...card.student.ignored, initials].filter(Boolean).join(", ");
                 return (
                   <li key={card.key}>
                     {warning ? (
@@ -304,7 +310,9 @@ export function BulkUploadPanel({
                       }`}
                     >
                       <div className="bulk-card-top">
-                        <span className="bulk-card-name">{card.student.name}</span>
+                        <span className="bulk-card-name">
+                          {card.unrecognised ? "No name found" : card.student.name}
+                        </span>
                         <span className="bulk-card-status">
                           {card.alreadyAdded && !card.includeAnyway ? (
                             <span className="bulk-status bulk-status-quiet">
@@ -325,8 +333,13 @@ export function BulkUploadPanel({
                           )}
                         </span>
                       </div>
-                      <p className="bulk-card-topic">{card.student.topic}</p>
-                      <p className="bulk-card-text">{card.student.noteText}</p>
+                      {card.student.topic ? (
+                        <p className="bulk-card-topic">{card.student.topic}</p>
+                      ) : null}
+                      {/* The note on its own. noteText carries the topic in
+                          front of it, and the line above already says it. */}
+                      <p className="bulk-card-text">{noteBody(card.student.note)}</p>
+                      {left ? <p className="bulk-card-left">Left out: {left}</p> : null}
                       <div className="bulk-card-foot">
                         {unresolved && !card.skipped ? (
                           <button
@@ -382,16 +395,6 @@ export function BulkUploadPanel({
           <button type="button" className="row-button" disabled={saving} onClick={onClose}>
             {showing ? "Cancel" : "Close"}
           </button>
-          {!showing && result && !result.ok && result.students.length > 0 ? (
-            <button
-              type="button"
-              className="primary-button bulk-save"
-              onClick={() => setCards(toCards(result.students, existingKeys))}
-            >
-              Add the {result.students.length}{" "}
-              {result.students.length === 1 ? "student" : "students"} it read
-            </button>
-          ) : null}
           {showing ? (
             <button
               type="button"

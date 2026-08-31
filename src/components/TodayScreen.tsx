@@ -372,7 +372,14 @@ export function TodayScreen() {
         { ignoreEmptyParagraphs: false },
       );
       if (!liveRef.current) return;
-      setBulk({ fileName: file.name, result: parseBulkDocument(read.value), readFailed: false });
+      // The roster is what the reader anchors on, so it goes in with the
+      // document. An empty one refuses rather than reading, which the
+      // reader decides, not this.
+      setBulk({
+        fileName: file.name,
+        result: parseBulkDocument(read.value, students ?? []),
+        readFailed: false,
+      });
     } catch {
       if (!liveRef.current) return;
       setBulk({ fileName: file.name, result: null, readFailed: true });

@@ -4042,6 +4042,16 @@ svg {
   color: var(--text-faint);
 }
 
+/* What the reader threw away for this card. Quiet, because it is
+   reassurance rather than something to act on, but always there when
+   anything was left out. */
+.bulk-card-left {
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
 .bulk-card-topic {
   margin-top: 6px;
   color: var(--accent);

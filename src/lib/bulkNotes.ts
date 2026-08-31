@@ -1,31 +1,29 @@
 // Reading a Word document that holds several students, one note each.
 //
-// The documents come in two shapes and both are read here.
+// Reading is anchored on student names, not on counting lines. A line that
+// names somebody on the roster starts a new entry, and everything after it
+// belongs to that student until the next name. Line counts stop mattering,
+// so a stray year level on one student and not another no longer stops the
+// whole document.
 //
-// A table document is a one column table with one student per cell, and the
-// lines inside a cell are soft line breaks rather than separate paragraphs.
-// A paragraph document is three lines per student with a blank line between
-// one student and the next.
+// Tables and paragraphs are no longer two different documents. Both flatten
+// to one ordered list of lines and run through the same rules, so a document
+// holding a table with headings around it is read whole.
 //
-// When there is a table the table is what counts and any loose paragraphs
-// around it are ignored, because that is where the students are.
-//
-// Either way the reader is strict. A reader that skips lines looking for a
-// pattern is how a student is silently missed, which is the whole reason
-// this exists, so anything that is not one of those two shapes is refused
-// with the line, or the cell, that stopped it.
+// Nothing is dropped without saying so. Lines that anchor on nobody are
+// handed back as unrecognised blocks, and every line thrown away inside an
+// entry is recorded on that entry. The panel shows both.
 //
 // The input is mammoth's HTML rather than its plain text. Its plain text
 // throws away the soft line breaks inside a cell, so a whole student runs
 // together into one unreadable line. The HTML keeps the table, the cells and
-// every break, and it has to be asked to keep empty paragraphs, which is
-// what separates one student from the next in a paragraph document.
+// every break, and it has to be asked to keep empty paragraphs.
 //
 // Nothing here touches the network or the database. It takes what the
 // document gave up and returns what would be saved, and the panel does the
 // saving only when a person presses the button.
 
-import { normaliseStudentName } from "./touchPoints";
+import { matchNote, normaliseStudentName, type MatchableStudent } from "./touchPoints";
 
 export type BulkStudent = {
   // Exactly as the document wrote it.
@@ -34,8 +32,19 @@ export type BulkStudent = {
   note: string;
   // The two joined, which is what a saved note carries.
   noteText: string;
-  // Where it came from: the line the name sat on in a paragraph document, or
-  // the cell number in a table. Enough for a card to point back at it.
+  // Every line thrown away for this student, so the panel can show what was
+  // left out rather than leaving a person to trust that nothing was.
+  ignored: string[];
+  // Which line of the flattened document the name sat on. Enough for a card
+  // to point back at it.
+  at: number;
+};
+
+// Lines that anchored on nobody. They are shown as a card with no name
+// rather than discarded, so a student the roster does not know about is
+// visible instead of silently missing.
+export type UnrecognisedBlock = {
+  lines: string[];
   at: number;
 };
 
@@ -44,7 +53,7 @@ export type BulkStudent = {
 export type BulkWhere = "line" | "cell";
 
 export type BulkParseResult =
-  | { ok: true; students: BulkStudent[] }
+  | { ok: true; students: BulkStudent[]; unrecognised: UnrecognisedBlock[] }
   | {
       ok: false;
       // Everything read cleanly before it stopped, which can still be added.
@@ -56,10 +65,7 @@ export type BulkParseResult =
     };
 
 export const SHAPE_NOTE =
-  "Each student needs three lines, the name, then the topic, then the note, with a blank line before the next one.";
-
-export const CELL_SHAPE_NOTE =
-  "Each cell needs at least three lines, the name, then the topic, then the note, with the lines in between making up the topic.";
+  "Each student needs their name on a line of its own, with their topic and note on the lines after it.";
 
 const ENTITIES: Record<string, string> = {
   amp: "&",
@@ -234,123 +240,141 @@ export function noteTextFrom(topic: string, note: string): string {
   return `${opening}. ${body}`;
 }
 
-function fail(
-  students: BulkStudent[],
-  index: number,
-  lines: string[],
-  reason: string,
+function refuse(reason: string, text = "", at = 1): BulkParseResult {
+  return { ok: false, students: [], where: "line", at, text, reason };
+}
+
+export const ROSTER_MISSING =
+  "The student list has not loaded yet. Close this and try again in a moment.";
+
+export const NO_ANCHORS =
+  "No student names were found. Each student needs their name on its own line.";
+
+export const NO_TEXT = "There is no text in this document.";
+
+// One ordered list of lines for the whole document: every table cell's
+// lines first, in document order, then every line outside a table. Blanks
+// are gone, because a blank line no longer means anything now that the
+// names are what separate one student from the next.
+export function flattenDocument(shape: DocumentShape): string[] {
+  const lines: string[] = [];
+  for (const cell of shape.cells) lines.push(...cellLines(cell));
+  for (const line of shape.lines) {
+    const trimmed = line.trim();
+    if (trimmed !== "") lines.push(trimmed);
+  }
+  return lines;
+}
+
+// A line long enough to be a sentence is not a name, and neither is one
+// that ends the way a sentence ends. Both guards come before the roster is
+// asked, because a note can easily contain somebody's name.
+const NAME_MAX = 40;
+
+export function couldBeName(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed === "" || trimmed.length > NAME_MAX) return false;
+  return !/[.?!]$/.test(trimmed);
+}
+
+// Ambiguous anchors just as firmly as matched. A line that fits four
+// students is still plainly a name; it only needs the picker afterwards.
+export function isAnchor<T extends MatchableStudent>(line: string, roster: T[]): boolean {
+  if (!couldBeName(line)) return false;
+  const found = matchNote({ student_name: line }, roster);
+  return found.kind === "matched" || found.kind === "ambiguous";
+}
+
+const DIGITS_ONLY = /^\d+$/;
+
+// A line that is only a number is a year level or a lesson count. It is
+// recorded rather than used, so nothing disappears without being shown.
+export function isIgnorable(line: string): boolean {
+  return DIGITS_ONLY.test(line.trim());
+}
+
+// The topic is the first line carrying a greater than sign, but never the
+// last line left: a note can legitimately contain one, as in "she saw that
+// 12 > 8", and the last line is always the note. Failing that, a short
+// opening line with no full stop in it reads as a heading.
+const TOPIC_MAX = 60;
+
+export function pickTopic(lines: string[]): number {
+  // The last line is always the note, so nothing before that point can be
+  // the whole of what a student has. That holds for the fallback below as
+  // much as for the sign: a student whose only line is "Fractions" has a
+  // note reading Fractions, not a topic and no note at all.
+  if (lines.length < 2) return -1;
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    if ((lines[index] ?? "").includes(">")) return index;
+  }
+  const first = lines[0];
+  if (first !== undefined && first.length <= TOPIC_MAX && !first.includes(".")) return 0;
+  return -1;
+}
+
+// One student's lines, the name already taken off the front.
+export function buildStudent(name: string, body: string[], at: number): BulkStudent {
+  const ignored: string[] = [];
+  const kept: string[] = [];
+  for (const line of body) {
+    if (isIgnorable(line)) ignored.push(line);
+    else kept.push(line);
+  }
+  const topicAt = pickTopic(kept);
+  const topic = topicAt < 0 ? "" : (kept[topicAt] ?? "");
+  const note = kept.filter((_, index) => index !== topicAt).join(" ");
+  return { name, topic, note, noteText: noteTextFrom(topic, note), ignored, at };
+}
+
+// What stripTutorInitials took off the end, worked out by asking it rather
+// than by repeating its rule, so the two can never disagree about what was
+// removed.
+export function strippedInitials(note: string): string {
+  const kept = stripTutorInitials(note);
+  if (kept === note) return "";
+  return note.trimEnd().slice(kept.trimEnd().length).trim();
+}
+
+// The note as it will read once saved, without the topic in front of it.
+export function noteBody(note: string): string {
+  return stripTutorInitials(note).trim();
+}
+
+export function parseBulkDocument<T extends MatchableStudent>(
+  html: string,
+  roster: T[],
 ): BulkParseResult {
-  return {
-    ok: false,
-    students,
-    where: "line",
-    at: index + 1,
-    text: lines[index] ?? "",
-    reason,
-  };
-}
+  // Asked first, and never worked around. An empty roster would anchor on
+  // nothing and report a perfectly good document as entirely unrecognised,
+  // which looks exactly like a broken file.
+  if (roster.length === 0) return refuse(ROSTER_MISSING);
 
-// A table document. Every non empty cell is one student, in document order.
-// Inside a cell the first line is the name, the last is the note, and
-// whatever sits between them is the topic.
-export function parseCells(cells: string[]): BulkParseResult {
-  const students: BulkStudent[] = [];
-  for (let index = 0; index < cells.length; index += 1) {
-    const cell = cells[index] ?? "";
-    const lines = cellLines(cell);
-    // An empty cell is spacing, not a student, so it is passed over rather
-    // than refused. A cell with something in it but not enough is refused.
-    if (lines.length === 0) continue;
-    if (lines.length < 3) {
-      return {
-        ok: false,
-        students,
-        where: "cell",
-        at: index + 1,
-        text: cell.trim(),
-        reason: `It holds only ${lines.length === 1 ? "one line" : "two lines"}, and a student needs three.`,
-      };
-    }
-    const name = lines[0] ?? "";
-    const note = lines[lines.length - 1] ?? "";
-    const topic = lines.slice(1, -1).join(", ");
-    students.push({ name, topic, note, noteText: noteTextFrom(topic, note), at: index + 1 });
-  }
-  if (students.length === 0) {
-    return {
-      ok: false,
-      students,
-      where: "cell",
-      at: 1,
-      text: "",
-      reason: "Every cell in this document is empty.",
-    };
-  }
-  return { ok: true, students };
-}
+  const lines = flattenDocument(readDocument(html ?? ""));
+  if (lines.length === 0) return refuse(NO_TEXT);
 
-export function parseBulkDocument(html: string): BulkParseResult {
-  const { cells, lines } = readDocument(html);
-  // A table is where the students are, so loose paragraphs around it are
-  // ignored rather than read as a second, different document.
-  if (cells.length > 0) return parseCells(cells);
-  return parseParagraphs(lines);
-}
-
-export function parseParagraphs(lines: string[]): BulkParseResult {
-  const first = lines.findIndex((line) => line !== "");
-  if (first < 0) {
-    return {
-      ok: false,
-      students: [],
-      where: "line",
-      at: 1,
-      text: "",
-      reason: "There is no text in this document.",
-    };
-  }
-  let last = lines.length - 1;
-  while (last > first && lines[last] === "") last -= 1;
+  const anchors: number[] = [];
+  lines.forEach((line, index) => {
+    if (isAnchor(line, roster)) anchors.push(index);
+  });
+  if (anchors.length === 0) return refuse(NO_ANCHORS, lines[0] ?? "");
 
   const students: BulkStudent[] = [];
-  let i = first;
-  while (i <= last) {
-    const name = lines[i] ?? "";
-    if (!name) {
-      return fail(students, i, lines, "Expected a student name here, but this line is blank.");
-    }
-    // A student cut short by the end of the document points at its own name,
-    // because that is the line a person has to go and look at.
-    if (i + 2 > last) {
-      const only = i + 1 > last ? "one line" : "two lines";
-      return fail(students, i, lines, `This student has only ${only}, and the document ends here.`);
-    }
-    const topic = lines[i + 1] ?? "";
-    if (!topic) {
-      return fail(students, i + 1, lines, "Expected the topic on this line, under the name.");
-    }
-    const note = lines[i + 2] ?? "";
-    if (!note) {
-      return fail(students, i + 2, lines, "Expected the note on this line, under the topic.");
-    }
-    students.push({ name, topic, note, noteText: noteTextFrom(topic, note), at: i + 1 });
-    i += 3;
-    if (i > last) break;
-    if (lines[i] !== "") {
-      return fail(students, i, lines, "Expected a blank line here, before the next student.");
-    }
-    i += 1;
-    if (i <= last && lines[i] === "") {
-      return fail(
-        students,
-        i,
-        lines,
-        "Expected the next student's name here, but this line is blank.",
-      );
-    }
+  const unrecognised: UnrecognisedBlock[] = [];
+
+  // Anything before the first name belongs to nobody. It is handed back
+  // rather than dropped.
+  const firstAnchor = anchors[0] ?? 0;
+  if (firstAnchor > 0) {
+    unrecognised.push({ lines: lines.slice(0, firstAnchor), at: 1 });
   }
 
-  return { ok: true, students };
+  anchors.forEach((anchor, position) => {
+    const next = anchors[position + 1] ?? lines.length;
+    students.push(buildStudent(lines[anchor] ?? "", lines.slice(anchor + 1, next), anchor + 1));
+  });
+
+  return { ok: true, students, unrecognised };
 }
 
 // Trimmed, collapsed and lowercased, so a stray space cannot defeat a
@@ -391,24 +415,56 @@ export type BulkCard = {
   alreadyAdded: boolean;
   // Already added, but a person asked for it anyway.
   includeAnyway: boolean;
+  // A block that anchored on nobody. It has no name of its own, so it
+  // cannot be saved until a person says whose it is.
+  unrecognised: boolean;
 };
 
-export function toCards(students: BulkStudent[], existingKeys: Set<string>): BulkCard[] {
-  return students.map((student, index) => ({
-    key: `${index}-${student.at}`,
+// An unrecognised block wearing a student's clothes, so one list and one
+// card can show both. It has no name and no topic: every line it holds is
+// note, shown exactly as the document wrote it.
+function blockAsStudent(block: UnrecognisedBlock): BulkStudent {
+  const note = block.lines.join(" ");
+  return { name: "", topic: "", note, noteText: note, ignored: [], at: block.at };
+}
+
+export function toCards(
+  students: BulkStudent[],
+  unrecognised: UnrecognisedBlock[],
+  existingKeys: Set<string>,
+): BulkCard[] {
+  const named: BulkCard[] = students.map((student, index) => ({
+    key: `s${index}-${student.at}`,
     student,
     studentId: null,
     skipped: false,
     alreadyAdded: existingKeys.has(noteKey(student.name, student.noteText)),
     includeAnyway: false,
+    unrecognised: false,
   }));
+  const loose: BulkCard[] = unrecognised.map((block, index) => ({
+    key: `u${index}-${block.at}`,
+    student: blockAsStudent(block),
+    studentId: null,
+    skipped: false,
+    // Nothing to compare: a block with no name cannot be the same note as
+    // one already on today's list.
+    alreadyAdded: false,
+    includeAnyway: false,
+    unrecognised: true,
+  }));
+  // In document order, which puts a block that came before the first name
+  // where it was written.
+  return [...named, ...loose].sort((a, b) => a.student.at - b.student.at);
 }
 
-// In the batch means not skipped, and not already on today's list unless a
-// person asked for it anyway. This one predicate decides both the number on
-// the button and what is actually inserted, so the two cannot drift.
+// In the batch means not skipped, not already on today's list unless a
+// person asked for it anyway, and not a nameless block waiting for somebody
+// to say whose it is. This one predicate decides both the number on the
+// button and what is actually inserted, so the two cannot drift.
 export function inBatch(card: BulkCard): boolean {
   if (card.skipped) return false;
+  if (card.unrecognised && !card.studentId) return false;
   return !card.alreadyAdded || card.includeAnyway;
 }
 

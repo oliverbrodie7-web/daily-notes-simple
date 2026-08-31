@@ -1,22 +1,32 @@
 import { describe, expect, it } from "bun:test";
 import {
+  NO_ANCHORS,
+  ROSTER_MISSING,
   batchCount,
+  buildStudent,
   cellLines,
+  couldBeName,
   decodeEntities,
   duplicateWarning,
   duplicateWarnings,
+  flattenDocument,
   htmlToText,
   inBatch,
+  isAnchor,
+  isIgnorable,
+  noteBody,
   noteKey,
   noteTextFrom,
-  ordinal,
   parseBulkDocument,
+  pickTopic,
   readDocument,
   squash,
+  strippedInitials,
   toCards,
   stripTutorInitials,
   topicToWords,
 } from "./bulkNotes";
+import { matchNote } from "./touchPoints";
 
 // Fixtures are built the way mammoth really writes a document, with empty
 // paragraphs kept and the greater than sign escaped, so the tests are honest
@@ -41,6 +51,24 @@ function asTable(cells: string[][]): string {
   return `<table>${rows}</table>`;
 }
 
+// The roster the reader anchors on. Everything the fixtures name is here,
+// plus four Sams to make a line ambiguous and one name too long to be read
+// as a name at all.
+const ROSTER = [
+  { id: 1, student_name: "Alice Dominguez" },
+  { id: 2, student_name: "Bob Turner" },
+  { id: 3, student_name: "Charlie Smith" },
+  { id: 4, student_name: "Abi Wainwright" },
+  { id: 5, student_name: "Alysha Adeyemi" },
+  { id: 6, student_name: "Sam Ashford" },
+  { id: 7, student_name: "Sam Bradley" },
+  { id: 8, student_name: "Sam Curtis" },
+  { id: 9, student_name: "Sam Delaney" },
+  { id: 10, student_name: "Maximilian Rothschild Weatherby Fitzwilliam" },
+];
+
+const read = (html: string) => parseBulkDocument(html, ROSTER);
+
 const THREE_STUDENTS = asDocument([
   "Alice D",
   "Multiply > Algorithm",
@@ -54,6 +82,19 @@ const THREE_STUDENTS = asDocument([
   "Fractions > Adding > Unlike",
   "Needed a reminder about common denominators. AB",
 ]);
+
+// The two real examples, exactly as they were given.
+const REAL_ABI = [
+  "Abi W",
+  "4",
+  "Statistics > Measures of Centre & Spread",
+  "Revision. Distracted this lesson, however she did work through her questions at a fair pace. CC",
+];
+const REAL_ALYSHA = [
+  "Alysha A",
+  "Multiply > Algorithm",
+  "Revision. Understands how to do one digit multiplication algorithms but has trouble with two digit and the carrying. lh",
+];
 
 describe("reading the document", () => {
   it("puts the paragraphs back, blanks and all", () => {
@@ -115,304 +156,296 @@ describe("reading the document", () => {
   });
 });
 
-describe("a table document", () => {
-  it("makes one student out of every cell", () => {
-    const html = asTable([
-      ["Alice D", "Decimals", "All good. JD"],
+describe("flattening", () => {
+  it("a document with a table and loose paragraphs reads both", () => {
+    const html = `${asDocument(["Alice D", "Decimals", "All good. JD"])}${asTable([
       ["Bob T", "Fractions", "Fine. AB"],
-      ["Charlie S", "Times tables", "Quick today. E Lov"],
-    ]);
-    const result = parseBulkDocument(html);
+    ])}`;
+    const result = read(html);
     expect(result.ok).toBe(true);
-    expect(result.students.map((student) => student.name)).toEqual([
-      "Alice D",
-      "Bob T",
-      "Charlie S",
-    ]);
+    if (!result.ok) return;
+    expect(result.students.map((student) => student.name)).toEqual(["Bob T", "Alice D"]);
+    expect(result.unrecognised).toEqual([]);
   });
 
-  it("splits the soft line breaks inside a cell", () => {
-    const html = asTable([["Alice D", "Multiply > Algorithm", "Worked hard today. JD"]]);
-    const student = parseBulkDocument(html).students[0];
-    expect(student?.name).toBe("Alice D");
-    expect(student?.topic).toBe("Multiply > Algorithm");
-    expect(student?.note).toBe("Worked hard today. JD");
-    expect(student?.noteText).toBe("Multiply, Algorithm. Worked hard today.");
+  it("puts every cell's lines in before the loose ones, and drops the blanks", () => {
+    const html = `<p>Loose</p>${asTable([["A", "B"], [], ["C"]])}<p></p><p>After</p>`;
+    expect(flattenDocument(readDocument(html))).toEqual(["A", "B", "C", "Loose", "After"]);
   });
 
-  it("discards the empty lines before taking the first, the last and the middle", () => {
-    const html = asTable([["", "Alice D", "", "Decimals", "", "All good. JD", ""]]);
-    const student = parseBulkDocument(html).students[0];
-    expect(student?.name).toBe("Alice D");
-    expect(student?.topic).toBe("Decimals");
-    expect(student?.note).toBe("All good. JD");
-  });
-
-  it("joins the middle lines of a four line cell with a comma", () => {
-    const html = asTable([["Alice D", "Fractions", "Adding", "All good. JD"]]);
-    const student = parseBulkDocument(html).students[0];
-    expect(student?.topic).toBe("Fractions, Adding");
-    expect(student?.noteText).toBe("Fractions, Adding. All good.");
-  });
-
-  it("ignores an empty cell rather than refusing it", () => {
-    const html = asTable([["Alice D", "Decimals", "All good. JD"], [], ["", "  ", ""]]);
-    const result = parseBulkDocument(html);
-    expect(result.ok).toBe(true);
-    expect(result.students).toHaveLength(1);
-  });
-
-  it("refuses a cell with two lines, naming the cell", () => {
-    const html = asTable([
-      ["Alice D", "Decimals", "All good. JD"],
-      [],
-      ["Bob T", "Fractions"],
-      ["Charlie S", "Times tables", "Quick today. AB"],
-    ]);
-    const result = parseBulkDocument(html);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.where).toBe("cell");
-    expect(result.at).toBe(3);
-    expect(result.text).toBe("Bob T\nFractions");
-    expect(result.reason).toBe("It holds only two lines, and a student needs three.");
-    // The good cell before it is still offered, and the one after is not read.
-    expect(result.students.map((student) => student.name)).toEqual(["Alice D"]);
-  });
-
-  it("refuses a cell with one line, naming the cell", () => {
-    const result = parseBulkDocument(asTable([["Alice D"]]));
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.at).toBe(1);
-    expect(result.reason).toBe("It holds only one line, and a student needs three.");
-  });
-
-  it("refuses a table with nothing in any cell", () => {
-    const result = parseBulkDocument(asTable([[], []]));
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.reason).toBe("Every cell in this document is empty.");
-  });
-
-  it("uses the table and ignores loose paragraphs around it", () => {
-    const html = [
-      asDocument(["Zoe Q", "Algebra", "Not a real student. XX", ""]),
-      asTable([["Alice D", "Decimals", "All good. JD"]]),
-      asDocument(["", "Yves R", "Geometry", "Also not real. YY"]),
-    ].join("");
-    const result = parseBulkDocument(html);
-    expect(result.ok).toBe(true);
-    expect(result.students.map((student) => student.name)).toEqual(["Alice D"]);
-  });
-
-  it("records the cell each student came from", () => {
-    const html = asTable([[], ["Alice D", "Decimals", "All good. JD"]]);
-    expect(parseBulkDocument(html).students[0]?.at).toBe(2);
+  it("keeps nothing that was only whitespace", () => {
+    expect(flattenDocument(readDocument(asDocument(["", "  ", "One"])))).toEqual(["One"]);
   });
 });
 
-describe("the real table example", () => {
-  // Exactly what mammoth returned for the document Ollie described, empty
-  // paragraphs kept, copied out of the reader rather than imagined.
-  const REAL =
-    "<p></p><p></p><table><tr><td><p>Alice D<br /><br /><br />Multiply &gt; Algorithm<br />Worked through the harder ones without help today. JD</p></td></tr><tr><td><p><br />Alyssa H<br /><br />Decimals<br />Slower today but got there in the end. E Lov</p></td></tr><tr><td><p></p></td></tr></table><p></p><p></p>";
+describe("what anchors a new entry", () => {
+  it("a line naming somebody on the roster anchors", () => {
+    expect(isAnchor("Alice D", ROSTER)).toBe(true);
+    expect(isAnchor("Bob T", ROSTER)).toBe(true);
+  });
 
-  const result = parseBulkDocument(REAL);
+  it("a line matching four students still anchors a new entry", () => {
+    expect(matchNote({ student_name: "Sam" }, ROSTER).kind).toBe("ambiguous");
+    expect(isAnchor("Sam", ROSTER)).toBe(true);
+  });
 
-  it("finds exactly two students", () => {
+  it("a long line that matches a student name does not anchor", () => {
+    const long = "Maximilian Rothschild Weatherby Fitzwilliam";
+    expect(long.length).toBeGreaterThan(40);
+    // The matcher would take it. The length guard is what stops it.
+    expect(matchNote({ student_name: long }, ROSTER).kind).toBe("matched");
+    expect(isAnchor(long, ROSTER)).toBe(false);
+  });
+
+  it("a line ending in a full stop does not anchor", () => {
+    // The matcher takes "Alice D." because its initial pattern allows the
+    // stop. The sentence guard is what stops it.
+    expect(matchNote({ student_name: "Alice D." }, ROSTER).kind).toBe("matched");
+    expect(isAnchor("Alice D.", ROSTER)).toBe(false);
+    expect(couldBeName("Worked hard today!")).toBe(false);
+    expect(couldBeName("Did she finish?")).toBe(false);
+  });
+
+  it("a line naming nobody does not anchor", () => {
+    expect(isAnchor("Decimals", ROSTER)).toBe(false);
+    expect(isAnchor("Zebedee Q", ROSTER)).toBe(false);
+  });
+});
+
+describe("inside one entry", () => {
+  it("a student with three lines is read", () => {
+    const result = read(asDocument(["Alice D", "Decimals", "All good. JD"]));
     expect(result.ok).toBe(true);
-    expect(result.students.map((student) => student.name)).toEqual(["Alice D", "Alyssa H"]);
+    if (!result.ok) return;
+    expect(result.students).toHaveLength(1);
+    expect(result.students[0]).toMatchObject({
+      name: "Alice D",
+      topic: "Decimals",
+      note: "All good. JD",
+      noteText: "Decimals. All good.",
+      ignored: [],
+    });
   });
 
-  it("reads both topics, with the greater than sign turned into a comma", () => {
-    expect(result.students.map((student) => student.noteText)).toEqual([
-      "Multiply, Algorithm. Worked through the harder ones without help today.",
-      "Decimals. Slower today but got there in the end.",
-    ]);
+  it("a student with four lines including a bare number is read, and the number is ignored", () => {
+    const result = read(asDocument(REAL_ABI));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const student = result.students[0];
+    expect(student?.name).toBe("Abi W");
+    expect(student?.ignored).toEqual(["4"]);
+    expect(student?.topic).toBe("Statistics > Measures of Centre & Spread");
+    expect(student?.noteText).toBe(
+      "Statistics, Measures of Centre & Spread. Revision. Distracted this lesson, however she did work through her questions at a fair pace.",
+    );
   });
 
-  it("ignores the third cell and the four empty paragraphs", () => {
+  it("two students with different line counts are both read", () => {
+    const result = read(asDocument([...REAL_ABI, "", ...REAL_ALYSHA]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students.map((student) => student.name)).toEqual(["Abi W", "Alysha A"]);
+    expect(result.students[0]?.ignored).toEqual(["4"]);
+    expect(result.students[1]?.ignored).toEqual([]);
+    expect(result.students[1]?.topic).toBe("Multiply > Algorithm");
+  });
+
+  it("reads them with no blank line between at all", () => {
+    const result = read(asDocument([...REAL_ABI, ...REAL_ALYSHA]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.students).toHaveLength(2);
   });
-});
 
-describe("saying where it stopped", () => {
-  it("counts in words up to ten", () => {
-    expect(ordinal(1)).toBe("first");
-    expect(ordinal(4)).toBe("fourth");
-    expect(ordinal(10)).toBe("tenth");
-  });
-
-  it("falls back to digits past that", () => {
-    expect(ordinal(11)).toBe("11th");
-    expect(ordinal(21)).toBe("21st");
-    expect(ordinal(22)).toBe("22nd");
-    expect(ordinal(23)).toBe("23rd");
-    expect(ordinal(24)).toBe("24th");
-  });
-});
-describe("a well formed document", () => {
-  const result = parseBulkDocument(THREE_STUDENTS);
-
-  it("reads every student", () => {
+  it("reads them with several blank lines between", () => {
+    const result = read(asDocument([...REAL_ABI, "", "", "", ...REAL_ALYSHA]));
     expect(result.ok).toBe(true);
-    expect(result.students).toHaveLength(3);
+    if (!result.ok) return;
+    expect(result.students).toHaveLength(2);
   });
 
-  it("keeps the name exactly as written", () => {
-    expect(result.students.map((student) => student.name)).toEqual([
-      "Alice D",
-      "Bob T",
-      "Charlie S",
-    ]);
-  });
-
-  it("joins the topic and the note, with the greater than sign replaced", () => {
-    expect(result.students[0]?.noteText).toBe(
-      "Multiply, Algorithm. Worked through the harder ones without help.",
+  it("gathers every extra line into the note", () => {
+    const result = read(
+      asDocument([
+        "Alice D",
+        "Decimals",
+        "Worked steadily.",
+        "Finished early.",
+        "Good session. JD",
+      ]),
     );
-    expect(result.students[2]?.noteText).toBe(
-      "Fractions, Adding, Unlike. Needed a reminder about common denominators.",
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.note).toBe("Worked steadily. Finished early. Good session. JD");
+  });
+
+  it("keeps a student with no note at all, with the note empty", () => {
+    const result = read(asDocument(["Alice D", "", "Bob T", "Decimals", "Fine. AB"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]).toMatchObject({ name: "Alice D", note: "", topic: "" });
+    expect(result.students).toHaveLength(2);
+  });
+
+  it("records the line the name sat on", () => {
+    const result = read(
+      asDocument(["Alice D", "Decimals", "Fine.", "Bob T", "Fractions", "Fine."]),
     );
-  });
-
-  it("strips the tutor initials, one word or two", () => {
-    expect(result.students[0]?.noteText.endsWith("without help.")).toBe(true);
-    expect(result.students[1]?.noteText).toBe("Decimals. Slower today but got there in the end.");
-  });
-
-  it("records the line each student started on", () => {
-    expect(result.students.map((student) => student.at)).toEqual([1, 5, 9]);
-  });
-
-  it("tolerates trailing whitespace and empty paragraphs at the end of the file", () => {
-    const padded = `${THREE_STUDENTS}${asDocument(["", "   ", "", ""])}`;
-    const same = parseBulkDocument(padded);
-    expect(same.ok).toBe(true);
-    expect(same.students).toHaveLength(3);
-    expect(same.students[2]?.name).toBe("Charlie S");
-  });
-
-  it("tolerates blank lines before the first student", () => {
-    const led = parseBulkDocument(asDocument(["", ""]) + THREE_STUDENTS);
-    expect(led.ok).toBe(true);
-    expect(led.students).toHaveLength(3);
-    // The line numbers still point at the real document.
-    expect(led.students[0]?.at).toBe(3);
-  });
-
-  it("reads a single student on its own", () => {
-    const one = parseBulkDocument(asDocument(["Alice D", "Decimals", "All good. JD"]));
-    expect(one.ok).toBe(true);
-    expect(one.students).toHaveLength(1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students.map((student) => student.at)).toEqual([1, 4]);
   });
 });
 
-describe("a document that does not parse", () => {
-  it("refuses a missing blank line, naming the line and its text", () => {
-    const doc = asDocument([
-      "Alice D",
-      "Decimals",
-      "All good. JD",
-      "Bob T",
-      "Fractions",
-      "Fine. AB",
-    ]);
-    const result = parseBulkDocument(doc);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.at).toBe(4);
-    expect(result.text).toBe("Bob T");
-    expect(result.reason).toBe("Expected a blank line here, before the next student.");
-    // Everything read cleanly before it stopped is still offered.
-    expect(result.students).toHaveLength(1);
-    expect(result.students[0]?.name).toBe("Alice D");
+describe("choosing the topic", () => {
+  it("the first greater than line becomes the topic when it is not the last line", () => {
+    expect(pickTopic(["Multiply > Algorithm", "Worked well. JD"])).toBe(0);
+    expect(pickTopic(["A note first.", "Multiply > Algorithm", "Then this."])).toBe(1);
   });
 
-  it("refuses a two line student in the middle", () => {
-    const doc = asDocument([
-      "Alice D",
-      "Decimals",
-      "All good. JD",
-      "",
-      "Bob T",
-      "Fractions",
-      "",
-      "Charlie S",
-      "Times tables",
-      "Quick today. AB",
-    ]);
-    const result = parseBulkDocument(doc);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.at).toBe(7);
-    expect(result.text).toBe("");
-    expect(result.reason).toBe("Expected the note on this line, under the topic.");
-    expect(result.students).toHaveLength(1);
+  it("a note containing a greater than sign is not treated as the topic", () => {
+    const result = read(asDocument(["Alice D", "Decimals", "She saw that 12 > 8. JD"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.topic).toBe("Decimals");
+    expect(result.students[0]?.note).toBe("She saw that 12 > 8. JD");
   });
 
-  it("refuses a two line student at the end of the document", () => {
-    const doc = asDocument(["Alice D", "Decimals", "All good. JD", "", "Bob T", "Fractions"]);
-    const result = parseBulkDocument(doc);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.at).toBe(5);
-    expect(result.text).toBe("Bob T");
-    expect(result.reason).toBe("This student has only two lines, and the document ends here.");
+  it("never takes the last remaining line, even when it is the only one with a sign", () => {
+    expect(pickTopic(["Worked hard.", "She saw that 12 > 8"])).toBe(-1);
+    expect(pickTopic(["She saw that 12 > 8"])).toBe(-1);
+  });
+
+  it("falls back to a short opening line with no full stop", () => {
+    expect(pickTopic(["Decimals", "All good."])).toBe(0);
+  });
+
+  it("takes no topic when the opening line reads as a sentence", () => {
+    expect(pickTopic(["She worked steadily. JD", "And finished."])).toBe(-1);
+  });
+
+  it("takes no topic when the opening line is too long to be one", () => {
+    const long = "x".repeat(61);
+    expect(pickTopic([long, "All good."])).toBe(-1);
+  });
+
+  it("the topic still has its greater than signs turned into commas", () => {
+    const result = read(asDocument(["Charlie S", "Fractions > Adding > Unlike", "Fine. AB"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.noteText).toBe("Fractions, Adding, Unlike. Fine.");
+  });
+});
+
+describe("lines that anchor on nobody", () => {
+  it("lines before the first student name become an unrecognised block", () => {
+    const result = read(asDocument(["Week 5 notes", "Tuesday", "Alice D", "Decimals", "Fine. JD"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.unrecognised).toEqual([{ lines: ["Week 5 notes", "Tuesday"], at: 1 }]);
     expect(result.students).toHaveLength(1);
   });
 
-  it("refuses a one line student at the end of the document", () => {
-    const doc = asDocument(["Alice D", "Decimals", "All good. JD", "", "Bob T"]);
-    const result = parseBulkDocument(doc);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.reason).toBe("This student has only one line, and the document ends here.");
+  it("says nothing when the document opens on a name", () => {
+    const result = read(THREE_STUDENTS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.unrecognised).toEqual([]);
   });
 
-  it("refuses two blank lines between students", () => {
-    const doc = asDocument([
-      "Alice D",
-      "Decimals",
-      "All good. JD",
-      "",
-      "",
-      "Bob T",
-      "Fractions",
-      "Fine. AB",
-    ]);
-    const result = parseBulkDocument(doc);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.at).toBe(5);
-    expect(result.reason).toBe("Expected the next student's name here, but this line is blank.");
+  it("an unrecognised block is excluded from the batch count until a student is picked", () => {
+    const result = read(asDocument(["Loose line", "Alice D", "Decimals", "Fine. JD"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cards = toCards(result.students, result.unrecognised, new Set());
+    expect(cards).toHaveLength(2);
+    const block = cards.find((card) => card.unrecognised);
+    expect(block).toBeDefined();
+    expect(inBatch(block!)).toBe(false);
+    expect(batchCount(cards)).toBe(1);
+    const picked = cards.map((card) => (card.unrecognised ? { ...card, studentId: "3" } : card));
+    expect(batchCount(picked)).toBe(2);
   });
 
-  it("refuses a document with no text in it", () => {
-    const result = parseBulkDocument(asDocument(["", "  ", ""]));
+  it("shows the block where it was written, before the students", () => {
+    const result = read(asDocument(["Loose line", "Alice D", "Decimals", "Fine. JD"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cards = toCards(result.students, result.unrecognised, new Set());
+    expect(cards[0]?.unrecognised).toBe(true);
+    expect(cards[0]?.student.note).toBe("Loose line");
+    expect(cards[1]?.student.name).toBe("Alice D");
+  });
+});
+
+describe("what it still refuses", () => {
+  it("an empty roster refuses rather than reading", () => {
+    const result = parseBulkDocument(THREE_STUDENTS, []);
     expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    expect(result.students).toHaveLength(0);
+    if (result.ok) return;
+    expect(result.reason).toBe(ROSTER_MISSING);
+    expect(result.students).toEqual([]);
+  });
+
+  it("a document with no student names refuses", () => {
+    const result = read(asDocument(["Decimals", "All good today.", "Fractions"]));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe(NO_ANCHORS);
+    expect(result.text).toBe("Decimals");
+  });
+
+  it("an empty document refuses", () => {
+    const result = read(asDocument(["", "  ", ""]));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
     expect(result.reason).toBe("There is no text in this document.");
   });
 
-  it("never reads past the line that stopped it", () => {
-    const doc = asDocument([
-      "Alice D",
-      "Decimals",
-      "All good. JD",
-      "Bob T",
-      "",
-      "Charlie S",
-      "Times tables",
-      "Quick today. AB",
-    ]);
-    const result = parseBulkDocument(doc);
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("expected a refusal");
-    // Charlie sits further down and is well formed, and is still not read.
-    expect(result.students).toHaveLength(1);
+  it("refusals carry no half read students", () => {
+    for (const result of [parseBulkDocument(THREE_STUDENTS, []), read(asDocument(["Decimals"]))]) {
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.students).toEqual([]);
+    }
+  });
+});
+
+describe("the numbers it throws away", () => {
+  it("knows a bare number when it sees one", () => {
+    expect(isIgnorable("4")).toBe(true);
+    expect(isIgnorable(" 12 ")).toBe(true);
+    expect(isIgnorable("Year 4")).toBe(false);
+    expect(isIgnorable("4th")).toBe(false);
+    expect(isIgnorable("")).toBe(false);
+  });
+
+  it("records every one rather than losing it", () => {
+    const built = buildStudent("Alice D", ["4", "Decimals", "9", "All good. JD"], 1);
+    expect(built.ignored).toEqual(["4", "9"]);
+    expect(built.note).toBe("All good. JD");
+  });
+});
+
+describe("what the card shows was left out", () => {
+  it("tutor initials are still stripped from the note", () => {
+    const result = read(asDocument(["Alice D", "Decimals", "Worked hard today. JD"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.noteText).toBe("Decimals. Worked hard today.");
+    expect(noteBody("Worked hard today. JD")).toBe("Worked hard today.");
+  });
+
+  it("says which initials went", () => {
+    expect(strippedInitials("Worked hard today. JD")).toBe("JD");
+    expect(strippedInitials("Worked hard today. E Lov")).toBe("E Lov");
+    expect(strippedInitials("Worked hard today")).toBe("");
+  });
+
+  it("the note it shows is the note it saves, without the topic in front", () => {
+    const built = buildStudent("Alice D", ["Decimals", "Worked hard today. JD"], 1);
+    expect(noteBody(built.note)).toBe("Worked hard today.");
+    expect(built.noteText).toBe(`${topicToWords(built.topic)}. ${noteBody(built.note)}`);
   });
 });
 
@@ -503,7 +536,7 @@ describe("duplicates inside one document", () => {
       "Fractions",
       "Also good. JD",
     ]);
-    const result = parseBulkDocument(doc);
+    const result = read(doc);
     expect(result.ok).toBe(true);
     expect(duplicateWarnings(result.students).get(0)).toContain("appears twice");
   });
@@ -527,7 +560,7 @@ describe("already added today", () => {
       "Fractions",
       "Fine. AB",
     ]);
-    const result = parseBulkDocument(doc);
+    const result = read(doc);
     expect(result.ok).toBe(true);
     const existing = new Set([noteKey("Alice  D", " Decimals. All good. ")]);
     const flagged = result.students.map((student) =>
@@ -556,17 +589,18 @@ describe("what actually gets added", () => {
     "Times tables",
     "Quick today. E Lov",
   ]);
-  const parsed = parseBulkDocument(doc);
+  const parsed = read(doc);
+  const students = parsed.ok ? parsed.students : [];
   const alreadyThere = new Set([noteKey("Alice D", "Decimals. All good.")]);
 
   it("leaves a note already added today out of the batch", () => {
-    const cards = toCards(parsed.students, alreadyThere);
+    const cards = toCards(students, [], alreadyThere);
     expect(cards.map((card) => card.alreadyAdded)).toEqual([true, false, false]);
     expect(batchCount(cards)).toBe(2);
   });
 
   it("puts it back when a person asks for it anyway", () => {
-    const cards = toCards(parsed.students, alreadyThere).map((card, index) =>
+    const cards = toCards(students, [], alreadyThere).map((card, index) =>
       index === 0 ? { ...card, includeAnyway: true } : card,
     );
     expect(batchCount(cards)).toBe(3);
@@ -574,7 +608,7 @@ describe("what actually gets added", () => {
   });
 
   it("takes a skipped one out, whatever else is true of it", () => {
-    const cards = toCards(parsed.students, alreadyThere).map((card, index) =>
+    const cards = toCards(students, [], alreadyThere).map((card, index) =>
       index === 1 ? { ...card, skipped: true } : card,
     );
     expect(batchCount(cards)).toBe(1);
@@ -582,24 +616,24 @@ describe("what actually gets added", () => {
   });
 
   it("keeps a skipped one out even when it was asked for anyway", () => {
-    const cards = toCards(parsed.students, alreadyThere).map((card, index) =>
+    const cards = toCards(students, [], alreadyThere).map((card, index) =>
       index === 0 ? { ...card, includeAnyway: true, skipped: true } : card,
     );
     expect(batchCount(cards)).toBe(2);
   });
 
   it("counts exactly what the batch holds", () => {
-    const cards = toCards(parsed.students, alreadyThere);
+    const cards = toCards(students, [], alreadyThere);
     expect(batchCount(cards)).toBe(cards.filter(inBatch).length);
   });
 
   it("gives every card a key of its own", () => {
-    const cards = toCards(parsed.students, new Set());
+    const cards = toCards(students, [], new Set());
     expect(new Set(cards.map((card) => card.key)).size).toBe(cards.length);
   });
 
   it("carries no student id until a person picks one", () => {
-    expect(toCards(parsed.students, new Set()).every((card) => card.studentId === null)).toBe(true);
+    expect(toCards(students, [], new Set()).every((card) => card.studentId === null)).toBe(true);
   });
 });
 
