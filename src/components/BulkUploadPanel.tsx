@@ -140,7 +140,9 @@ export function BulkUploadPanel({
   const unrecognisedCount = shown.filter((card) => card.unrecognised).length;
   const namedCount = shown.length - unrecognisedCount;
   // A nameless block needs a student too, but it is counted as unrecognised
-  // rather than twice.
+  // rather than twice. A name the roster does not know is already in here:
+  // matchNote calls it unmatched, and a student picked for it turns it
+  // matched, so the chip moves on its own.
   const needStudent = statuses.length - matchedCount - unrecognisedCount;
   const skippedCount = shown.filter((card) => card.skipped).length;
   const alreadyCount = shown.filter((card) => card.alreadyAdded).length;
@@ -337,8 +339,14 @@ export function BulkUploadPanel({
                         <p className="bulk-card-topic">{card.student.topic}</p>
                       ) : null}
                       {/* The note on its own. noteText carries the topic in
-                          front of it, and the line above already says it. */}
-                      <p className="bulk-card-text">{noteBody(card.student.note)}</p>
+                          front of it, and the line above already says it. A
+                          block keeps the line breaks it was written with,
+                          which is what makes it recognisable. */}
+                      <p className={`bulk-card-text${card.unrecognised ? " is-block" : ""}`}>
+                        {card.unrecognised
+                          ? card.blockLines.join("\n")
+                          : noteBody(card.student.note)}
+                      </p>
                       {left ? <p className="bulk-card-left">Left out: {left}</p> : null}
                       <div className="bulk-card-foot">
                         {unresolved && !card.skipped ? (

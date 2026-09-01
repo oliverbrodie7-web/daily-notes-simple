@@ -14,6 +14,7 @@ import {
   inBatch,
   isAnchor,
   isIgnorable,
+  looksLikeNameLine,
   noteBody,
   noteKey,
   noteTextFrom,
@@ -60,6 +61,8 @@ const ROSTER = [
   { id: 3, student_name: "Charlie Smith" },
   { id: 4, student_name: "Abi Wainwright" },
   { id: 5, student_name: "Alysha Adeyemi" },
+  { id: 11, student_name: "Austin Dowling" },
+  { id: 12, student_name: "Imogen Patel" },
   { id: 6, student_name: "Sam Ashford" },
   { id: 7, student_name: "Sam Bradley" },
   { id: 8, student_name: "Sam Curtis" },
@@ -496,8 +499,226 @@ describe("the tutor initials", () => {
     expect(stripTutorInitials("Worked hard with Ella")).toBe("Worked hard with Ella");
   });
 
-  it("tidies a dash left behind by the initials", () => {
-    expect(stripTutorInitials("Worked hard today - JD")).toBe("Worked hard today");
+  it("leaves initials alone when a dash rather than a full stop precedes them", () => {
+    // Changed with the full stop rule. A dash is not the end of a sentence,
+    // and the full stop is the only thing that tells an initial from an
+    // ordinary last word, so "Worked hard today - JD" keeps its JD. The
+    // alternative was losing the "did" from "she knows what she did".
+    expect(stripTutorInitials("Worked hard today - JD")).toBe("Worked hard today - JD");
+  });
+});
+
+describe("score lines", () => {
+  it("a line reading 87 percent is ignored and recorded", () => {
+    expect(isIgnorable("87%")).toBe(true);
+    const result = read(
+      asDocument([
+        "Austin D",
+        "Add > Add Strategy Mixed",
+        "87%",
+        "Master. Austin is very strong at his partitioning method for addition.",
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.ignored).toEqual(["87%"]);
+    expect(result.students[0]?.note).toBe(
+      "Master. Austin is very strong at his partitioning method for addition.",
+    );
+    expect(result.students[0]?.note.startsWith("87%")).toBe(false);
+  });
+
+  it("a line reading 100 percent with a space before the sign is ignored", () => {
+    expect(isIgnorable("100%")).toBe(true);
+    expect(isIgnorable("70 %")).toBe(true);
+    expect(isIgnorable("100 %")).toBe(true);
+  });
+
+  it("two score lines in one entry are both ignored", () => {
+    const built = buildStudent(
+      "Austin D",
+      ["50%", "100%", "Topic Test. good overall understanding. CC"],
+      1,
+    );
+    expect(built.ignored).toEqual(["50%", "100%"]);
+    expect(built.note).toBe("Topic Test. good overall understanding. CC");
+  });
+
+  it("a line reading 87% Master is not ignored", () => {
+    expect(isIgnorable("87% Master")).toBe(false);
+    expect(isIgnorable("Scored 87%")).toBe(false);
+  });
+
+  it("a line reading Percentages is not ignored", () => {
+    expect(isIgnorable("Percentages")).toBe(false);
+    expect(isIgnorable("87.5%")).toBe(false);
+    expect(isIgnorable("%")).toBe(false);
+  });
+
+  it("a bare number is still ignored", () => {
+    expect(isIgnorable("4")).toBe(true);
+  });
+});
+
+describe("a name the roster does not know", () => {
+  it("a capitalised two word line after a full stop anchors even when the roster does not know it", () => {
+    expect(matchNote({ student_name: "Jade BM" }, ROSTER).kind).toBe("unmatched");
+    expect(looksLikeNameLine("Jade BM", "Congruent Figures. she picked up on them well.")).toBe(
+      true,
+    );
+    const result = read(
+      asDocument([
+        "Imogen P",
+        "Geometry / Space > Shape",
+        "Congruent Figures. she picked up on them well and should be set up well.",
+        "Jade BM",
+        "Linear Relationships > Linear Graphs",
+        "Linear Plot. Can read the x and y axis to plot points.",
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Two entries, with no blank line between them anywhere in the source.
+    expect(result.students).toHaveLength(2);
+    expect(result.students.map((student) => student.name)).toEqual(["Imogen P", "Jade BM"]);
+    expect(result.students[0]?.note).not.toContain("Linear Plot");
+  });
+
+  it("an entry anchored without a match is shown as needing a student", () => {
+    const result = read(
+      asDocument(["Alice D", "Decimals", "All good. JD", "Riley RP", "Fractions", "Fine. AB"]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students.map((student) => student.unmatched)).toEqual([false, true]);
+    expect(matchNote({ student_name: "Riley RP" }, ROSTER).kind).toBe("unmatched");
+  });
+
+  it("an entry anchored without a match is excluded from the batch count", () => {
+    const result = read(
+      asDocument(["Alice D", "Decimals", "All good. JD", "Sage PL", "Fractions", "Fine. AB"]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cards = toCards(result.students, result.unrecognised, new Set());
+    expect(cards).toHaveLength(2);
+    expect(batchCount(cards)).toBe(1);
+    expect(inBatch(cards[1]!)).toBe(false);
+    const picked = cards.map((card) =>
+      card.student.unmatched ? { ...card, studentId: "1" } : card,
+    );
+    expect(batchCount(picked)).toBe(2);
+  });
+
+  it("a name after a note that signs off with initials still anchors", () => {
+    // Every real note ends with initials, so the line before a name almost
+    // never ends with a full stop. Without this the rule would hardly ever
+    // fire on the documents it was written for.
+    expect(looksLikeNameLine("Jade BM", "did work through her questions at a fair pace. CC")).toBe(
+      true,
+    );
+    expect(looksLikeNameLine("Jade BM", "writing down the correct value.lh")).toBe(true);
+  });
+
+  it("a capitalised line in the middle of a sentence does not anchor", () => {
+    // The previous line has not finished, so this belongs to the note.
+    expect(looksLikeNameLine("Congruent Figures", "Geometry / Space > Shape")).toBe(false);
+    expect(looksLikeNameLine("Linear Plot", "Linear Relationships > Linear Graphs")).toBe(false);
+  });
+
+  it("a two word line that is not capitalised does not anchor", () => {
+    expect(looksLikeNameLine("jade bm", "All good.")).toBe(false);
+    expect(looksLikeNameLine("Jade bm", "All good.")).toBe(false);
+  });
+
+  it("refuses the shapes that are not names at all", () => {
+    expect(looksLikeNameLine("Jade", "All good.")).toBe(false);
+    expect(looksLikeNameLine("One Two Three Four", "All good.")).toBe(false);
+    expect(looksLikeNameLine("Add > Add Strategy", "All good.")).toBe(false);
+    expect(looksLikeNameLine("Year 7 Maths", "All good.")).toBe(false);
+    expect(looksLikeNameLine("Top 50 %", "All good.")).toBe(false);
+    expect(looksLikeNameLine("Jade BM.", "All good.")).toBe(false);
+  });
+
+  it("anchors on the very first line, which has nothing before it", () => {
+    expect(looksLikeNameLine("Jade BM", null)).toBe(true);
+    const result = read(asDocument(["Jade BM", "Fractions", "Fine. AB"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.name).toBe("Jade BM");
+    expect(result.unrecognised).toEqual([]);
+  });
+
+  it("a name the roster knows still anchors the way it always did", () => {
+    const result = read(THREE_STUDENTS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students).toHaveLength(3);
+    expect(result.students.every((student) => student.unmatched === false)).toBe(true);
+  });
+
+  it("an ambiguous name still anchors, and is not marked unmatched", () => {
+    const result = read(asDocument(["Sam", "Fractions", "Fine. AB"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.unmatched).toBe(false);
+    expect(inBatch(toCards(result.students, [], new Set())[0]!)).toBe(true);
+  });
+});
+
+describe("initials after a full stop", () => {
+  it("initials directly after a full stop with no space are stripped", () => {
+    expect(stripTutorInitials("writing down the correct value.lh")).toBe(
+      "writing down the correct value.",
+    );
+  });
+
+  it("lowercase initials after a full stop and a space are stripped", () => {
+    expect(stripTutorInitials("Revision. Understands the carrying. lh")).toBe(
+      "Revision. Understands the carrying.",
+    );
+    expect(stripTutorInitials("at a fair pace. CC")).toBe("at a fair pace.");
+    expect(stripTutorInitials("did really well. E Lov")).toBe("did really well.");
+  });
+
+  it("a final word that is not preceded by a full stop is kept", () => {
+    expect(stripTutorInitials("she knows what she did")).toBe("she knows what she did");
+    expect(stripTutorInitials("answer these question essay")).toBe("answer these question essay");
+    expect(stripTutorInitials("beating the average of the top class!!")).toBe(
+      "beating the average of the top class!!",
+    );
+  });
+
+  it("the real example loses its CC and keeps everything else", () => {
+    const result = read(asDocument(REAL_ABI));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.noteText.endsWith("at a fair pace.")).toBe(true);
+    expect(strippedInitials(result.students[0]?.note ?? "")).toBe("CC");
+  });
+
+  it("the second real example now loses its lh as well", () => {
+    const result = read(asDocument(REAL_ALYSHA));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students[0]?.noteText.endsWith("the carrying.")).toBe(true);
+    expect(strippedInitials(result.students[0]?.note ?? "")).toBe("lh");
+  });
+});
+
+describe("a block keeps its shape", () => {
+  it("an unrecognised block keeps its line breaks in the preview", () => {
+    const result = read(asDocument(["Week 5 notes", "Tuesday", "Alice D", "Decimals", "Fine. JD"]));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const cards = toCards(result.students, result.unrecognised, new Set());
+    const block = cards.find((card) => card.unrecognised);
+    expect(block?.blockLines).toEqual(["Week 5 notes", "Tuesday"]);
+    // The joined form is still there for anything wanting one string.
+    expect(block?.student.note).toBe("Week 5 notes Tuesday");
+    expect(
+      cards.filter((card) => !card.unrecognised).every((card) => card.blockLines.length === 0),
+    ).toBe(true);
   });
 });
 

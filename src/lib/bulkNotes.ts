@@ -35,6 +35,10 @@ export type BulkStudent = {
   // Every line thrown away for this student, so the panel can show what was
   // left out rather than leaving a person to trust that nothing was.
   ignored: string[];
+  // True when the line only looked like a name and the roster did not know
+  // it. The entry is still made, but it cannot be saved until somebody says
+  // who it belongs to.
+  unmatched: boolean;
   // Which line of the flattened document the name sat on. Enough for a card
   // to point back at it.
   at: number;
@@ -203,32 +207,29 @@ export function topicToWords(topic: string): string {
     .trim();
 }
 
-// One to three letters, with full stops allowed, and at least one capital.
-// The capital is what keeps an ordinary word off the end of a note: "work"
-// is the same shape as "Lov" and only the capital tells them apart.
-const INITIALS = /^[A-Za-z](?:\.?[A-Za-z]){0,2}\.?$/;
+// A trailing run of initials, and the full stop that has to come before
+// them.
+//
+// The full stop is what does the work. Documents write initials with a
+// space, "at a fair pace. CC", and with none at all, "the correct value.lh",
+// and in any case, so the letters themselves say almost nothing. What tells
+// an initial from an ordinary last word is that the sentence had already
+// finished. Without that guard "she knows what she did" loses "did".
+//
+// A token is one to three letters with full stops allowed inside, so "JD",
+// "J.D.", "lh" and "Lov" all count. One or two of them, because a tutor
+// signs off with a first initial and a short surname as often as with two
+// letters. The captured full stop is put back, since it belongs to the
+// sentence rather than to the initials.
+const INITIALS_TOKEN = "[A-Za-z](?:\\.?[A-Za-z]){0,2}\\.?";
+const TRAILING_INITIALS = new RegExp(`(\\.)\\s*${INITIALS_TOKEN}(?:\\s+${INITIALS_TOKEN})?\\s*$`);
 
-function looksLikeInitials(token: string): boolean {
-  return INITIALS.test(token) && token !== token.toLowerCase();
-}
-
-// One or two short words at the very end, removed only when the note has
-// something else in it. A note that is nothing but initials is left whole
-// rather than emptied.
 export function stripTutorInitials(note: string): string {
-  const trimmed = note.trimEnd();
-  const tokens = [...trimmed.matchAll(/\S+/g)];
-  if (tokens.length < 2) return note;
-  let take = 0;
-  while (take < 2 && take < tokens.length) {
-    const token = tokens[tokens.length - 1 - take];
-    if (!token || !looksLikeInitials(token[0])) break;
-    take += 1;
-  }
-  if (take === 0 || take >= tokens.length) return note;
-  const cut = tokens[tokens.length - take]?.index ?? trimmed.length;
-  const kept = trimmed.slice(0, cut).replace(/[\s,-]+$/, "");
-  return kept ? kept : note;
+  const kept = note.replace(TRAILING_INITIALS, "$1");
+  if (kept === note) return note;
+  // A note that was nothing but initials is left whole rather than reduced
+  // to punctuation.
+  return /[A-Za-z]/.test(kept) ? kept : note;
 }
 
 // The topic first, then a full stop and a space, then the note.
@@ -285,12 +286,54 @@ export function isAnchor<T extends MatchableStudent>(line: string, roster: T[]):
   return found.kind === "matched" || found.kind === "ambiguous";
 }
 
-const DIGITS_ONLY = /^\d+$/;
+// The second way in, for a name the roster does not know.
+//
+// Without it a line that plainly names somebody, but matches nobody, joins
+// the note of whoever came before, and that student's parent is sent
+// another child's lesson. Being wrong here costs a card that needs a
+// student picked. Being wrong the other way costs the wrong family the
+// wrong child's note, so this errs towards starting an entry.
+//
+// The previous line having finished a sentence is what keeps a capitalised
+// pair inside a note, "Congruent Figures" say, from splitting it in two.
+const NAME_WORD = /^[A-Z][^\s]*$/;
 
-// A line that is only a number is a year level or a lesson count. It is
-// recorded rather than used, so nothing disappears without being shown.
+export function looksLikeNameLine(line: string, previous: string | null): boolean {
+  const trimmed = line.trim();
+  if (!couldBeName(trimmed)) return false;
+  if (/[\d>%]/.test(trimmed)) return false;
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 3) return false;
+  if (!words.every((word) => NAME_WORD.test(word))) return false;
+  // The first line of the document has nothing before it to have ended.
+  if (previous === null) return true;
+  return hasFinished(previous);
+}
+
+// Whether the line before a name had finished saying what it had to say.
+//
+// A full stop, question mark or exclamation mark, OR the same once the
+// tutor's initials are taken off the end. That second half is not
+// decoration. Every note in these documents signs off with initials, so
+// almost no line ends with a full stop, and without it this rule would
+// hardly ever fire on the very documents it was written for. It reuses
+// stripTutorInitials rather than repeating its rule.
+function hasFinished(previous: string): boolean {
+  const trimmed = previous.trim();
+  if (/[.?!]$/.test(trimmed)) return true;
+  return /[.?!]$/.test(stripTutorInitials(trimmed).trim());
+}
+
+// A number on its own, or a number and a percent sign with or without a
+// space between them. Nothing else: a line carrying any other word is a
+// line somebody wrote.
+const NUMBER_ONLY = /^\d+\s*%?$/;
+
+// A line that is only a number is a year level or a lesson count, and a
+// line that is only a score is a test result. Both are recorded rather than
+// used, so nothing disappears without being shown.
 export function isIgnorable(line: string): boolean {
-  return DIGITS_ONLY.test(line.trim());
+  return NUMBER_ONLY.test(line.trim());
 }
 
 // The topic is the first line carrying a greater than sign, but never the
@@ -314,7 +357,12 @@ export function pickTopic(lines: string[]): number {
 }
 
 // One student's lines, the name already taken off the front.
-export function buildStudent(name: string, body: string[], at: number): BulkStudent {
+export function buildStudent(
+  name: string,
+  body: string[],
+  at: number,
+  unmatched = false,
+): BulkStudent {
   const ignored: string[] = [];
   const kept: string[] = [];
   for (const line of body) {
@@ -324,7 +372,7 @@ export function buildStudent(name: string, body: string[], at: number): BulkStud
   const topicAt = pickTopic(kept);
   const topic = topicAt < 0 ? "" : (kept[topicAt] ?? "");
   const note = kept.filter((_, index) => index !== topicAt).join(" ");
-  return { name, topic, note, noteText: noteTextFrom(topic, note), ignored, at };
+  return { name, topic, note, noteText: noteTextFrom(topic, note), ignored, unmatched, at };
 }
 
 // What stripTutorInitials took off the end, worked out by asking it rather
@@ -353,9 +401,18 @@ export function parseBulkDocument<T extends MatchableStudent>(
   const lines = flattenDocument(readDocument(html ?? ""));
   if (lines.length === 0) return refuse(NO_TEXT);
 
-  const anchors: number[] = [];
+  // Two ways in, in this order. A line the roster knows anchors as it always
+  // has. A line the roster does not know anchors only on its shape, and is
+  // remembered as unmatched so it cannot be saved to nobody.
+  const anchors: { at: number; unmatched: boolean }[] = [];
   lines.forEach((line, index) => {
-    if (isAnchor(line, roster)) anchors.push(index);
+    if (isAnchor(line, roster)) {
+      anchors.push({ at: index, unmatched: false });
+      return;
+    }
+    if (looksLikeNameLine(line, index === 0 ? null : (lines[index - 1] ?? null))) {
+      anchors.push({ at: index, unmatched: true });
+    }
   });
   if (anchors.length === 0) return refuse(NO_ANCHORS, lines[0] ?? "");
 
@@ -364,14 +421,21 @@ export function parseBulkDocument<T extends MatchableStudent>(
 
   // Anything before the first name belongs to nobody. It is handed back
   // rather than dropped.
-  const firstAnchor = anchors[0] ?? 0;
+  const firstAnchor = anchors[0]?.at ?? 0;
   if (firstAnchor > 0) {
     unrecognised.push({ lines: lines.slice(0, firstAnchor), at: 1 });
   }
 
   anchors.forEach((anchor, position) => {
-    const next = anchors[position + 1] ?? lines.length;
-    students.push(buildStudent(lines[anchor] ?? "", lines.slice(anchor + 1, next), anchor + 1));
+    const next = anchors[position + 1]?.at ?? lines.length;
+    students.push(
+      buildStudent(
+        lines[anchor.at] ?? "",
+        lines.slice(anchor.at + 1, next),
+        anchor.at + 1,
+        anchor.unmatched,
+      ),
+    );
   });
 
   return { ok: true, students, unrecognised };
@@ -418,6 +482,10 @@ export type BulkCard = {
   // A block that anchored on nobody. It has no name of its own, so it
   // cannot be saved until a person says whose it is.
   unrecognised: boolean;
+  // The block's lines as the document wrote them. Empty for a real
+  // student. The joined form is on the student for anything wanting one
+  // string; this is what the preview shows, so the breaks survive.
+  blockLines: string[];
 };
 
 // An unrecognised block wearing a student's clothes, so one list and one
@@ -425,7 +493,7 @@ export type BulkCard = {
 // note, shown exactly as the document wrote it.
 function blockAsStudent(block: UnrecognisedBlock): BulkStudent {
   const note = block.lines.join(" ");
-  return { name: "", topic: "", note, noteText: note, ignored: [], at: block.at };
+  return { name: "", topic: "", note, noteText: note, ignored: [], unmatched: true, at: block.at };
 }
 
 export function toCards(
@@ -441,6 +509,7 @@ export function toCards(
     alreadyAdded: existingKeys.has(noteKey(student.name, student.noteText)),
     includeAnyway: false,
     unrecognised: false,
+    blockLines: [],
   }));
   const loose: BulkCard[] = unrecognised.map((block, index) => ({
     key: `u${index}-${block.at}`,
@@ -452,6 +521,7 @@ export function toCards(
     alreadyAdded: false,
     includeAnyway: false,
     unrecognised: true,
+    blockLines: block.lines,
   }));
   // In document order, which puts a block that came before the first name
   // where it was written.
@@ -464,7 +534,9 @@ export function toCards(
 // button and what is actually inserted, so the two cannot drift.
 export function inBatch(card: BulkCard): boolean {
   if (card.skipped) return false;
-  if (card.unrecognised && !card.studentId) return false;
+  // A block with no name, and a name the roster does not know, are the same
+  // problem: there is nobody to save it to until a person says who.
+  if ((card.unrecognised || card.student.unmatched) && !card.studentId) return false;
   return !card.alreadyAdded || card.includeAnyway;
 }
 

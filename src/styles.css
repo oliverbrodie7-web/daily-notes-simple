@@ -4042,6 +4042,12 @@ svg {
   color: var(--text-faint);
 }
 
+/* A block keeps the line breaks the document gave it. Run together on one
+   line it is much harder to recognise what it was. */
+.bulk-card-text.is-block {
+  white-space: pre-line;
+}
+
 /* What the reader threw away for this card. Quiet, because it is
    reassurance rather than something to act on, but always there when
    anything was left out. */
