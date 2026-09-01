@@ -948,6 +948,9 @@ describe("the panel and the way in", () => {
     require("node:fs").readFileSync(new URL(path, import.meta.url).pathname, "utf8") as string;
   const panel = read("../components/BulkUploadPanel.tsx");
   const today = read("../components/TodayScreen.tsx");
+  // The typed note's row moved out of the screen and into the module that
+  // decides whether to ask before saving.
+  const typedRow = read("../lib/noteSave.ts");
 
   it("only ever adds rows, and never changes or removes one", () => {
     expect(panel).toContain(".insert(");
@@ -957,15 +960,16 @@ describe("the panel and the way in", () => {
   });
 
   it("saves a row shaped exactly like a typed note", () => {
-    for (const field of [
-      "note_date: sydneyTodayIso()",
-      "collated: false",
-      "draft_created: false",
-      "no_match: false",
-    ]) {
+    // The claim is unchanged: a bulk row carries the same flags a typed
+    // one does. Only where the typed one is built has moved.
+    for (const field of ["collated: false", "draft_created: false", "no_match: false"]) {
       expect(panel).toContain(field);
-      expect(today).toContain(field);
+      expect(typedRow).toContain(field);
     }
+    expect(panel).toContain("note_date: sydneyTodayIso()");
+    expect(typedRow).toContain("note_date: noteDate");
+    // And the screen is what reads the clock, at the moment of saving.
+    expect(today).toContain("noteDate: sydneyTodayIso()");
   });
 
   it("stamps every one of them as a bulk upload", () => {

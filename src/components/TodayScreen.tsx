@@ -7,6 +7,13 @@ import { pickTermForDate, type TermRow } from "../lib/terms";
 import { matchCount, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
+import {
+  addNote,
+  saveNote,
+  type NoteFields,
+  type NoteRow,
+  type PendingNote,
+} from "../lib/noteSave";
 import { BulkUploadPanel } from "./BulkUploadPanel";
 import { FocusSuggestions } from "./FocusSuggestions";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
@@ -62,6 +69,14 @@ export function TodayScreen() {
   const [listMessage, setListMessage] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [students, setStudents] = useState<PickerStudent[] | null>(null);
+  // The note waiting on an answer. Its fields are carried here rather than
+  // read again when the picker closes, so nothing typed while it is open
+  // can change what gets written.
+  const [pendingNote, setPendingNote] = useState<PendingNote<PickerStudent> | null>(null);
+  // Set when the prompt was dismissed, so focus goes back to the button
+  // that opened it. It has to wait for an effect: the panel restores focus
+  // to its own opener as it unmounts, and that runs first.
+  const [returnToAdd, setReturnToAdd] = useState(false);
   // The suggestion strip's own data. Null until it has all arrived, so the
   // strip shows nothing at all while it is still loading.
   const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
@@ -88,6 +103,7 @@ export function TodayScreen() {
   const liveRef = useRef(true);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const uploadRef = useRef<HTMLButtonElement | null>(null);
+  const addRef = useRef<HTMLButtonElement | null>(null);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const staffRef = useRef<HTMLInputElement | null>(null);
   const noteRef = useRef<HTMLTextAreaElement | null>(null);
@@ -217,37 +233,10 @@ export function TodayScreen() {
     el.style.height = `${el.scrollHeight}px`;
   }, [noteText]);
 
-  async function handleAdd() {
-    if (saving) return;
-    const name = studentName.trim();
-    const staff = staffName.trim();
-    const note = noteText.trim();
-    if (!name || !staff || !note) {
-      setInputMessage("Add a student name, a staff member, and a note.");
-      return;
-    }
-    setSaving(true);
-    setInputMessage(null);
-    const row = {
-      student_name: name,
-      note_text: note,
-      note_date: sydneyTodayIso(),
-      collated: false,
-      draft_created: false,
-      no_match: false,
-      added_by: staff,
-    };
-    const { data, error } = await supabase
-      .from("daily_notes")
-      .insert(row)
-      .select(NOTE_COLUMNS)
-      .single();
-    if (error || !data) {
-      setInputMessage("The note could not be saved. Please try again.");
-      setSaving(false);
-      return;
-    }
-    const saved = data as TodayNote;
+  // Everything that happens once a note has actually been written. Both
+  // routes into the save come through here, so a note saved straight away
+  // and a note saved after the prompt land in exactly the same state.
+  function afterSaved(row: NoteRow, saved: TodayNote) {
     setNotes((current) => [saved, ...(current ?? [])]);
     // Straight into the term's notes as well, built from the row that was
     // just written rather than guessed at, so the tally strip is working
@@ -260,7 +249,7 @@ export function TodayScreen() {
             ...current,
             {
               id: saved.id,
-              student_id: null,
+              student_id: row.student_id ?? null,
               student_name: row.student_name,
               note_date: row.note_date,
               note_text: row.note_text,
@@ -282,9 +271,80 @@ export function TodayScreen() {
     nameRef.current?.focus();
   }
 
-  // Enter steps from student name to staff member to note, then saves from
-  // the note field. Shift Enter makes a new line in the note, and Control or
-  // Command with Enter saves from any field. Nothing fires mid save.
+  // The insert, and what came back from it. The row and the saved row are
+  // both needed afterwards and only this knows how to get them.
+  async function runInsert(row: NoteRow): Promise<{ error: unknown; saved: TodayNote | null }> {
+    const { data, error } = await supabase
+      .from("daily_notes")
+      .insert(row)
+      .select(NOTE_COLUMNS)
+      .single();
+    return { error, saved: (data as TodayNote | null) ?? null };
+  }
+
+  function noteFailed() {
+    setInputMessage("The note could not be saved. Please try again.");
+    setSaving(false);
+  }
+
+  // Save, with nothing left to ask. Both routes come through here: the one
+  // that never had to ask, and the one that has been answered.
+  async function runSave(fields: NoteFields, studentId: string | null) {
+    let saved: TodayNote | null = null;
+    const outcome = await saveNote(
+      {
+        students,
+        noteDate: sydneyTodayIso(),
+        insert: async (row) => {
+          const result = await runInsert(row);
+          saved = result.saved;
+          return { error: result.error };
+        },
+      },
+      fields,
+      studentId,
+    );
+    if (outcome.kind === "saved" && saved) afterSaved(outcome.row, saved);
+    else noteFailed();
+  }
+
+  async function handleAdd() {
+    if (saving) return;
+    const name = studentName.trim();
+    const staff = staffName.trim();
+    const note = noteText.trim();
+    if (!name || !staff || !note) {
+      setInputMessage("Add a student name, a staff member, and a note.");
+      return;
+    }
+    setSaving(true);
+    setInputMessage(null);
+    let saved: TodayNote | null = null;
+    // The roster is asked before anything is written. One clear match saves
+    // at once and carries the id. Anything else, and no roster at all, is
+    // decided in lib/noteSave.ts rather than here.
+    const outcome = await addNote(
+      {
+        students,
+        noteDate: sydneyTodayIso(),
+        insert: async (row) => {
+          const result = await runInsert(row);
+          saved = result.saved;
+          return { error: result.error };
+        },
+      },
+      { name, note, staff },
+    );
+    if (outcome.kind === "asked") {
+      // saving stays true, so Add note cannot be pressed again behind the
+      // prompt.
+      setPendingNote(outcome.pending);
+      return;
+    }
+    if (outcome.kind === "saved" && saved) afterSaved(outcome.row, saved);
+    else noteFailed();
+  }
+
   function handleNameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -295,7 +355,6 @@ export function TodayScreen() {
     }
     staffRef.current?.focus();
   }
-
   function handleStaffKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -306,7 +365,6 @@ export function TodayScreen() {
     }
     noteRef.current?.focus();
   }
-
   function handleNoteKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter") return;
     if (event.ctrlKey || event.metaKey) {
@@ -318,7 +376,6 @@ export function TodayScreen() {
     event.preventDefault();
     if (!saving) void handleAdd();
   }
-
   async function handleRemove(note: TodayNote) {
     if (removingId) return;
     const sure = window.confirm(`Remove the note for ${note.student_name}?`);
@@ -385,6 +442,16 @@ export function TodayScreen() {
       setBulk({ fileName: file.name, result: null, readFailed: true });
     }
   }
+
+  // The panel puts focus back on whatever opened it as it unmounts, and
+  // that runs before this. Enter in the note field can open the prompt too,
+  // so without this focus would land in the textarea rather than on the
+  // button the person is looking at.
+  useEffect(() => {
+    if (!returnToAdd) return;
+    setReturnToAdd(false);
+    addRef.current?.focus();
+  }, [returnToAdd]);
 
   // Worked out at display time with the same shared module the Parents
   // screen uses, so the two screens can never disagree about a note.
@@ -535,6 +602,7 @@ export function TodayScreen() {
         <button
           type="button"
           className="primary-button today-add"
+          ref={addRef}
           disabled={saving}
           onClick={handleAdd}
         >
@@ -727,6 +795,33 @@ export function TodayScreen() {
             // Reading them in anyway keeps it working from the whole term
             // rather than from a set that is quietly out of date.
             if (termWindowStart) void loadTermNotes(termWindowStart);
+          }}
+        />
+      ) : null}
+
+      {/* Before the note is written. noteId is null, so the panel hands the
+          choice back rather than updating a row that does not exist yet. */}
+      {pendingNote ? (
+        <MatchStudentPanel
+          noteId={null}
+          typedName={pendingNote.name}
+          candidates={pendingNote.candidates}
+          students={students ?? []}
+          onMatched={(student) => {
+            setPendingNote(null);
+            // The chosen student's name, not the typed one, so the nightly
+            // job reads a name it can resolve as well as an id.
+            void runSave({ ...pendingNote, name: student.student_name }, String(student.id));
+          }}
+          onSkip={() => {
+            setPendingNote(null);
+            // Exactly what every note used to be: the typed name, no id.
+            void runSave(pendingNote, null);
+          }}
+          onClose={() => {
+            setPendingNote(null);
+            setSaving(false);
+            setReturnToAdd(true);
           }}
         />
       ) : null}

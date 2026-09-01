@@ -13,6 +13,12 @@ type MatchStudentPanelProps<T extends PickerStudent> = {
   candidates: T[];
   students: T[];
   onMatched: (student: T) => void;
+  // Offered only when the caller supplies it, so nothing changes for the
+  // bulk preview or for a note already saved. On the Today screen it is
+  // what stops the prompt ever standing between a tutor and a note: an
+  // unusual spelling, or a student not yet on the roster, still gets
+  // written.
+  onSkip?: () => void;
   onClose: () => void;
 };
 
@@ -24,6 +30,7 @@ export function MatchStudentPanel<T extends PickerStudent>({
   candidates,
   students,
   onMatched,
+  onSkip,
   onClose,
 }: MatchStudentPanelProps<T>) {
   const [searching, setSearching] = useState(false);
@@ -181,6 +188,12 @@ export function MatchStudentPanel<T extends PickerStudent>({
             Neither of these, search the full list
           </button>
         )}
+
+        {onSkip ? (
+          <button type="button" className="match-search-link" disabled={busy} onClick={onSkip}>
+            Save without a student
+          </button>
+        ) : null}
 
         {message ? (
           <p className="match-panel-message" role="alert">
