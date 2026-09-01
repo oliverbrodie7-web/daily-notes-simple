@@ -63,6 +63,8 @@ const ROSTER = [
   { id: 5, student_name: "Alysha Adeyemi" },
   { id: 11, student_name: "Austin Dowling" },
   { id: 12, student_name: "Imogen Patel" },
+  { id: 13, student_name: "Sydney Grant" },
+  { id: 14, student_name: "Audrey Hall" },
   { id: 6, student_name: "Sam Ashford" },
   { id: 7, student_name: "Sam Bradley" },
   { id: 8, student_name: "Sam Curtis" },
@@ -551,8 +553,19 @@ describe("score lines", () => {
 
   it("a line reading Percentages is not ignored", () => {
     expect(isIgnorable("Percentages")).toBe(false);
-    expect(isIgnorable("87.5%")).toBe(false);
     expect(isIgnorable("%")).toBe(false);
+    expect(isIgnorable("87.5 out of 100")).toBe(false);
+  });
+
+  it("a score line with a decimal is ignored", () => {
+    // Changed by request. This used to assert the opposite, because the
+    // number had to be whole.
+    expect(isIgnorable("87.5%")).toBe(true);
+    expect(isIgnorable("87.5 %")).toBe(true);
+    expect(isIgnorable("87.5")).toBe(true);
+    // A decimal point with nothing after it is not a number.
+    expect(isIgnorable("87.")).toBe(false);
+    expect(isIgnorable(".5")).toBe(false);
   });
 
   it("a bare number is still ignored", () => {
@@ -618,6 +631,78 @@ describe("a name the roster does not know", () => {
       true,
     );
     expect(looksLikeNameLine("Jade BM", "writing down the correct value.lh")).toBe(true);
+  });
+
+  it("a name anchors when the previous note has no full stop and the entry already has three body lines", () => {
+    const result = read(
+      asDocument([
+        "Sydney G",
+        "Integers > Integers +",
+        "70%",
+        "Asteroid - Add. Negative numbers are a relatively new idea for her, and when we subtract, we go to the left on the number line",
+        "Zoe BM",
+        "Linear Relationships > Linear Graphs",
+        "Linear Plot. Should revise plotting points from an equation.",
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students).toHaveLength(2);
+    expect(result.students.map((student) => student.name)).toEqual(["Sydney G", "Zoe BM"]);
+    // Sydney is on the roster, Zoe is not. Zoe is the one the route exists
+    // for: nothing else in the source hints at a boundary, and the line
+    // before her ends mid sentence with no full stop at all.
+    expect(result.students[0]?.unmatched).toBe(false);
+    expect(result.students[1]?.unmatched).toBe(true);
+    expect(result.students[0]?.note).not.toContain("Linear Plot");
+    expect(result.students[0]?.note).not.toContain("Zoe");
+    expect(result.students[0]?.ignored).toEqual(["70%"]);
+    // Excluded from the batch until somebody says who she is.
+    const cards = toCards(result.students, result.unrecognised, new Set());
+    expect(batchCount(cards)).toBe(1);
+  });
+
+  it("the position alone is enough, whatever the previous line ends with", () => {
+    const unfinished = "we go to the left on the number line";
+    expect(looksLikeNameLine("Zoe BM", unfinished, 0)).toBe(false);
+    expect(looksLikeNameLine("Zoe BM", unfinished, 1)).toBe(false);
+    expect(looksLikeNameLine("Zoe BM", unfinished, 2)).toBe(true);
+    expect(looksLikeNameLine("Zoe BM", unfinished, 3)).toBe(true);
+  });
+
+  it("a topic line directly under a name still does not anchor", () => {
+    const result = read(
+      asDocument([
+        "Audrey H",
+        "Number Facts",
+        "Demolition. Overall Audrey is amazing at her algorithms.",
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Two capitalised words with no full stop, and it stays the topic,
+    // because a topic always sits at body position zero.
+    expect(result.students).toHaveLength(1);
+    expect(result.students[0]?.name).toBe("Audrey H");
+    expect(result.students[0]?.topic).toBe("Number Facts");
+    expect(looksLikeNameLine("Number Facts", "Audrey H", 0)).toBe(false);
+  });
+
+  it("a score line does not push a topic line into anchoring", () => {
+    // The topic is at position zero and a score at position one, so the
+    // line after a score is still only at position two when it is a real
+    // name. A second topic line cannot reach that far.
+    const result = read(
+      asDocument([
+        "Austin D",
+        "Add > Add Strategy Mixed",
+        "87%",
+        "Master. Austin is very strong at his partitioning method.",
+      ]),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.students).toHaveLength(1);
   });
 
   it("a capitalised line in the middle of a sentence does not anchor", () => {

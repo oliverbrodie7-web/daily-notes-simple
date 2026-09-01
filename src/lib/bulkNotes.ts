@@ -298,7 +298,7 @@ export function isAnchor<T extends MatchableStudent>(line: string, roster: T[]):
 // pair inside a note, "Congruent Figures" say, from splitting it in two.
 const NAME_WORD = /^[A-Z][^\s]*$/;
 
-export function looksLikeNameLine(line: string, previous: string | null): boolean {
+export function looksLikeNameLine(line: string, previous: string | null, bodyLines = 0): boolean {
   const trimmed = line.trim();
   if (!couldBeName(trimmed)) return false;
   if (/[\d>%]/.test(trimmed)) return false;
@@ -307,8 +307,18 @@ export function looksLikeNameLine(line: string, previous: string | null): boolea
   if (!words.every((word) => NAME_WORD.test(word))) return false;
   // The first line of the document has nothing before it to have ended.
   if (previous === null) return true;
-  return hasFinished(previous);
+  return hasFinished(previous) || bodyLines >= BODY_LINES_BEFORE_NAME;
 }
+
+// How far into an entry a line has to be before its position alone is
+// enough to call it a name.
+//
+// The structure is what makes this safe. A topic line always sits at body
+// position zero, directly under the name, and a score line at position
+// one. A real name following a finished entry is always at position two or
+// later, so this blocks a topic line for the same reason the full stop
+// does, and it keeps working when a tutor forgets the full stop.
+const BODY_LINES_BEFORE_NAME = 2;
 
 // Whether the line before a name had finished saying what it had to say.
 //
@@ -324,10 +334,10 @@ function hasFinished(previous: string): boolean {
   return /[.?!]$/.test(stripTutorInitials(trimmed).trim());
 }
 
-// A number on its own, or a number and a percent sign with or without a
-// space between them. Nothing else: a line carrying any other word is a
-// line somebody wrote.
-const NUMBER_ONLY = /^\d+\s*%?$/;
+// A number on its own, with or without a decimal part, and with or without
+// a percent sign after it. Nothing else: a line carrying any other word is
+// a line somebody wrote.
+const NUMBER_ONLY = /^\d+(?:\.\d+)?\s*%?$/;
 
 // A line that is only a number is a year level or a lesson count, and a
 // line that is only a score is a test result. Both are recorded rather than
@@ -410,7 +420,11 @@ export function parseBulkDocument<T extends MatchableStudent>(
       anchors.push({ at: index, unmatched: false });
       return;
     }
-    if (looksLikeNameLine(line, index === 0 ? null : (lines[index - 1] ?? null))) {
+    // How many body lines the entry this line currently sits in already
+    // holds. Zero when nothing has anchored yet.
+    const openedAt = anchors[anchors.length - 1]?.at;
+    const bodyLines = openedAt === undefined ? 0 : index - openedAt - 1;
+    if (looksLikeNameLine(line, index === 0 ? null : (lines[index - 1] ?? null), bodyLines)) {
       anchors.push({ at: index, unmatched: true });
     }
   });
