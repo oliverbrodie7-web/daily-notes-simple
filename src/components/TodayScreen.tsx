@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { noteKey, parseBulkDocument, type BulkParseResult } from "../lib/bulkNotes";
-import { formatSydneyTime, sydneyTodayIso } from "../lib/dates";
+import { formatSydneyShortDate, formatSydneyTime, sydneyTodayIso } from "../lib/dates";
 import { focusSuggestions, mondayOf, type FocusRow } from "../lib/focus";
 import { tallyView } from "../lib/tally";
 import { pickTermForDate, type TermRow } from "../lib/terms";
 import { matchCount, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
+import { backlogLine, backlogRows, shortText } from "../lib/backlog";
 import {
   addNote,
   saveNote,
@@ -36,9 +37,9 @@ const NOTE_COLUMNS = "id, student_id, student_name, note_text, created_at, added
 // The term's notes, which the tally strip counts. The id is what lets a
 // removal be taken out of them without reading the whole term again.
 const TERM_NOTE_COLUMNS =
-  "id, student_id, student_name, note_date, note_text, added_by, draft_created";
+  "id, student_id, student_name, note_date, note_text, added_by, draft_created, created_at";
 
-type TermNote = TouchPointNote & { id: string };
+type TermNote = TouchPointNote & { id: string; created_at: string | null };
 
 // With no term to scope to, the same rolling window the Parents screen
 // falls back to, so the two agree about what "this term" means.
@@ -77,6 +78,9 @@ export function TodayScreen() {
   // that opened it. It has to wait for an effect: the panel restores focus
   // to its own opener as it unmounts, and that runs first.
   const [returnToAdd, setReturnToAdd] = useState(false);
+  // Collapsed until asked for. It is a backlog, not something to work
+  // through before writing today's notes.
+  const [backlogOpen, setBacklogOpen] = useState(false);
   // The suggestion strip's own data. Null until it has all arrived, so the
   // strip shows nothing at all while it is still loading.
   const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
@@ -249,6 +253,7 @@ export function TodayScreen() {
             ...current,
             {
               id: saved.id,
+              created_at: saved.created_at,
               student_id: row.student_id ?? null,
               student_name: row.student_name,
               note_date: row.note_date,
@@ -462,6 +467,13 @@ export function TodayScreen() {
     return found;
   }, [notes, students]);
 
+  // Earlier notes still belonging to nobody, judged live rather than read
+  // off a flag. termNotes is already here, so this costs no query.
+  const backlog = useMemo(
+    () => backlogRows(termNotes, students, today),
+    [termNotes, students, today],
+  );
+
   // Every student's touch points for the term, worked out once for the whole
   // list rather than per note, through the same function the Parents screen
   // counts by. Null when there is nothing to count from, which is a missing
@@ -512,8 +524,16 @@ export function TodayScreen() {
     return { name: student.student_name, touch };
   }, [historyId, touchByStudent, students]);
 
-  const picking = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
-  const pickingMatch = pickingId ? matches.get(pickingId) : undefined;
+  // The note being matched, from today's list or from the backlog below.
+  // Both are real rows, so both open the same panel with a real id.
+  const pickingRow = pickingId ? backlog.find((row) => row.note.id === pickingId) : undefined;
+  const pickingToday = pickingId ? (notes ?? []).find((note) => note.id === pickingId) : undefined;
+  const picking = pickingToday
+    ? { id: pickingToday.id, student_name: pickingToday.student_name }
+    : pickingRow
+      ? { id: pickingRow.note.id, student_name: pickingRow.note.student_name ?? "" }
+      : undefined;
+  const pickingMatch = pickingToday ? matches.get(pickingId ?? "") : pickingRow?.match;
 
   function handleMatched(student: PickerStudent) {
     setNotes((current) =>
@@ -522,6 +542,18 @@ export function TodayScreen() {
           ? { ...note, student_id: String(student.id), student_name: student.student_name }
           : note,
       ),
+    );
+    // And in the term's notes, which is what the backlog reads. Without
+    // this a row matched below would sit there looking unmatched until the
+    // next read.
+    setTermNotes((current) =>
+      current === null
+        ? current
+        : current.map((note) =>
+            note.id === pickingId
+              ? { ...note, student_id: String(student.id), student_name: student.student_name }
+              : note,
+          ),
     );
     setPickingId(null);
   }
@@ -767,6 +799,54 @@ export function TodayScreen() {
           </ul>
         )}
       </div>
+
+      {/* Earlier notes still belonging to nobody. Nothing at all when there
+          are none: a heading saying zero is noise. Matching one here
+          changes the record, not any email that has already gone. */}
+      {backlog.length > 0 ? (
+        <div className="backlog">
+          <button
+            type="button"
+            className="backlog-head"
+            aria-expanded={backlogOpen}
+            onClick={() => setBacklogOpen((open) => !open)}
+          >
+            <WarningIcon className="backlog-head-icon" size={15} />
+            <span className="backlog-head-text">{backlogLine(backlog.length)}</span>
+            <span className="backlog-head-hint">{backlogOpen ? "Hide" : "Show"}</span>
+          </button>
+          {backlogOpen ? (
+            <ul className="backlog-list">
+              {backlog.map(({ note, match }) => (
+                <li key={note.id} className="backlog-item">
+                  <div className="backlog-item-top">
+                    <span className="backlog-item-name">{note.student_name}</span>
+                    <span className="backlog-item-when">
+                      {note.note_date ? formatSydneyShortDate(note.note_date) : "No date"}
+                    </span>
+                  </div>
+                  <p className="backlog-item-text">{shortText(note.note_text)}</p>
+                  <div className="backlog-item-foot">
+                    <span className="backlog-item-status">
+                      <WarningIcon className="today-match-icon" size={15} />
+                      {match.kind === "ambiguous"
+                        ? `${countWord(match.candidates.length)} students could match`
+                        : "No student found"}
+                    </span>
+                    <button
+                      type="button"
+                      className="today-match-button"
+                      onClick={() => setPickingId(note.id)}
+                    >
+                      Match to a student
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       <p className="today-strip">
         <strong>7:30 pm tonight:</strong> these notes collate automatically and land on the Output

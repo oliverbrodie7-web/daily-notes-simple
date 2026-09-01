@@ -21,6 +21,7 @@ const ROSTER = [
   { id: 5, student_name: "Imogen Quinn", parent_name: "Mr Quinn" },
   { id: 6, student_name: "Imogen Rossi", parent_name: "Ms Rossi" },
   { id: 7, student_name: "Austin Dowling", parent_name: "Mrs Dowling" },
+  { id: 8, student_name: "Sydney Warren", parent_name: "Mr Warren" },
 ];
 
 const FIELDS: NoteFields = { name: "Austin D", note: "Worked well today.", staff: "Claire" };
@@ -51,18 +52,43 @@ describe("a name that resolves to one student", () => {
     expect(written[0]?.student_id).toBe("7");
   });
 
-  test("a matched note keeps the typed name, not the roster name", async () => {
+  test("a matched note now saves the roster name, not the typed one", async () => {
+    // Reversed on purpose. The nightly job merges the saved name into the
+    // email, so a shorthand or a misspelling reached the parent as the
+    // child's name.
     const { insert, written } = screen();
     await addNote({ students: ROSTER, noteDate: TODAY, insert }, FIELDS);
-    expect(written[0]?.student_name).toBe("Austin D");
-    expect(written[0]?.student_name).not.toBe("Austin Dowling");
+    expect(written[0]?.student_name).toBe("Austin Dowling");
+    expect(written[0]?.student_name).not.toBe("Austin D");
+  });
+
+  test("a shorthand saves as Sydney Warren when the roster resolves it", async () => {
+    // "Sydney W" is a form matchNote resolves. It used to be saved as
+    // written, and the nightly job merges that into the email.
+    const { insert, written } = screen();
+    await addNote({ students: ROSTER, noteDate: TODAY, insert }, { ...FIELDS, name: "Sydney W" });
+    expect(written[0]?.student_name).toBe("Sydney Warren");
+    expect(written[0]?.student_id).toBe("8");
+  });
+
+  test("Sydne is not resolved by the roster, so it asks rather than saving", async () => {
+    // Worth pinning: a truncation is not one of the four things matchNote
+    // accepts, so the misspelling never reaches the database at all. The
+    // prompt catches this one, not the roster name rule.
+    const { insert, written } = screen();
+    const outcome = await addNote(
+      { students: ROSTER, noteDate: TODAY, insert },
+      { ...FIELDS, name: "Sydne" },
+    );
+    expect(outcome.kind).toBe("asked");
+    expect(written).toEqual([]);
   });
 
   test("the rest of the row is exactly what it always was", async () => {
     const { insert, written } = screen();
     await addNote({ students: ROSTER, noteDate: TODAY, insert }, FIELDS);
     expect(written[0]).toEqual({
-      student_name: "Austin D",
+      student_name: "Austin Dowling",
       note_text: "Worked well today.",
       note_date: TODAY,
       collated: false,
@@ -143,6 +169,24 @@ describe("answering the picker", () => {
     expect(written[0]?.student_name).toBe("Ruby Bennett");
   });
 
+  test("an unmatched save still keeps exactly what was typed", async () => {
+    // Nothing better to use. The roster resolved nothing, so the typed name
+    // is the only name there is.
+    const { insert, written } = screen();
+    await saveNote(
+      { students: ROSTER, noteDate: TODAY, insert },
+      { ...FIELDS, name: "Sydne" },
+      null,
+    );
+    expect(written[0]?.student_name).toBe("Sydne");
+    const off = screen();
+    await addNote(
+      { students: null, noteDate: TODAY, insert: off.insert },
+      { ...FIELDS, name: "Sydne" },
+    );
+    expect(off.written[0]?.student_name).toBe("Sydne");
+  });
+
   test("Save without a student saves with the typed name and no student_id", async () => {
     const { insert, written } = screen();
     const outcome = await saveNote(
@@ -212,8 +256,16 @@ describe("no roster to ask", () => {
   });
 
   test("the decision says so on its own", () => {
-    expect(decideSave("Ruby", null)).toEqual({ kind: "save", studentId: null });
-    expect(decideSave("Ruby", [])).toEqual({ kind: "save", studentId: null });
+    expect(decideSave("Ruby", null)).toEqual({
+      kind: "save",
+      studentId: null,
+      studentName: "Ruby",
+    });
+    expect(decideSave("Ruby", [])).toEqual({
+      kind: "save",
+      studentId: null,
+      studentName: "Ruby",
+    });
   });
 });
 

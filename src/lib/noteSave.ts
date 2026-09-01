@@ -48,8 +48,10 @@ export function noteRow(fields: NoteFields, noteDate: string, studentId: string 
 }
 
 export type SaveDecision<T> =
-  // Save now. studentId is null when there was no roster to ask.
-  | { kind: "save"; studentId: string | null }
+  // Save now. studentId is null when there was no roster to ask, and
+  // studentName is what to write: the roster's spelling when it resolved
+  // the name, and exactly what was typed when it did not.
+  | { kind: "save"; studentId: string | null; studentName: string }
   // Ask first. candidates is empty when nobody came close.
   | { kind: "ask"; candidates: T[] };
 
@@ -60,9 +62,21 @@ export function decideSave<T extends MatchableStudent>(
   // No roster is never a reason to refuse a note. A failed read and an
   // empty roster look the same from here, and both mean carry on: the note
   // is written unmatched, exactly as every note was written before this.
-  if (!students || students.length === 0) return { kind: "save", studentId: null };
+  if (!students || students.length === 0)
+    return { kind: "save", studentId: null, studentName: name };
   const found = matchNote({ student_name: name }, students);
-  if (found.kind === "matched") return { kind: "save", studentId: String(found.student.id) };
+  if (found.kind === "matched") {
+    // The roster's spelling, not the typed one. A tutor typing "Sydne" for
+    // Sydney Warren used to save "Sydne", and the nightly job merges the
+    // saved name into the email, so a parent read their child's name
+    // misspelled. A resolved name has a correct spelling available and
+    // there is no reason to keep the wrong one.
+    return {
+      kind: "save",
+      studentId: String(found.student.id),
+      studentName: found.student.student_name,
+    };
+  }
   return { kind: "ask", candidates: found.kind === "ambiguous" ? found.candidates : [] };
 }
 
@@ -107,5 +121,5 @@ export async function addNote<T extends MatchableStudent>(
   if (decision.kind === "ask") {
     return { kind: "asked", pending: { ...fields, candidates: decision.candidates } };
   }
-  return saveNote(deps, fields, decision.studentId);
+  return saveNote(deps, { ...fields, name: decision.studentName }, decision.studentId);
 }
