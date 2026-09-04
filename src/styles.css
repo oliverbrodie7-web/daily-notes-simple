@@ -1763,6 +1763,34 @@ svg {
   cursor: default;
 }
 
+/* Editing a note in place. It expands under the row's own controls, the
+   way the log panel does on the Parents screen, rather than opening a
+   dialog over a note somebody is looking at. */
+.note-edit {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.note-edit-text {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.note-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.note-edit-save {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
 /* The backlog of earlier notes still belonging to nobody.
  *
  * Collapsed to one line by default, because it is a backlog rather than

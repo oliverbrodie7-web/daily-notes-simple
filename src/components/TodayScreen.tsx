@@ -8,6 +8,7 @@ import { matchCount, matchTouchPoints, type TouchPointNote } from "../lib/touchP
 import { supabase } from "../lib/supabase";
 import { matchNote, type NoteMatch } from "../lib/touchPoints";
 import { backlogLine, backlogRows, shortText } from "../lib/backlog";
+import { canEdit, saveEdit, type EditUpdate } from "../lib/noteEdit";
 import {
   addNote,
   saveNote,
@@ -30,9 +31,12 @@ type TodayNote = {
   note_text: string;
   created_at: string;
   added_by: string | null;
+  // True once the nightly job has taken it. From then on the draft exists
+  // and there is nothing left on this screen worth changing.
+  collated: boolean;
 };
 
-const NOTE_COLUMNS = "id, student_id, student_name, note_text, created_at, added_by";
+const NOTE_COLUMNS = "id, student_id, student_name, note_text, created_at, added_by, collated";
 
 // The term's notes, which the tally strip counts. The id is what lets a
 // removal be taken out of them without reading the whole term again.
@@ -81,6 +85,13 @@ export function TodayScreen() {
   // Collapsed until asked for. It is a backlog, not something to work
   // through before writing today's notes.
   const [backlogOpen, setBacklogOpen] = useState(false);
+  // One row at a time. Opening Edit on another simply replaces this, which
+  // closes the first without saving.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+  const [editMessage, setEditMessage] = useState<string | null>(null);
   // The suggestion strip's own data. Null until it has all arrived, so the
   // strip shows nothing at all while it is still loading.
   const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
@@ -535,6 +546,58 @@ export function TodayScreen() {
       : undefined;
   const pickingMatch = pickingToday ? matches.get(pickingId ?? "") : pickingRow?.match;
 
+  function startEdit(note: TodayNote) {
+    setEditingId(note.id);
+    setEditName(note.student_name);
+    setEditNote(note.note_text);
+    setEditMessage(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditMessage(null);
+  }
+
+  // The saved row, in both lists. The backlog below reads termNotes, so a
+  // note edited here would otherwise go on showing its old text there.
+  function applyEdit(id: string, update: EditUpdate) {
+    const patch = <T extends { student_id: string | null; student_name: string | null }>(
+      row: T,
+    ) => ({
+      ...row,
+      student_name: update.student_name,
+      note_text: update.note_text,
+      // Absent when there was no roster to ask, and then whatever the row
+      // already carries stands.
+      ...("student_id" in update ? { student_id: update.student_id ?? null } : {}),
+    });
+    setNotes((current) => (current ?? []).map((row) => (row.id === id ? patch(row) : row)));
+    setTermNotes((current) =>
+      current === null ? current : current.map((row) => (row.id === id ? patch(row) : row)),
+    );
+  }
+
+  async function handleEditSave(note: TodayNote) {
+    if (editBusy) return;
+    setEditBusy(true);
+    setEditMessage(null);
+    const outcome = await saveEdit(
+      {
+        // Only these columns. Nothing else about the row is touched.
+        update: async (patch) => await supabase.from("daily_notes").update(patch).eq("id", note.id),
+      },
+      { name: editName, note: editNote },
+      students,
+    );
+    setEditBusy(false);
+    if (outcome.kind !== "saved") {
+      setEditMessage(outcome.message);
+      return;
+    }
+    applyEdit(note.id, outcome.update);
+    setEditingId(null);
+  }
+
   function handleMatched(student: PickerStudent) {
     setNotes((current) =>
       (current ?? []).map((note) =>
@@ -783,6 +846,18 @@ export function TodayScreen() {
                           Match to a student
                         </button>
                       ) : null}
+                      {/* Only while the nightly job has not taken it. Once
+                          it has, the draft exists and editing this row
+                          changes nothing a parent will see. */}
+                      {canEdit(note) ? (
+                        <button
+                          type="button"
+                          className="remove-button"
+                          onClick={() => startEdit(note)}
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="remove-button"
@@ -793,6 +868,59 @@ export function TodayScreen() {
                       </button>
                     </span>
                   </div>
+                  {editingId === note.id ? (
+                    <div className="note-edit">
+                      <label className="field-label" htmlFor={`edit-name-${note.id}`}>
+                        Student
+                      </label>
+                      <input
+                        id={`edit-name-${note.id}`}
+                        className="text-field"
+                        type="text"
+                        value={editName}
+                        onChange={(event) => {
+                          setEditName(event.target.value);
+                          setEditMessage(null);
+                        }}
+                      />
+                      <label className="field-label" htmlFor={`edit-note-${note.id}`}>
+                        Note
+                      </label>
+                      <textarea
+                        id={`edit-note-${note.id}`}
+                        className="text-field note-edit-text"
+                        rows={3}
+                        value={editNote}
+                        onChange={(event) => {
+                          setEditNote(event.target.value);
+                          setEditMessage(null);
+                        }}
+                      />
+                      {editMessage ? (
+                        <p className="today-form-message" role="alert">
+                          {editMessage}
+                        </p>
+                      ) : null}
+                      <div className="note-edit-actions">
+                        <button
+                          type="button"
+                          className="row-button"
+                          disabled={editBusy}
+                          onClick={cancelEdit}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="primary-button note-edit-save"
+                          disabled={editBusy}
+                          onClick={() => void handleEditSave(note)}
+                        >
+                          {editBusy ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
