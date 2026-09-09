@@ -7,7 +7,7 @@ import {
   COPY_IDLE_LABEL,
   COPY_OPTIONS,
   copyLabel,
-  copyMenuTitle,
+  COPY_MENU_TITLE,
   copyRows,
   runCopy,
   type CopyStudent,
@@ -108,9 +108,6 @@ describe("what is left out", () => {
     const result = copyRows(shown, "emails");
     expect(result.count).toBe(2);
     expect(copyLabel({ kind: "copied", count: result.count })).toBe("2 copied");
-    // And the menu heading still counts what is on screen, because it is
-    // written before a format is chosen.
-    expect(copyMenuTitle(shown.length)).toBe("Copy 3 students");
   });
 
   test("a missing name drops the student from every format that prints one", () => {
@@ -127,6 +124,68 @@ describe("what is left out", () => {
       expect(text).not.toContain(", ,");
       expect(text.endsWith(",")).toBe(false);
     }
+  });
+
+  test("a student with a phone but no parent name is still printed with the number", () => {
+    // On a call sheet the number is the point. Six parents on the roster
+    // carry a first name only, so requiring a parent name here would throw
+    // away usable numbers.
+    const noParent = student({
+      student_name: "Ava Donnelly",
+      parent_name: null,
+      parent_phone: "0412 345 678",
+    });
+    const both = student({
+      student_name: "Ava Donnelly",
+      parent_name: "Nicole Donnelly",
+      parent_phone: "0421 891 991",
+    });
+    expect(copyRows([both], "phones").text).toBe("Ava Donnelly, Nicole Donnelly, 0421 891 991");
+    expect(copyRows([noParent], "phones").text).toBe("Ava Donnelly, 0412 345 678");
+    expect(copyRows([noParent], "phones").count).toBe(1);
+  });
+
+  test("a student with no phone is still skipped from the phone format", () => {
+    const noPhone = student({ student_name: "Bo Ng", parent_phone: null });
+    const blankPhone = student({ student_name: "Kit Ash", parent_phone: "   " });
+    const keeper = student({ student_name: "Ava Donnelly", parent_phone: "0412 345 678" });
+    const result = copyRows([noPhone, blankPhone, keeper], "phones");
+    expect(result.count).toBe(1);
+    expect(result.text).toBe("Ava Donnelly, Ava parent, 0412 345 678");
+    // And a student with no name is still skipped, phone or not.
+    expect(
+      copyRows([student({ student_name: "", parent_phone: "0400 000 000" })], "phones").count,
+    ).toBe(0);
+  });
+
+  test("a blank parent name does not print an empty slot or a stray comma", () => {
+    for (const parent of [null, "", "   "]) {
+      const line = copyRows(
+        [
+          student({
+            student_name: "Ava Donnelly",
+            parent_name: parent,
+            parent_phone: "0412 345 678",
+          }),
+        ],
+        "phones",
+      ).text;
+      expect(line).toBe("Ava Donnelly, 0412 345 678");
+      expect(line).not.toContain(", ,");
+      expect(line).not.toContain(",,");
+      expect(line.endsWith(",")).toBe(false);
+    }
+  });
+
+  test("the other three formats still skip a student with a missing value", () => {
+    const noParent = student({ student_name: "Ava Donnelly", parent_name: null });
+    const noEmail = student({ student_name: "Ava Donnelly", parent_email: null });
+    const noName = student({ student_name: "" });
+    expect(copyRows([noParent], "parents").count).toBe(0);
+    expect(copyRows([noEmail], "emails").count).toBe(0);
+    expect(copyRows([noName], "names").count).toBe(0);
+    // The relaxation is for phones alone.
+    expect(copyRows([noParent], "phones").count).toBe(1);
   });
 
   test("an empty list copies an empty string and counts none", () => {
@@ -260,6 +319,14 @@ describe("the click", () => {
   test("the label goes back to itself", () => {
     expect(copyLabel(COPY_IDLE)).toBe(COPY_IDLE_LABEL);
     expect(copyLabel({ kind: "copied", count: 76 })).toBe("76 copied");
+  });
+
+  test("the menu heading carries no number", () => {
+    expect(COPY_MENU_TITLE).toBe("Copy the students on screen");
+    expect(COPY_MENU_TITLE).not.toMatch(/\d/);
+    // Only the button reports a number, and only after the click, when it
+    // is the true one.
+    expect(copyLabel({ kind: "copied", count: 75 })).toBe("75 copied");
   });
 
   test("the menu has the four formats, each with a description", () => {

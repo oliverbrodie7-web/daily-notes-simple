@@ -6,7 +6,7 @@ import {
   COPY_OPTIONS,
   COPY_REVERT_MS,
   copyLabel,
-  copyMenuTitle,
+  COPY_MENU_TITLE,
   runCopy,
   type CopyFormat,
   type CopyState,
@@ -93,7 +93,7 @@ export function RosterCopyButton({ students }: RosterCopyButtonProps) {
       </div>
       {open ? (
         <div className="action-menu roster-copy-menu" role="menu" aria-label="Copy these students">
-          <p className="roster-copy-menu-title">{copyMenuTitle(students.length)}</p>
+          <p className="roster-copy-menu-title">{COPY_MENU_TITLE}</p>
           {COPY_OPTIONS.map((option) => (
             <button
               key={option.key}

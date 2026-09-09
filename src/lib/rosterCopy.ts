@@ -48,11 +48,16 @@ function tidy(value: string | null | undefined): string {
 
 // The fields each format needs. A student missing any one of them is not in
 // that format's list.
+//
+// Phones is the exception, and deliberately. On a call sheet the number is
+// the point, and six parents on the roster carry a first name only, so
+// requiring a parent name there would throw away usable numbers. The parent
+// name is printed when it is there and left out when it is not.
 const NEEDED: Record<CopyFormat, (keyof CopyStudent)[]> = {
   names: ["student_name"],
   parents: ["student_name", "parent_name"],
   emails: ["parent_email"],
-  phones: ["student_name", "parent_name", "parent_phone"],
+  phones: ["student_name", "parent_phone"],
 };
 
 function has(student: CopyStudent, format: CopyFormat): boolean {
@@ -70,7 +75,9 @@ function lineFor(student: CopyStudent, format: CopyFormat): string {
     case "emails":
       return tidy(student.parent_email);
     case "phones":
-      return `${name}, ${parent}, ${tidy(student.parent_phone)}`;
+      // Built from what is there, so a missing parent name leaves no empty
+      // slot and no stray comma.
+      return [name, parent, tidy(student.parent_phone)].filter(Boolean).join(", ");
   }
 }
 
@@ -99,11 +106,11 @@ export function copyRows(students: CopyStudent[], format: CopyFormat): CopyResul
   };
 }
 
-// The menu's heading, which counts what is on screen rather than what a
-// format would produce, because it is written before one is chosen.
-export function copyMenuTitle(shown: number): string {
-  return `Copy ${shown} ${shown === 1 ? "student" : "students"}`;
-}
+// The menu's heading. No number: it is written before a format is chosen,
+// so it cannot know that Parent emails will produce 75 where the row says
+// 76, and two numbers disagreeing reads as a fault. The button says the
+// true one after the click, and that one cannot be wrong.
+export const COPY_MENU_TITLE = "Copy the students on screen";
 
 // What the button says after the click.
 export function copiedLabel(count: number): string {
