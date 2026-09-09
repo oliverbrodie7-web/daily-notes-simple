@@ -66,6 +66,7 @@ import { ContactHistoryPanel } from "./ContactHistoryPanel";
 import { TouchDots } from "./TouchDots";
 import { RosterBoard } from "./RosterBoard";
 import { RosterViewSwitcher } from "./RosterViewSwitcher";
+import { RosterCopyButton } from "./RosterCopyButton";
 import { RowLogSplit } from "./RowLogSplit";
 import { UndoToast } from "./UndoToast";
 import {
@@ -1111,8 +1112,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                   to keep in step here. */}
               <div className="roster-tools">
                 {wide ? <RosterViewSwitcher view={view} onChange={chooseView} /> : null}
-                <span className="roster-count">
-                  {filtered.length} {filtered.length === 1 ? "student" : "students"}
+                <span className="roster-tools-right">
+                  <span className="roster-count">
+                    {filtered.length} {filtered.length === 1 ? "student" : "students"}
+                  </span>
+                  {/* Handed the very array the views below render, so what
+                      it copies and what is on screen are one list. */}
+                  <RosterCopyButton students={filtered.map((row) => row.student)} />
                 </span>
               </div>
 

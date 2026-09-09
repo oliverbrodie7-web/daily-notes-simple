@@ -2894,6 +2894,96 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* Copy what is on screen.
+ *
+ * The same split control the roster rows use, in secondary colours: this
+ * sits beside a count and is not the main thing on the row. Only the
+ * colours are restated; every measurement comes from .row-log-split. */
+.roster-tools-right {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.roster-copy-wrap {
+  position: relative;
+  flex: none;
+}
+
+/* Two classes, so this wins over .row-log-split's accent fill wherever the
+   two sit in the file. */
+.roster-copy-wrap .roster-copy {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-soft);
+}
+
+.roster-copy .row-log-main {
+  font-size: 13px;
+}
+
+/* The divider between the halves takes the border colour here, since the
+   contrast colour it uses on the accent would be invisible on a surface. */
+.roster-copy .row-log-arrow::before {
+  background: var(--border);
+  opacity: 1;
+}
+
+.roster-copy-wrap:not(.is-copied):not(.is-failed) .roster-copy:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* The two answers, in the tokens the status chips already use. */
+.roster-copy-wrap.is-copied .roster-copy {
+  border-color: var(--good-border);
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.roster-copy-wrap.is-failed .roster-copy {
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+
+.roster-copy-menu {
+  padding: 8px;
+  min-width: 248px;
+}
+
+.roster-copy-menu-title {
+  padding: 2px 8px 8px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Two lines, so the label and what it does are not competing on one. */
+.roster-copy-item {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  text-align: left;
+}
+
+.roster-copy-item-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.roster-copy-item-hint {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* The view switcher: Table, Cards, Board.
  *
  * The same shape the screen switcher had before the rail replaced it. A
@@ -5970,6 +6060,20 @@ button.touch-block:hover {
 
   .row-log-arrow {
     width: 48px;
+  }
+
+  /* The rules above are for the control inside a roster row, which fills
+     the card. This one sits beside a count and keeps its own width. */
+  .roster-copy {
+    flex: none;
+  }
+
+  .roster-copy .row-log-main {
+    flex: none;
+  }
+
+  .roster-copy .row-log-arrow {
+    width: 44px;
   }
 }
 

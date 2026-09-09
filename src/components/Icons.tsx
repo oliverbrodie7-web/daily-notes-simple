@@ -351,6 +351,27 @@ export function ChevronRightIcon({ className, size = 20 }: IconProps) {
   );
 }
 
+export function CopyIcon({ className, size = 15 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />
+      <path d="M15.5 5.5A2 2 0 0 0 13.5 3.5h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2" />
+    </svg>
+  );
+}
+
 export function ChevronDownIcon({ className, size = 20 }: IconProps) {
   return (
     <svg
