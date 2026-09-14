@@ -29,7 +29,7 @@ export type CopyOption = {
 export const COPY_OPTIONS: readonly CopyOption[] = [
   { key: "names", label: "Names", hint: "One line, comma separated" },
   { key: "parents", label: "Names and parents", hint: "One per line" },
-  { key: "emails", label: "Parent emails", hint: "For pasting into BCC" },
+  { key: "emails", label: "Parent emails", hint: "Named, for pasting into BCC" },
   { key: "phones", label: "Names and phones", hint: "One per line, for a call sheet" },
 ] as const;
 
@@ -46,13 +46,44 @@ function tidy(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
+// A parent_email field is not always one address. At least one record holds
+// two separated by a semicolon, and that whole string pasted into a BCC line
+// is not a valid address list. The first is the one that gets written to, so
+// the rest are dropped.
+function firstAddress(value: string | null | undefined): string {
+  return tidy(tidy(value).split(";")[0]);
+}
+
+// The characters that end a display name early or split the list around it.
+// The comma is the one that bites: unquoted, Aponte Ortiz, Lorely becomes two
+// recipients and everything after it lands in the wrong place. The app has no
+// say in what is typed into parent_name, so every name is checked.
+const NEEDS_QUOTING = /[,.;<>"]/;
+
+function displayName(name: string): string {
+  if (!NEEDS_QUOTING.test(name)) return name;
+  return `"${name.replace(/"/g, '\\"')}"`;
+}
+
+// Nicole Donnelly <alvm1316@gmail.com>, so a paste into a To or BCC field
+// shows a named recipient rather than a raw address. A genuinely blank parent
+// name falls back to the address on its own rather than empty brackets. A
+// first name only is still a name and is printed as one.
+function emailLine(student: CopyStudent): string {
+  const address = firstAddress(student.parent_email);
+  const parent = tidy(student.parent_name);
+  return parent ? `${displayName(parent)} <${address}>` : address;
+}
+
 // The fields each format needs. A student missing any one of them is not in
 // that format's list.
 //
 // Phones is the exception, and deliberately. On a call sheet the number is
 // the point, and six parents on the roster carry a first name only, so
 // requiring a parent name there would throw away usable numbers. The parent
-// name is printed when it is there and left out when it is not.
+// name is printed when it is there and left out when it is not. Emails read
+// the same way and are gated in has() instead, on the address rather than on
+// the field.
 const NEEDED: Record<CopyFormat, (keyof CopyStudent)[]> = {
   names: ["student_name"],
   parents: ["student_name", "parent_name"],
@@ -61,6 +92,10 @@ const NEEDED: Record<CopyFormat, (keyof CopyStudent)[]> = {
 };
 
 function has(student: CopyStudent, format: CopyFormat): boolean {
+  // Emails are gated on the address that will actually be printed rather
+  // than on the raw field, so a field holding nothing but a separator counts
+  // as no email at all.
+  if (format === "emails") return firstAddress(student.parent_email) !== "";
   return NEEDED[format].every((field) => tidy(student[field]) !== "");
 }
 
@@ -73,7 +108,7 @@ function lineFor(student: CopyStudent, format: CopyFormat): string {
     case "parents":
       return `${name}, ${parent}`;
     case "emails":
-      return tidy(student.parent_email);
+      return emailLine(student);
     case "phones":
       // Built from what is there, so a missing parent name leaves no empty
       // slot and no stray comma.
@@ -92,13 +127,15 @@ export function copyRows(students: CopyStudent[], format: CopyFormat): CopyResul
   const seen = new Set<string>();
   for (const student of students) {
     if (!has(student, format)) continue;
-    const line = lineFor(student, format);
     if (format === "emails") {
-      const key = line.toLowerCase();
+      // On the address rather than on the line, because the line now carries
+      // a parent name and two siblings can put two different names against
+      // one address. The first one seen is the one that is printed.
+      const key = firstAddress(student.parent_email).toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
     }
-    lines.push(line);
+    lines.push(lineFor(student, format));
   }
   return {
     text: lines.join(ONE_LINE.includes(format) ? ", " : "\n"),

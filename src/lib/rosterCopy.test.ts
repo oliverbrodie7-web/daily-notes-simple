@@ -53,7 +53,7 @@ describe("the four formats", () => {
 
   test("parent emails are one line, for a BCC field", () => {
     const result = copyRows([AVA, JADE], "emails");
-    expect(result.text).toBe("ava@example.com, jade@example.com");
+    expect(result.text).toBe("Ava parent <ava@example.com>, Jade parent <jade@example.com>");
     expect(result.text.includes("\n")).toBe(false);
   });
 
@@ -66,7 +66,7 @@ describe("the four formats", () => {
     });
     expect(copyRows([messy], "names").text).toBe("Ava Donnelly");
     expect(copyRows([messy], "phones").text).toBe("Ava Donnelly, Mrs Donnelly, 0412 345 678");
-    expect(copyRows([messy], "emails").text).toBe("ava@example.com");
+    expect(copyRows([messy], "emails").text).toBe("Mrs Donnelly <ava@example.com>");
   });
 
   test("the order matches what is rendered", () => {
@@ -88,7 +88,7 @@ describe("what is left out", () => {
     const none = student({ student_name: "Bo Ng", parent_email: null });
     const blank = student({ student_name: "Kit Ash", parent_email: "   " });
     const result = copyRows([AVA, none, blank, JADE], "emails");
-    expect(result.text).toBe("ava@example.com, jade@example.com");
+    expect(result.text).toBe("Ava parent <ava@example.com>, Jade parent <jade@example.com>");
     expect(result.count).toBe(2);
   });
 
@@ -98,7 +98,7 @@ describe("what is left out", () => {
     // Written both ways in the records, which is still one address.
     const three = student({ student_name: "Mia Ashford", parent_email: " Ashford@Example.com " });
     const result = copyRows([one, two, three, AVA], "emails");
-    expect(result.text).toBe("ashford@example.com, ava@example.com");
+    expect(result.text).toBe("Ruby parent <ashford@example.com>, Ava parent <ava@example.com>");
     expect(result.count).toBe(2);
   });
 
@@ -380,5 +380,258 @@ describe("where it sits", () => {
     // Closes on an outside tap and on escape, like the menus beside it.
     expect(button).toContain('document.addEventListener("pointerdown"');
     expect(button).toContain('event.key === "Escape"');
+  });
+});
+
+describe("parent emails carry the parent name", () => {
+  // Shaped like the real records: a plain case, a parent carrying a first
+  // name only, a name holding a comma, a field holding two addresses, a pair
+  // of siblings against one address, and a student with no email at all.
+  const PLAIN: CopyStudent = {
+    student_name: "Ava Donnelly",
+    parent_name: "Nicole Donnelly",
+    parent_email: "alvm1316@gmail.com",
+    parent_phone: "0412 345 678",
+  };
+  const FIRST_NAME_ONLY: CopyStudent = {
+    student_name: "Jade Bransby-McKenna",
+    parent_name: "Rene",
+    parent_email: "mckennaf@gmail.com",
+    parent_phone: "0421 891 991",
+  };
+  const COMMA_NAME: CopyStudent = {
+    student_name: "Lorely Aponte",
+    parent_name: "Aponte Ortiz, Lorely",
+    parent_email: "lorely@ponzanelli.net",
+    parent_phone: "0433 112 233",
+  };
+  const TWO_ADDRESSES: CopyStudent = {
+    student_name: "Sithuni De Silva",
+    parent_name: "Dinusha De Silva",
+    parent_email: "dinusha@example.com; dinusha.work@example.com",
+    parent_phone: "0444 555 666",
+  };
+  const SIB_ONE: CopyStudent = {
+    student_name: "Ruby Ashford",
+    parent_name: "Kate Ashford",
+    parent_email: "ashford@example.com",
+    parent_phone: "0400 111 222",
+  };
+  const SIB_TWO: CopyStudent = {
+    student_name: "Tom Ashford",
+    parent_name: "Paul Ashford",
+    // Written the other way in the records, which is still one address.
+    parent_email: " Ashford@Example.com ",
+    parent_phone: "0400 111 222",
+  };
+  const NO_EMAIL: CopyStudent = {
+    student_name: "Bo Ng",
+    parent_name: "Hien Ng",
+    parent_email: null,
+    parent_phone: "0455 666 777",
+  };
+
+  const SET: CopyStudent[] = [
+    PLAIN,
+    FIRST_NAME_ONLY,
+    COMMA_NAME,
+    TWO_ADDRESSES,
+    SIB_ONE,
+    SIB_TWO,
+    NO_EMAIL,
+  ];
+
+  test("a parent email is printed with the parent name attached", () => {
+    const result = copyRows(SET, "emails");
+    expect(result.text).toBe(
+      [
+        "Nicole Donnelly <alvm1316@gmail.com>",
+        "Rene <mckennaf@gmail.com>",
+        '"Aponte Ortiz, Lorely" <lorely@ponzanelli.net>',
+        "Dinusha De Silva <dinusha@example.com>",
+        "Kate Ashford <ashford@example.com>",
+      ].join(", "),
+    );
+    // Still one line, still comma separated.
+    expect(result.text.includes("\n")).toBe(false);
+    // Seven shown, one with no email and one sibling collapsed.
+    expect(SET).toHaveLength(7);
+    expect(result.count).toBe(5);
+  });
+
+  test("a blank parent name falls back to the bare address", () => {
+    for (const parent of [null, "", "   "]) {
+      const line = copyRows([{ ...PLAIN, parent_name: parent }], "emails").text;
+      expect(line).toBe("alvm1316@gmail.com");
+      expect(line).not.toContain("<");
+      expect(line).not.toContain(">");
+      // It is still copied, and still counted.
+      expect(copyRows([{ ...PLAIN, parent_name: parent }], "emails").count).toBe(1);
+    }
+    // A first name only is a name, not a blank. Six parents on the roster
+    // carry one.
+    expect(copyRows([FIRST_NAME_ONLY], "emails").text).toBe("Rene <mckennaf@gmail.com>");
+  });
+
+  test("a name containing a comma is quoted", () => {
+    expect(copyRows([COMMA_NAME], "emails").text).toBe(
+      '"Aponte Ortiz, Lorely" <lorely@ponzanelli.net>',
+    );
+    // Without the quoting the comma would split one recipient into two and
+    // every address after it would land against the wrong name.
+    expect(copyRows([COMMA_NAME, PLAIN], "emails").text).toBe(
+      '"Aponte Ortiz, Lorely" <lorely@ponzanelli.net>, Nicole Donnelly <alvm1316@gmail.com>',
+    );
+    // The other characters that end a display name early are quoted for the
+    // same reason.
+    const quoted: [string, string][] = [
+      ["Dr. Whelan", '"Dr. Whelan"'],
+      ["Whelan; Ann", '"Whelan; Ann"'],
+      ["Ann <Annie> Whelan", '"Ann <Annie> Whelan"'],
+      ["Whelan > Ann", '"Whelan > Ann"'],
+    ];
+    for (const [name, wrapped] of quoted) {
+      expect(copyRows([{ ...PLAIN, parent_name: name }], "emails").text).toBe(
+        `${wrapped} <alvm1316@gmail.com>`,
+      );
+    }
+    // A name with none of them is left alone, hyphens and apostrophes
+    // included, since quoting every name would be noise.
+    expect(copyRows([PLAIN], "emails").text).toBe("Nicole Donnelly <alvm1316@gmail.com>");
+    expect(copyRows([{ ...PLAIN, parent_name: "Anne-Marie O'Brien" }], "emails").text).toBe(
+      "Anne-Marie O'Brien <alvm1316@gmail.com>",
+    );
+  });
+
+  test("a double quote inside a name is escaped", () => {
+    const text = copyRows([{ ...PLAIN, parent_name: 'Ann "Annie" Whelan' }], "emails").text;
+    expect(text).toBe('"Ann \\"Annie\\" Whelan" <alvm1316@gmail.com>');
+    // Spelled out, so the escaping above cannot be read as the test's own:
+    // the name is wrapped, and each inner quote carries exactly one
+    // backslash.
+    expect(text.startsWith('"Ann')).toBe(true);
+    expect(text.split('\\"')).toHaveLength(3);
+    expect(text).not.toContain("\\\\");
+    // A quote is enough on its own to make a name need wrapping.
+    expect(copyRows([{ ...PLAIN, parent_name: 'Ann "Annie"' }], "emails").text).toBe(
+      '"Ann \\"Annie\\"" <alvm1316@gmail.com>',
+    );
+  });
+
+  test("a field holding two addresses separated by a semicolon copies the first", () => {
+    const text = copyRows([TWO_ADDRESSES], "emails").text;
+    expect(text).toBe("Dinusha De Silva <dinusha@example.com>");
+    // The whole field would not be a valid address list.
+    expect(text).not.toContain(";");
+    expect(text).not.toContain("dinusha.work");
+    // One recipient, not two.
+    expect(copyRows([TWO_ADDRESSES], "emails").count).toBe(1);
+    // Trimmed after the split, not before it.
+    expect(
+      copyRows([{ ...PLAIN, parent_email: "  first@example.com ;second@example.com " }], "emails")
+        .text,
+    ).toBe("Nicole Donnelly <first@example.com>");
+    // Three is the same rule as two.
+    expect(
+      copyRows([{ ...PLAIN, parent_email: "a@example.com;b@example.com;c@example.com" }], "emails")
+        .text,
+    ).toBe("Nicole Donnelly <a@example.com>");
+  });
+
+  test("siblings sharing an address still appear once", () => {
+    const result = copyRows([SIB_ONE, SIB_TWO], "emails");
+    // The first parent name against the address is the one printed.
+    expect(result.text).toBe("Kate Ashford <ashford@example.com>");
+    expect(result.count).toBe(1);
+    // Two different names against one address is still one recipient, so
+    // the comparison cannot be on the printed line.
+    expect(SIB_ONE.parent_name).not.toBe(SIB_TWO.parent_name);
+    // Reversed, the other name wins, which is the same rule.
+    expect(copyRows([SIB_TWO, SIB_ONE], "emails").text).toBe("Paul Ashford <Ashford@Example.com>");
+    // And it is compared after the semicolon rule, so a second address in
+    // the field cannot smuggle a duplicate through.
+    const alsoKate: CopyStudent = {
+      ...SIB_ONE,
+      student_name: "Mia Ashford",
+      parent_email: "ashford@example.com; kate@work.com",
+    };
+    expect(copyRows([SIB_ONE, alsoKate], "emails").count).toBe(1);
+  });
+
+  test("a student with no email is still skipped and not counted", () => {
+    const result = copyRows(SET, "emails");
+    expect(result.text).not.toContain("Hien Ng");
+    expect(result.text).not.toContain("Bo Ng");
+    expect(result.count).toBe(5);
+    // Blank and whitespace only are the same as absent.
+    for (const email of [null, "", "   "]) {
+      expect(copyRows([{ ...PLAIN, parent_email: email }], "emails").count).toBe(0);
+    }
+    // A field holding nothing but a separator has no address in it either,
+    // and an empty pair of brackets in a BCC line is worse than a shorter
+    // list.
+    expect(copyRows([{ ...PLAIN, parent_email: " ; " }], "emails").count).toBe(0);
+    expect(copyRows([{ ...PLAIN, parent_email: " ; " }], "emails").text).toBe("");
+    // The count is what the button reports.
+    expect(copyLabel({ kind: "copied", count: result.count })).toBe("5 copied");
+  });
+
+  test("the other three formats are unchanged", () => {
+    expect(copyRows(SET, "names").text).toBe(
+      [
+        "Ava Donnelly",
+        "Jade Bransby-McKenna",
+        "Lorely Aponte",
+        "Sithuni De Silva",
+        "Ruby Ashford",
+        "Tom Ashford",
+        "Bo Ng",
+      ].join(", "),
+    );
+    expect(copyRows(SET, "parents").text).toBe(
+      [
+        "Ava Donnelly, Nicole Donnelly",
+        "Jade Bransby-McKenna, Rene",
+        "Lorely Aponte, Aponte Ortiz, Lorely",
+        "Sithuni De Silva, Dinusha De Silva",
+        "Ruby Ashford, Kate Ashford",
+        "Tom Ashford, Paul Ashford",
+        "Bo Ng, Hien Ng",
+      ].join("\n"),
+    );
+    expect(copyRows(SET, "phones").text).toBe(
+      [
+        "Ava Donnelly, Nicole Donnelly, 0412 345 678",
+        "Jade Bransby-McKenna, Rene, 0421 891 991",
+        "Lorely Aponte, Aponte Ortiz, Lorely, 0433 112 233",
+        "Sithuni De Silva, Dinusha De Silva, 0444 555 666",
+        "Ruby Ashford, Kate Ashford, 0400 111 222",
+        "Tom Ashford, Paul Ashford, 0400 111 222",
+        "Bo Ng, Hien Ng, 0455 666 777",
+      ].join("\n"),
+    );
+    for (const format of ["names", "parents", "phones"] as const) {
+      const { text, count } = copyRows(SET, format);
+      // No angle brackets, no quoting, no semicolon rule.
+      expect(text).not.toContain("<");
+      expect(text).not.toContain('"');
+      // And no deduplication: the sibling pair is two students everywhere
+      // but the email format, and the student with no email is still in
+      // all three.
+      expect(count).toBe(7);
+    }
+  });
+
+  test("the menu says the names come with it", () => {
+    const emails = COPY_OPTIONS.find((option) => option.key === "emails");
+    expect(emails?.label).toBe("Parent emails");
+    expect(emails?.hint).toBe("Named, for pasting into BCC");
+    // The other three descriptions are untouched.
+    expect(COPY_OPTIONS.map((option) => option.hint)).toEqual([
+      "One line, comma separated",
+      "One per line",
+      "Named, for pasting into BCC",
+      "One per line, for a call sheet",
+    ]);
   });
 });
