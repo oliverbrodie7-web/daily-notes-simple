@@ -6156,3 +6156,49 @@ button.touch-block:hover {
     grid-template-columns: 160px 1fr 1fr;
   }
 }
+
+/* The re-enrol instructions. The dialog itself is the student picker's
+   overlay and panel; these rules only widen it for six steps and carry the
+   button that opens it. Every colour is a token, so all three schemes are
+   covered by the tokens already being correct. */
+.settings-help-button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: "Figtree", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+}
+.settings-help-button:hover {
+  border-color: var(--accent-border);
+}
+.retention-panel {
+  /* Six steps and an example box need more room than a list of names. */
+  max-width: 560px;
+}
+.retention-steps {
+  /* The browser's own list indent would push the steps sideways on a phone,
+     and the numbers are drawn here rather than by the marker. */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.retention-step {
+  /* The step's own number sits in the circle, so no marker is wanted. */
+  list-style: none;
+}
+.retention-copy {
+  margin-top: 10px;
+}
+.retention-note {
+  margin-top: 14px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
