@@ -10,6 +10,7 @@ import {
   loadResetPrompt,
   resetPromptOutcome,
   RESET_PROMPT_BUTTON_LABEL,
+  RESET_PROMPT_CALLOUT,
   RESET_PROMPT_EMPTY,
   RESET_PROMPT_FAILED,
   RESET_PROMPT_INTRO,
@@ -143,6 +144,20 @@ describe("the Copy button copies the whole text", () => {
       ),
     ).toBe(false);
   });
+
+  test("it copies only the prompt text, never the callout or the reassurance", async () => {
+    const prompt = "Freeze the term, then run the query.";
+    const copy = mock(async (_t: string) => true);
+    await copyResetPrompt({ copy }, prompt);
+    const sent = copy.mock.calls[0]?.[0];
+    expect(sent).toBe(prompt);
+    // The instruction lines are shown around the block, never copied with it.
+    expect(sent).not.toContain(RESET_PROMPT_CALLOUT);
+    expect(sent).not.toContain(RESET_PROMPT_INTRO);
+    expect(sent).not.toContain("Touch Points");
+    // And the component only ever hands it the saved text, from the text state.
+    expect(DIALOG_SOURCE).toContain("copyResetPrompt({ copy: copyText }, state.text)");
+  });
 });
 
 describe("the panel body", () => {
@@ -193,14 +208,41 @@ describe("the dialog", () => {
     const html = dialogHtml();
     expect(html).toContain(`id="reset-prompt-title">${RESET_PROMPT_TITLE}</p>`);
     expect(html).toContain(RESET_PROMPT_INTRO);
-    // The required line says plainly that nothing is deleted here.
+    // The required line says plainly that nothing is deleted here, and points
+    // at the chat the callout named.
     expect(RESET_PROMPT_INTRO).toContain("does not delete anything");
-    expect(RESET_PROMPT_INTRO).toContain("in a separate chat");
+    expect(RESET_PROMPT_INTRO).toContain("in that chat");
     // Proper dialog semantics and a Close control.
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-labelledby="reset-prompt-title"');
     expect(html).toContain('<button type="button" class="match-cancel">Close</button>');
+  });
+
+  test("a prominent callout at the top says where to run the prompt", () => {
+    const html = dialogHtml();
+    // The exact words asked for, naming the Touch Points project.
+    expect(RESET_PROMPT_CALLOUT).toBe(
+      "Run this prompt in a Claude chat within the Touch Points project.",
+    );
+    expect(html).toContain(RESET_PROMPT_CALLOUT);
+    // Carried in its own emphasised element, not the plain sub.
+    expect(html).toContain(`<p class="reset-prompt-callout">${RESET_PROMPT_CALLOUT}</p>`);
+    // The reassurance is the plainer, lighter sub directly below the callout.
+    expect(html).toContain(`<p class="match-panel-sub">${RESET_PROMPT_INTRO}</p>`);
+    // Order: title, then the callout, then the reassurance, then the body
+    // (loading here, so the status line), then Close. The prompt block and
+    // Copy button live in that body, below the callout.
+    const title = html.indexOf('id="reset-prompt-title"');
+    const callout = html.indexOf('class="reset-prompt-callout"');
+    const reassurance = html.indexOf('class="match-panel-sub"');
+    const body = html.indexOf('class="reset-prompt-status"');
+    const close = html.indexOf("match-cancel");
+    for (const at of [title, callout, reassurance, body, close]) expect(at).toBeGreaterThan(-1);
+    expect(title).toBeLessThan(callout);
+    expect(callout).toBeLessThan(reassurance);
+    expect(reassurance).toBeLessThan(body);
+    expect(body).toBeLessThan(close);
   });
 
   test("it reads reset_prompt and only reads, never writes or deletes", () => {
@@ -313,6 +355,7 @@ describe("the house rules", () => {
     const words = [
       RESET_PROMPT_BUTTON_LABEL,
       RESET_PROMPT_TITLE,
+      RESET_PROMPT_CALLOUT,
       RESET_PROMPT_INTRO,
       RESET_PROMPT_EMPTY,
       RESET_PROMPT_FAILED,

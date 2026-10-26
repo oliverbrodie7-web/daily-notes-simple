@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import {
   copyResetPrompt,
   loadResetPrompt,
+  RESET_PROMPT_CALLOUT,
   RESET_PROMPT_EMPTY,
   RESET_PROMPT_FAILED,
   RESET_PROMPT_INTRO,
@@ -170,6 +171,10 @@ export function ResetPromptDialog({ onClose }: ResetPromptDialogProps) {
         <p className="match-panel-title" id="reset-prompt-title">
           {RESET_PROMPT_TITLE}
         </p>
+        {/* The prominent instruction, above the prompt block. The reassurance
+            sits directly under it, smaller and lighter. Neither is part of
+            the text the Copy button copies: that is the prompt block alone. */}
+        <p className="reset-prompt-callout">{RESET_PROMPT_CALLOUT}</p>
         <p className="match-panel-sub">{RESET_PROMPT_INTRO}</p>
 
         <ResetPromptBody state={state} copied={copied} onCopy={() => void handleCopy()} />

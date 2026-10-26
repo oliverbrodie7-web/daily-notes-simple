@@ -6218,6 +6218,22 @@ button.touch-block:hover {
 .reset-prompt-panel {
   max-width: 560px;
 }
+.reset-prompt-callout {
+  /* The prominent instruction: a highlighted box in the app's own accent,
+     with bold text a touch larger than the body. Text is on the high
+     contrast token rather than the accent, so it stays readable on the
+     tint in every scheme. */
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .reset-prompt-status {
   margin-top: 14px;
   color: var(--text-soft);

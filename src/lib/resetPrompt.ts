@@ -19,9 +19,12 @@ export const RESET_PROMPT_CARD_SUB =
   "Opens the saved reset instructions to copy into a separate chat. It does not delete anything from this screen.";
 
 export const RESET_PROMPT_TITLE = "Reset instructions";
-// The reassurance line at the top of the panel.
+// The prominent instruction above the prompt block: where to run it.
+export const RESET_PROMPT_CALLOUT =
+  "Run this prompt in a Claude chat within the Touch Points project.";
+// The reassurance line directly under the callout, smaller and lighter.
 export const RESET_PROMPT_INTRO =
-  "This does not delete anything. It shows the instructions to run the reset in a separate chat.";
+  "This does not delete anything. It gives you the steps to run the reset in that chat.";
 // Shown in place of an empty box when nothing is saved yet.
 export const RESET_PROMPT_EMPTY = "No reset instructions saved yet";
 // Shown when the column could not be read at all, which is different from it
