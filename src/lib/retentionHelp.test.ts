@@ -77,14 +77,16 @@ describe("the button on Settings", () => {
     // A real button, not a link or a heading.
     const at = html.indexOf(BUTTON_LABEL);
     expect(html.slice(0, at)).toContain('<button type="button" class="settings-help-button"');
-    // In its own card, after the three that were already there.
+    // In its own card, below the three that were already there. Other cards
+    // may sit below it now, so this targets the card the button is actually
+    // in rather than the last one on the screen.
     const cards = html.split('class="settings-card"').length - 1;
-    expect(cards).toBe(4);
-    const lastCard = html.lastIndexOf('class="settings-card"');
-    expect(at).toBeGreaterThan(lastCard);
+    expect(cards).toBeGreaterThanOrEqual(4);
+    const ownCard = html.lastIndexOf('class="settings-card"', at);
+    expect(ownCard).toBeGreaterThan(-1);
     // And the card carries the same heading and sub as the others.
-    expect(html.slice(lastCard, at)).toContain('class="section-heading"');
-    expect(html.slice(lastCard, at)).toContain('class="settings-sub"');
+    expect(html.slice(ownCard, at)).toContain('class="section-heading"');
+    expect(html.slice(ownCard, at)).toContain('class="settings-sub"');
   });
 
   test("Settings does not show that button before the PIN is entered", () => {

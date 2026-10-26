@@ -6202,3 +6202,43 @@ button.touch-block:hover {
   font-size: 12.5px;
   line-height: 1.5;
 }
+
+/* The next term reset instructions. The dialog itself is the student
+   picker's overlay and panel; these rules carry the red button that opens
+   it and the scrollable block of saved text inside. Every colour is a
+   token, so all three schemes follow the tokens already being correct. */
+.reset-prompt-button {
+  /* The label is a full sentence, so it wraps rather than being clipped,
+     and it needs room top and bottom when it does. */
+  padding-top: 12px;
+  padding-bottom: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+.reset-prompt-panel {
+  max-width: 560px;
+}
+.reset-prompt-status {
+  margin-top: 14px;
+  color: var(--text-soft);
+  font-size: 14px;
+}
+.reset-prompt-empty {
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  text-align: center;
+}
+.reset-prompt-text {
+  /* A long prompt scrolls inside its own block rather than stretching the
+     panel, and stays selectable, which a pre is by default. */
+  margin-top: 12px;
+  max-height: 46vh;
+  overflow-y: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.reset-prompt-copy {
+  margin-top: 10px;
+}
