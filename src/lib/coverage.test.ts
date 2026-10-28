@@ -5,10 +5,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CoverageMeter } from "../components/CoverageMeter";
 import {
   COVERAGE_CAPTION,
+  COVERAGE_FINISH,
   COVERAGE_HEADLINE_LABEL,
   coverageCounts,
   coverageFor,
   coverageGroup,
+  coveragePaceLine,
   coverageSignals,
   coverageSignalsByStudent,
   logInTerm,
@@ -151,9 +153,12 @@ describe("the shared touch point count", () => {
 });
 
 describe("the meter", () => {
-  function meterHtml(counts: { green: number; teal: number; red: number; total: number }): string {
+  function meterHtml(
+    counts: { green: number; teal: number; red: number; total: number },
+    weeksLeft = 8,
+  ): string {
     return renderToStaticMarkup(
-      createElement(CoverageMeter, { counts, activeGroup: null, onSelect: () => {} }),
+      createElement(CoverageMeter, { counts, weeksLeft, activeGroup: null, onSelect: () => {} }),
     );
   }
 
@@ -164,10 +169,6 @@ describe("the meter", () => {
     expect(COVERAGE_HEADLINE_LABEL).toBe("families need a touch point");
     expect(html).toContain(COVERAGE_CAPTION);
     expect(COVERAGE_CAPTION).toBe("What you control this term");
-    // Zero red reads as zero, not blank.
-    expect(meterHtml({ green: 5, teal: 0, red: 0, total: 5 })).toContain(
-      'class="coverage-headline-number">0</span>',
-    );
   });
 
   test("the bar runs green then teal then red, each showing its count", () => {
@@ -201,5 +202,83 @@ describe("the meter", () => {
       expect(html).toContain(label);
       expect(html).toContain(note);
     }
+  });
+});
+
+describe("the pace line", () => {
+  test("reads how many to go, the weeks left, and the rate that implies", () => {
+    expect(coveragePaceLine(24, 7)).toBe("24 to go, 7 teaching weeks left, about 3 a week");
+    // Per week is red over weeks left, rounded.
+    expect(coveragePaceLine(20, 8)).toBe("20 to go, 8 teaching weeks left, about 3 a week");
+    expect(coveragePaceLine(21, 7)).toBe("21 to go, 7 teaching weeks left, about 3 a week");
+  });
+
+  test("drops the pace when there are no weeks left, the term ended or none set", () => {
+    expect(coveragePaceLine(24, 0)).toBe("24 to go");
+    // A negative is treated the same as none, never shown as a rate.
+    expect(coveragePaceLine(24, -2)).toBe("24 to go");
+  });
+
+  test("the meter shows the pace line under the live headline", () => {
+    const html = renderToStaticMarkup(
+      createElement(CoverageMeter, {
+        counts: { green: 40, teal: 59, red: 24, total: 123 },
+        weeksLeft: 7,
+        activeGroup: null,
+        onSelect: () => {},
+      }),
+    );
+    expect(html).toContain('class="coverage-headline-number">24</span>');
+    expect(html).toContain(
+      '<p class="coverage-pace">24 to go, 7 teaching weeks left, about 3 a week</p>',
+    );
+  });
+
+  test("with the term ended the meter shows just the count to go", () => {
+    const html = renderToStaticMarkup(
+      createElement(CoverageMeter, {
+        counts: { green: 40, teal: 59, red: 24, total: 123 },
+        weeksLeft: 0,
+        activeGroup: null,
+        onSelect: () => {},
+      }),
+    );
+    expect(html).toContain('<p class="coverage-pace">24 to go</p>');
+    expect(html).not.toContain("teaching weeks left");
+  });
+});
+
+describe("the finish state", () => {
+  function meterHtml(red: number, weeksLeft = 7): string {
+    const counts = { green: 70, teal: 53, red, total: 123 - 24 + red };
+    return renderToStaticMarkup(
+      createElement(CoverageMeter, { counts, weeksLeft, activeGroup: null, onSelect: () => {} }),
+    );
+  }
+
+  test("with red at zero the headline becomes the finish line and the pace drops", () => {
+    const html = meterHtml(0);
+    expect(html).toContain(COVERAGE_FINISH);
+    expect(COVERAGE_FINISH).toBe("Every family has had contact");
+    // No number headline, no label, no pace.
+    expect(html).not.toContain("coverage-headline-number");
+    expect(html).not.toContain(COVERAGE_HEADLINE_LABEL);
+    expect(html).not.toContain("coverage-pace");
+  });
+
+  test("the bar is left showing green and teal, the red segment hidden", () => {
+    const html = meterHtml(0);
+    // Green and teal are drawn, red is zero and hidden.
+    expect(html).toContain("coverage-seg-green");
+    expect(html).toContain("coverage-seg-teal");
+    const red = html.indexOf('class="coverage-seg coverage-seg-red');
+    const redTag = html.slice(red, html.indexOf("</button>", red));
+    expect(redTag).toContain("hidden");
+  });
+
+  test("one family still to go is not the finish state", () => {
+    const html = meterHtml(1);
+    expect(html).not.toContain(COVERAGE_FINISH);
+    expect(html).toContain('class="coverage-headline-number">1</span>');
   });
 });

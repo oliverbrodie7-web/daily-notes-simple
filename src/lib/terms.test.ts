@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { TERM_RUNWAY_DAYS, lastTermEnd, pickTermForDate, termWarning, termWeek } from "./terms";
+import {
+  TERM_RUNWAY_DAYS,
+  lastTermEnd,
+  pickTermForDate,
+  teachingWeeksLeft,
+  termWarning,
+  termWeek,
+} from "./terms";
 
 // Two consecutive terms with a holiday between them, plus a third later on.
 const TERMS = [
@@ -162,5 +169,39 @@ describe("which week of the term a date falls in", () => {
     expect(termWeek(null, "2026-08-21")).toBeNull();
     expect(termWeek({ ...term, term_start_date: null }, "2026-08-21")).toBeNull();
     expect(termWeek(term, "")).toBeNull();
+  });
+});
+
+describe("teachingWeeksLeft", () => {
+  // A ten week term: 2026-07-20 is a Monday, the start is week one.
+  const term = {
+    term_name: "Term 3",
+    term_start_date: "2026-07-20",
+    term_end_date: "2026-09-25",
+    p2_deadline: "2026-09-01",
+  };
+
+  it("counts the weeks still to come, the current week included", () => {
+    // The last day of the term is week ten, so ten weeks from the start.
+    expect(teachingWeeksLeft(term, "2026-07-20")).toBe(10);
+    // Week four, so seven weeks left including this one.
+    expect(teachingWeeksLeft(term, "2026-08-10")).toBe(7);
+    // The last week leaves one.
+    expect(teachingWeeksLeft(term, "2026-09-25")).toBe(1);
+  });
+
+  it("is zero once the term has ended", () => {
+    expect(teachingWeeksLeft(term, "2026-09-26")).toBe(0);
+    expect(teachingWeeksLeft(term, "2027-01-01")).toBe(0);
+  });
+
+  it("is the whole term before it starts", () => {
+    expect(teachingWeeksLeft(term, "2026-07-01")).toBe(10);
+  });
+
+  it("is zero with no usable term or no date", () => {
+    expect(teachingWeeksLeft(null, "2026-08-10")).toBe(0);
+    expect(teachingWeeksLeft({ ...term, term_end_date: null }, "2026-08-10")).toBe(0);
+    expect(teachingWeeksLeft(term, "")).toBe(0);
   });
 });

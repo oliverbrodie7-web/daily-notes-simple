@@ -52,6 +52,22 @@ export function termWeek(term: TermRow | null, todayIso: string): number | null 
   return days < 0 ? null : Math.floor(days / 7) + 1;
 }
 
+// How many teaching weeks of the term are still to come, counting the
+// current week. Zero once the term has ended, or when there is no usable
+// term. Built on termWeek, so it counts weeks the same way the rest of the
+// screen does, with the start date as week one.
+export function teachingWeeksLeft(term: TermRow | null, todayIso: string): number {
+  if (!term || !usable(term) || !todayIso) return 0;
+  // Past the end there is nothing left to pace.
+  if (todayIso > term.term_end_date!) return 0;
+  const total = termWeek(term, term.term_end_date!);
+  if (total === null) return 0;
+  const current = termWeek(term, todayIso);
+  // Before the term starts, the whole term is still to come.
+  if (current === null) return total;
+  return Math.max(0, total - current + 1);
+}
+
 export function lastTermEnd(terms: TermRow[]): string | null {
   const ends = terms.filter(usable).map((term) => term.term_end_date!);
   if (!ends.length) return null;

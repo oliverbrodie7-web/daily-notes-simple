@@ -19,6 +19,7 @@ import { parentEmailPairs, parentFirstNames, type MessageTemplate } from "../lib
 import {
   lastTermEnd,
   pickTermForDate,
+  teachingWeeksLeft,
   termWarning,
   termWeek,
   type TermRow,
@@ -885,6 +886,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // The bar's line of context: the term, which week of it this is, and the
   // P2 deadline, with the countdown once it is close.
   const week = termWeek(term, today);
+  // The meter's pace line reads from this: teaching weeks still to come.
+  const weeksLeft = teachingWeeksLeft(term, today);
   const termLine = term ? (
     <>
       {term.term_name}
@@ -968,6 +971,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
 
           <CoverageMeter
             counts={coverage}
+            weeksLeft={weeksLeft}
             activeGroup={activeCoverage}
             onSelect={(group) => setFilterKey((current) => toggleFilter(current, group))}
           />

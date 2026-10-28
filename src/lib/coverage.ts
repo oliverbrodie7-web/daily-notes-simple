@@ -118,6 +118,19 @@ export function coverageCounts(groups: CoverageGroup[]): CoverageCounts {
 export const COVERAGE_HEADLINE_LABEL = "families need a touch point";
 export const COVERAGE_CAPTION = "What you control this term";
 
+// The headline once there is nobody left to contact.
+export const COVERAGE_FINISH = "Every family has had contact";
+
+// The pace line under the headline. With weeks still to go: how many are
+// left, how long is left, and the rate that implies. With none left, the
+// term having ended or no term set, just how many to go and no pace. Per
+// week is red spread evenly over the weeks left, rounded.
+export function coveragePaceLine(red: number, weeksLeft: number): string {
+  if (weeksLeft <= 0) return `${red} to go`;
+  const perWeek = Math.round(red / weeksLeft);
+  return `${red} to go, ${weeksLeft} teaching weeks left, about ${perWeek} a week`;
+}
+
 export type CoverageLegendItem = { group: CoverageGroup; label: string; note: string };
 
 // In bar order: green, then teal, then red.

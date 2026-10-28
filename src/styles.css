@@ -5303,6 +5303,23 @@ button.touch-block:hover {
   font-size: 12.5px;
   color: var(--text-soft);
 }
+.coverage-pace {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+.coverage-headline-done {
+  min-height: 40px;
+}
+.coverage-finish {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--good);
+}
 .coverage-bar {
   display: flex;
   gap: 3px;
@@ -5323,6 +5340,11 @@ button.touch-block:hover {
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+/* A zero group draws nothing. The display above would otherwise beat the
+   browser's own rule for the hidden attribute and leave a sliver showing. */
+.coverage-seg[hidden] {
+  display: none;
 }
 .coverage-seg:first-child {
   border-top-left-radius: 8px;

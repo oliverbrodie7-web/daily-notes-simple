@@ -1,7 +1,9 @@
 import {
   COVERAGE_CAPTION,
+  COVERAGE_FINISH,
   COVERAGE_HEADLINE_LABEL,
   COVERAGE_LEGEND,
+  coveragePaceLine,
   type CoverageCounts,
   type CoverageGroup,
 } from "../lib/coverage";
@@ -13,6 +15,9 @@ import {
 
 type CoverageMeterProps = {
   counts: CoverageCounts;
+  // Teaching weeks left in the term, for the pace line. Zero when the term
+  // has ended or none is set, which drops the pace.
+  weeksLeft: number;
   // The coverage group the list is filtered to, if any.
   activeGroup: CoverageGroup | null;
   onSelect: (group: CoverageGroup) => void;
@@ -24,19 +29,32 @@ function countFor(counts: CoverageCounts, group: CoverageGroup): number {
   return counts.red;
 }
 
-export function CoverageMeter({ counts, activeGroup, onSelect }: CoverageMeterProps) {
+export function CoverageMeter({ counts, weeksLeft, activeGroup, onSelect }: CoverageMeterProps) {
   const total = counts.total;
+  // Nobody left to contact: the headline becomes the finish line and the
+  // pace drops away. The red segment is already zero, so the bar is left
+  // showing green and teal alone.
+  const finished = counts.red === 0;
   return (
     <section className="coverage-meter" aria-label="Touch point coverage this term">
-      {/* The headline is the one number that is your job: families with no
-          touch point yet. */}
-      <div className="coverage-headline">
-        <span className="coverage-headline-number">{counts.red}</span>
-        <span className="coverage-headline-text">
-          <span className="coverage-headline-label">{COVERAGE_HEADLINE_LABEL}</span>
-          <span className="coverage-caption">{COVERAGE_CAPTION}</span>
-        </span>
-      </div>
+      {finished ? (
+        <div className="coverage-headline coverage-headline-done">
+          <p className="coverage-finish">{COVERAGE_FINISH}</p>
+        </div>
+      ) : (
+        <>
+          {/* The headline is the one number that is your job: families with no
+              touch point yet. */}
+          <div className="coverage-headline">
+            <span className="coverage-headline-number">{counts.red}</span>
+            <span className="coverage-headline-text">
+              <span className="coverage-headline-label">{COVERAGE_HEADLINE_LABEL}</span>
+              <span className="coverage-caption">{COVERAGE_CAPTION}</span>
+            </span>
+          </div>
+          <p className="coverage-pace">{coveragePaceLine(counts.red, weeksLeft)}</p>
+        </>
+      )}
 
       {/* Green, then teal, then red, each segment as wide as its share and
           each showing its count. */}
