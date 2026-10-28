@@ -83,6 +83,8 @@ import { UndoToast } from "./UndoToast";
 import { ResetPromptDialog } from "./ResetPromptDialog";
 import { RetentionHelpDialog } from "./RetentionHelpDialog";
 import { CoverageMeter } from "./CoverageMeter";
+import { ContactFirstCard } from "./ContactFirstCard";
+import { contactFirstFamilies } from "../lib/contactFirst";
 import {
   planDismiss,
   runUndo,
@@ -638,6 +640,24 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // The coverage group the list is filtered to, if the active filter is one.
   const activeCoverage: CoverageGroup | null =
     filterKey === "green" || filterKey === "teal" || filterKey === "red" ? filterKey : null;
+
+  // The families to contact first: the red group whose parent emailed this
+  // term. Built from the decorated rows, so it reads the same coverage and
+  // the same engagement everything else on the screen does.
+  const contactFirst = useMemo(
+    () =>
+      contactFirstFamilies(
+        decorated.map((row) => ({
+          id: row.student.id,
+          studentName: row.student.student_name,
+          parentName: row.student.parent_name,
+          parentPhone: row.student.parent_phone,
+          coverage: row.coverage,
+          daysSinceLastEmail: row.emails.daysSinceLast,
+        })),
+      ),
+    [decorated],
+  );
   const engageRow = engageId
     ? decorated.find((row) => String(row.student.id) === engageId)
     : undefined;
@@ -950,6 +970,16 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             counts={coverage}
             activeGroup={activeCoverage}
             onSelect={(group) => setFilterKey((current) => toggleFilter(current, group))}
+          />
+
+          {/* Directly under the meter: the red group who have emailed, with
+              the existing Log action. The footer filters the table to the
+              whole red group. */}
+          <ContactFirstCard
+            families={contactFirst}
+            redTotal={coverage.red}
+            onLog={(id) => openPanel("log", id)}
+            onSeeAll={() => setFilterKey("red")}
           />
 
           <div className="p2-progress">
