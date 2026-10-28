@@ -127,8 +127,10 @@ export const COVERAGE_FINISH = "Every family has had contact";
 // week is red spread evenly over the weeks left, rounded.
 export function coveragePaceLine(red: number, weeksLeft: number): string {
   if (weeksLeft <= 0) return `${red} to go`;
-  const perWeek = Math.round(red / weeksLeft);
-  return `${red} to go, ${weeksLeft} teaching weeks left, about ${perWeek} a week`;
+  // Floored at one so it never reads "about 0 a week" while work remains.
+  const perWeek = Math.max(1, Math.round(red / weeksLeft));
+  const weeks = weeksLeft === 1 ? "teaching week left" : "teaching weeks left";
+  return `${red} to go, ${weeksLeft} ${weeks}, about ${perWeek} a week`;
 }
 
 export type CoverageLegendItem = { group: CoverageGroup; label: string; note: string };

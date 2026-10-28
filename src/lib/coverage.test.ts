@@ -213,6 +213,18 @@ describe("the pace line", () => {
     expect(coveragePaceLine(21, 7)).toBe("21 to go, 7 teaching weeks left, about 3 a week");
   });
 
+  test("the last week reads week, not weeks", () => {
+    expect(coveragePaceLine(5, 1)).toBe("5 to go, 1 teaching week left, about 5 a week");
+    // Two or more keeps the plural.
+    expect(coveragePaceLine(5, 2)).toBe("5 to go, 2 teaching weeks left, about 3 a week");
+  });
+
+  test("per week never drops to zero while work remains", () => {
+    // One over ten weeks rounds to zero, so it is floored at one.
+    expect(coveragePaceLine(1, 10)).toBe("1 to go, 10 teaching weeks left, about 1 a week");
+    expect(coveragePaceLine(2, 9)).toBe("2 to go, 9 teaching weeks left, about 1 a week");
+  });
+
   test("drops the pace when there are no weeks left, the term ended or none set", () => {
     expect(coveragePaceLine(24, 0)).toBe("24 to go");
     // A negative is treated the same as none, never shown as a rate.
