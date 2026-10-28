@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RetentionHelpDialog } from "../components/RetentionHelpDialog";
 import { SettingsScreen } from "../components/SettingsScreen";
+import { TrackerScreen } from "../components/TrackerScreen";
 import { DEFAULT_NAV_LABELS, SCREEN_KEYS, GROUP_KEYS } from "./navLabels";
 import {
   copyRetentionExample,
@@ -35,6 +36,8 @@ function source(file: string): string {
 
 const DIALOG_SOURCE = source("../components/RetentionHelpDialog.tsx");
 const PICKER_SOURCE = source("../components/MatchStudentPanel.tsx");
+const SETTINGS_SOURCE = source("../components/SettingsScreen.tsx");
+const TRACKER_SOURCE = source("../components/TrackerScreen.tsx");
 
 function dialogHtml(): string {
   return renderToStaticMarkup(createElement(RetentionHelpDialog, { onClose: () => {} }));
@@ -70,49 +73,70 @@ function settingsHtml(state: string): string {
   );
 }
 
-describe("the button on Settings", () => {
-  test("Settings shows a button labelled How do I analyse the re-enrol data? after the PIN is entered", () => {
-    const html = settingsHtml("unlocked");
-    expect(html).toContain(BUTTON_LABEL);
-    // A real button, not a link or a heading.
-    const at = html.indexOf(BUTTON_LABEL);
-    expect(html.slice(0, at)).toContain('<button type="button" class="settings-help-button"');
-    // In its own card, below the three that were already there. Other cards
-    // may sit below it now, so this targets the card the button is actually
-    // in rather than the last one on the screen.
-    const cards = html.split('class="settings-card"').length - 1;
-    expect(cards).toBeGreaterThanOrEqual(4);
-    const ownCard = html.lastIndexOf('class="settings-card"', at);
-    expect(ownCard).toBeGreaterThan(-1);
-    // And the card carries the same heading and sub as the others.
-    expect(html.slice(ownCard, at)).toContain('class="section-heading"');
-    expect(html.slice(ownCard, at)).toContain('class="settings-sub"');
+// The Parents screen, where the end of term strip now lives. Rendered to a
+// string so no effect fires; students stays null, so only the strip and the
+// loading line render.
+function trackerHtml(state: string): string {
+  const gate = {
+    state,
+    storedHash: "hash",
+    locked: state !== "unlocked",
+    touch: () => {},
+    lockNow: () => {},
+    verify: async () => true,
+    saveNewPin: async () => true,
+    notePinChanged: () => {},
+  };
+  return renderToStaticMarkup(createElement(TrackerScreen, { pinGate: gate } as never));
+}
+
+describe("the button on the Parents strip", () => {
+  test("the Parents dashboard shows a 1 Re-enrol analysis button when unlocked", () => {
+    const html = trackerHtml("unlocked");
+    expect(html).toContain("1 Re-enrol analysis");
+    // A real button in the end of term strip at the top.
+    const at = html.indexOf("1 Re-enrol analysis");
+    const strip = html.indexOf('class="eot-strip"');
+    expect(strip).toBeGreaterThan(-1);
+    expect(at).toBeGreaterThan(strip);
+    expect(html.slice(strip, at)).toContain('<button type="button" class="eot-strip-button"');
+    // The strip carries its label and both actions.
+    expect(html).toContain(">End of term</span>");
   });
 
-  test("Settings does not show that button before the PIN is entered", () => {
-    // Every state that is not unlocked falls to the shared lock gate.
+  test("it is gone from Settings", () => {
+    const settings = settingsHtml("unlocked");
+    expect(settings).not.toContain("1 Re-enrol analysis");
+    // The old long card label is gone too.
+    expect(settings).not.toContain(BUTTON_LABEL);
+    expect(settings).not.toContain("settings-help-button");
+    // The wiring left Settings and now lives on the tracker.
+    expect(SETTINGS_SOURCE).not.toContain("setHelpOpen");
+    expect(SETTINGS_SOURCE).not.toContain("RetentionHelpDialog");
+    expect(TRACKER_SOURCE).toContain("setHelpOpen(true)");
+    expect(TRACKER_SOURCE).toContain("RetentionHelpDialog onClose");
+  });
+
+  test("it only shows once the Parents PIN is entered", () => {
+    // Every locked state falls to the Parents lock gate, so no strip shows.
     for (const state of ["checking", "setup", "locked", "failed"]) {
-      const html = settingsHtml(state);
-      expect(html).not.toContain(BUTTON_LABEL);
-      expect(html).not.toContain("retention");
-      // Nothing from the dialog leaks through either.
+      const html = trackerHtml(state);
+      expect(html).not.toContain("1 Re-enrol analysis");
+      expect(html).not.toContain('class="eot-strip"');
       expect(html).not.toContain(RETENTION_HELP_INTRO);
     }
-    // The gate is one early return above everything, so the card cannot be
-    // reached without passing it.
-    const settings = source("../components/SettingsScreen.tsx");
-    const guard = settings.indexOf('if (pinGate.state !== "unlocked")');
+    // The strip sits below the unlock gate's early return.
+    const guard = TRACKER_SOURCE.indexOf("if (!unlocked)");
     expect(guard).toBeGreaterThan(-1);
-    expect(settings.indexOf("RetentionHelpDialog onClose")).toBeGreaterThan(guard);
-    expect(settings.indexOf("settings-help-button")).toBeGreaterThan(guard);
+    expect(TRACKER_SOURCE.indexOf('className="eot-strip"')).toBeGreaterThan(guard);
   });
 
-  test("Tapping the button opens a dialog with the same title", () => {
-    // One constant for both, so they cannot drift apart.
+  test("tapping the button opens a dialog with the same title", () => {
+    // One constant still names the dialog, even though the strip button has
+    // its own short label.
     expect(RETENTION_HELP_TITLE).toBe(BUTTON_LABEL);
-    const settings = source("../components/SettingsScreen.tsx");
-    expect(settings).toContain("onClick={() => setHelpOpen(true)}");
-    expect(settings).toContain(
+    expect(TRACKER_SOURCE).toContain("onClick={() => setHelpOpen(true)}");
+    expect(TRACKER_SOURCE).toContain(
       "{helpOpen ? <RetentionHelpDialog onClose={() => setHelpOpen(false)} /> : null}",
     );
     // And the dialog titles itself with that same constant.

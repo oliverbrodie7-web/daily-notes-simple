@@ -69,6 +69,8 @@ import { RosterViewSwitcher } from "./RosterViewSwitcher";
 import { RosterCopyButton } from "./RosterCopyButton";
 import { RowLogSplit } from "./RowLogSplit";
 import { UndoToast } from "./UndoToast";
+import { ResetPromptDialog } from "./ResetPromptDialog";
+import { RetentionHelpDialog } from "./RetentionHelpDialog";
 import {
   planDismiss,
   runUndo,
@@ -202,6 +204,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // table, and the panel it feeds writes nothing at all.
   const [reengageTemplates, setReengageTemplates] = useState<ReengagementTemplate[]>([]);
   const [reengageId, setReengageId] = useState<string | null>(null);
+  // The two end of term actions in the strip across the top. Each has its
+  // own flag, the same way they did on Settings, so nothing else on the
+  // screen can open or close them.
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+
   // Deliberately not persisted anywhere. The screen unmounts when another
   // view is opened, so a filter never survives leaving and coming back.
   const [filterKey, setFilterKey] = useState<FilterKey | null>(null);
@@ -818,6 +826,25 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       onPointerDownCapture={pinGate.touch}
       onKeyDownCapture={pinGate.touch}
     >
+      {/* The end of term actions, always on and not tied to any date. The
+          two jobs used to live on Settings and open the same dialogs here. */}
+      <div className="eot-strip">
+        <span className="eot-strip-label">End of term</span>
+        <button type="button" className="eot-strip-button" onClick={() => setHelpOpen(true)}>
+          1 Re-enrol analysis
+        </button>
+        <button
+          type="button"
+          className="eot-strip-button eot-strip-button-danger"
+          onClick={() => setResetOpen(true)}
+        >
+          2 Reset term
+        </button>
+      </div>
+
+      {helpOpen ? <RetentionHelpDialog onClose={() => setHelpOpen(false)} /> : null}
+      {resetOpen ? <ResetPromptDialog onClose={() => setResetOpen(false)} /> : null}
+
       {loading ? (
         <p className="tracker-message">Loading the roster</p>
       ) : loadFailed ? (

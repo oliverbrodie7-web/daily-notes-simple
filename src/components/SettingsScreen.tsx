@@ -13,19 +13,7 @@ import {
   tidyNavLabels,
   type NavLabels,
 } from "../lib/navLabels";
-import {
-  RETENTION_HELP_CARD_HEADING,
-  RETENTION_HELP_CARD_SUB,
-  RETENTION_HELP_TITLE,
-} from "../lib/retentionHelp";
-import {
-  RESET_PROMPT_BUTTON_LABEL,
-  RESET_PROMPT_CARD_HEADING,
-  RESET_PROMPT_CARD_SUB,
-} from "../lib/resetPrompt";
 import { LockGate } from "./LockGate";
-import { ResetPromptDialog } from "./ResetPromptDialog";
-import { RetentionHelpDialog } from "./RetentionHelpDialog";
 
 // The daily_notes_settings table holds exactly one row whose id is always 1.
 // This screen only ever reads and updates that row.
@@ -75,13 +63,6 @@ export function SettingsScreen({
 
   // The screen names. Seeded from what the app is currently showing, so the
   // fields open on the names in use.
-  // The re-enrol instructions. Its own flag, so nothing else on the screen
-  // can open or close it.
-  const [helpOpen, setHelpOpen] = useState(false);
-
-  // The next term reset instructions. Its own flag too.
-  const [resetOpen, setResetOpen] = useState(false);
-
   const [draftLabels, setDraftLabels] = useState<NavLabels>(labels);
   const [labelsBusy, setLabelsBusy] = useState(false);
   const [labelsSaved, setLabelsSaved] = useState(false);
@@ -502,33 +483,6 @@ export function SettingsScreen({
           </>
         )}
       </div>
-
-      {/* The analysis itself runs in Claude. This card only explains how,
-          so it has nothing to load and nothing to save. */}
-      <div className="settings-card">
-        <h2 className="section-heading">{RETENTION_HELP_CARD_HEADING}</h2>
-        <p className="settings-sub">{RETENTION_HELP_CARD_SUB}</p>
-        <button type="button" className="settings-help-button" onClick={() => setHelpOpen(true)}>
-          {RETENTION_HELP_TITLE}
-        </button>
-      </div>
-
-      {/* Display and copy only. The red is the app's destructive red, but the
-          button only opens the saved instructions: it deletes nothing. */}
-      <div className="settings-card">
-        <h2 className="section-heading">{RESET_PROMPT_CARD_HEADING}</h2>
-        <p className="settings-sub">{RESET_PROMPT_CARD_SUB}</p>
-        <button
-          type="button"
-          className="primary-button settings-save button-danger reset-prompt-button"
-          onClick={() => setResetOpen(true)}
-        >
-          {RESET_PROMPT_BUTTON_LABEL}
-        </button>
-      </div>
-
-      {helpOpen ? <RetentionHelpDialog onClose={() => setHelpOpen(false)} /> : null}
-      {resetOpen ? <ResetPromptDialog onClose={() => setResetOpen(false)} /> : null}
     </section>
   );
 }

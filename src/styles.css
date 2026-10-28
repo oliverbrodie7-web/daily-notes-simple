@@ -6218,6 +6218,53 @@ button.touch-block:hover {
 .reset-prompt-panel {
   max-width: 560px;
 }
+/* The end of term strip across the top of the Parents screen. Always on,
+   not tied to any date. Spans the width, a small label then the two
+   actions. Colours are tokens, so all three schemes follow. */
+.eot-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+.eot-strip-label {
+  margin-right: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-soft);
+}
+.eot-strip-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.eot-strip-button:hover {
+  border-color: var(--accent-border);
+}
+/* Defined after the base so it wins the shared properties: the app's own
+   destructive red, the same one the reset button carries. */
+.eot-strip-button-danger {
+  border-color: transparent;
+  background: var(--badge-danger-text);
+  color: var(--surface);
+}
+.eot-strip-button-danger:hover {
+  border-color: transparent;
+  opacity: 0.92;
+}
 .reset-prompt-callout {
   /* The prominent instruction: a highlighted box in the app's own accent,
      with bold text a touch larger than the body. Text is on the high

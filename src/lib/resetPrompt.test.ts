@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ResetPromptBody, ResetPromptDialog } from "../components/ResetPromptDialog";
 import { SettingsScreen } from "../components/SettingsScreen";
+import { TrackerScreen } from "../components/TrackerScreen";
 import { DEFAULT_NAV_LABELS } from "./navLabels";
 import {
   copyResetPrompt,
@@ -31,6 +32,7 @@ const DIALOG_SOURCE = source("../components/ResetPromptDialog.tsx");
 const PICKER_SOURCE = source("../components/MatchStudentPanel.tsx");
 const LIB_SOURCE = source("./resetPrompt.ts");
 const SETTINGS_SOURCE = source("../components/SettingsScreen.tsx");
+const TRACKER_SOURCE = source("../components/TrackerScreen.tsx");
 
 function bodyHtml(state: Parameters<typeof ResetPromptBody>[0]["state"], copied = false): string {
   return renderToStaticMarkup(createElement(ResetPromptBody, { state, copied, onCopy: () => {} }));
@@ -62,6 +64,23 @@ function settingsHtml(state: string): string {
       onLabelsChange: () => {},
     } as never),
   );
+}
+
+// The Parents screen, where the end of term strip now lives. Rendered to a
+// string, so no effect and no network fires; students stays null, so only
+// the strip and the loading line render, which is all this needs to see.
+function trackerHtml(state: string): string {
+  const gate = {
+    state,
+    storedHash: "hash",
+    locked: state !== "unlocked",
+    touch: () => {},
+    lockNow: () => {},
+    verify: async () => true,
+    saveNewPin: async () => true,
+    notePinChanged: () => {},
+  };
+  return renderToStaticMarkup(createElement(TrackerScreen, { pinGate: gate } as never));
 }
 
 describe("deciding what to show", () => {
@@ -292,56 +311,66 @@ describe("the dialog", () => {
   });
 });
 
-describe("the red button on Settings", () => {
-  test("it shows after the PIN is entered, labelled exactly", () => {
-    const html = settingsHtml("unlocked");
-    expect(html).toContain(RESET_PROMPT_BUTTON_LABEL);
-    expect(RESET_PROMPT_BUTTON_LABEL).toBe(
-      "Delete and clear all parents in preparation for the next term",
-    );
-    // A real button carrying the destructive red and the full width class.
-    const at = html.indexOf(RESET_PROMPT_BUTTON_LABEL);
+describe("the red button on the Parents strip", () => {
+  test("the Parents dashboard shows a red 2 Reset term button when unlocked", () => {
+    const html = trackerHtml("unlocked");
+    expect(html).toContain("2 Reset term");
+    // A real button carrying the destructive red variant.
+    const at = html.indexOf("2 Reset term");
     const openTag = html.lastIndexOf("<button", at);
     const tag = html.slice(openTag, at);
-    expect(tag).toContain("button-danger");
-    expect(tag).toContain("settings-save");
+    expect(tag).toContain("eot-strip-button-danger");
     expect(tag).toContain('type="button"');
-    // In its own card, the last one on the screen.
-    const cards = html.split('class="settings-card"').length - 1;
-    expect(cards).toBe(5);
-    expect(at).toBeGreaterThan(html.lastIndexOf('class="settings-card"'));
+    // It is the second action in the strip, after Re-enrol analysis.
+    const strip = html.indexOf('class="eot-strip"');
+    const reenrol = html.indexOf("1 Re-enrol analysis");
+    expect(strip).toBeGreaterThan(-1);
+    expect(reenrol).toBeGreaterThan(strip);
+    expect(at).toBeGreaterThan(reenrol);
   });
 
-  test("it does not show before the PIN is entered", () => {
+  test("the two cards are gone from Settings", () => {
+    const settings = settingsHtml("unlocked");
+    expect(settings).not.toContain(RESET_PROMPT_BUTTON_LABEL);
+    expect(settings).not.toContain("2 Reset term");
+    expect(settings).not.toContain("reset-prompt-button");
+    expect(settings).not.toContain("button-danger");
+    // The wiring left Settings and now lives on the tracker.
+    expect(SETTINGS_SOURCE).not.toContain("setResetOpen");
+    expect(SETTINGS_SOURCE).not.toContain("ResetPromptDialog");
+    expect(TRACKER_SOURCE).toContain("setResetOpen(true)");
+    expect(TRACKER_SOURCE).toContain("ResetPromptDialog onClose");
+  });
+
+  test("it only shows once the Parents PIN is entered", () => {
+    // Every locked state falls to the Parents lock gate, so no strip shows.
     for (const state of ["checking", "setup", "locked", "failed"]) {
-      const html = settingsHtml(state);
-      expect(html).not.toContain(RESET_PROMPT_BUTTON_LABEL);
-      expect(html).not.toContain("button-danger");
+      const html = trackerHtml(state);
+      expect(html).not.toContain("2 Reset term");
+      expect(html).not.toContain('class="eot-strip"');
     }
-    // The card sits below the one gate that returns early, so it cannot be
-    // reached without passing it.
-    const guard = SETTINGS_SOURCE.indexOf('if (pinGate.state !== "unlocked")');
+    // The strip sits below the unlock gate's early return.
+    const guard = TRACKER_SOURCE.indexOf("if (!unlocked)");
     expect(guard).toBeGreaterThan(-1);
-    expect(SETTINGS_SOURCE.indexOf("ResetPromptDialog onClose")).toBeGreaterThan(guard);
-    // The button's own click handler, which exists only in the rendered JSX
-    // below the guard, not in the imports at the top.
-    expect(SETTINGS_SOURCE.indexOf("setResetOpen(true)")).toBeGreaterThan(guard);
+    expect(TRACKER_SOURCE.indexOf('className="eot-strip"')).toBeGreaterThan(guard);
   });
 
   test("the button opens the dialog through its own flag", () => {
-    expect(SETTINGS_SOURCE).toContain("onClick={() => setResetOpen(true)}");
-    expect(SETTINGS_SOURCE).toContain(
+    expect(TRACKER_SOURCE).toContain("onClick={() => setResetOpen(true)}");
+    expect(TRACKER_SOURCE).toContain(
       "{resetOpen ? <ResetPromptDialog onClose={() => setResetOpen(false)} /> : null}",
     );
     // Its own flag, separate from the re-enrol help flag beside it.
-    expect(SETTINGS_SOURCE).toContain("const [resetOpen, setResetOpen] = useState(false)");
-    expect(SETTINGS_SOURCE).toContain("const [helpOpen, setHelpOpen] = useState(false)");
+    expect(TRACKER_SOURCE).toContain("const [resetOpen, setResetOpen] = useState(false)");
+    expect(TRACKER_SOURCE).toContain("const [helpOpen, setHelpOpen] = useState(false)");
   });
 
   test("the red is the destructive red the app already uses, not a new colour", () => {
-    // button-danger is the existing class, used by the tracker's own
-    // destructive confirmations.
+    // The strip's red variant draws on the same danger token button-danger
+    // uses, which is the tracker's own destructive confirmations.
     expect(source("../styles.css")).toContain(".button-danger {");
+    expect(source("../styles.css")).toContain(".eot-strip-button-danger {");
+    expect(source("../styles.css")).toContain("background: var(--badge-danger-text)");
     expect(source("../components/MismatchPanel.tsx")).toContain("button-danger");
     // No hex anywhere in the new code: colour comes only from tokens.
     for (const file of [DIALOG_SOURCE, LIB_SOURCE]) {
