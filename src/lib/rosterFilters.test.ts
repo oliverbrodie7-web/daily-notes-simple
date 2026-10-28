@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
+  ALL_FILTERS,
+  COVERAGE_FILTERS,
   ROSTER_FILTERS,
   applyFilter,
   countFor,
@@ -20,6 +22,7 @@ function row(name: string, over: Partial<FilterableRow> = {}): Row {
     focus: false,
     touchPoints: 0,
     goneQuiet: false,
+    coverage: "red",
     ...over,
   };
 }
@@ -184,6 +187,44 @@ describe("the tile vocabulary", () => {
     expect(findFilter("focus")?.tile).toBe("Focus this week");
     expect(findFilter(null)).toBeNull();
     expect(findFilter("not a tile" as FilterKey)).toBeNull();
+  });
+});
+
+describe("the coverage groups filter the list too", () => {
+  const rows = [
+    row("green one", { coverage: "green" }),
+    row("green two", { coverage: "green" }),
+    row("teal one", { coverage: "teal" }),
+    row("red one", { coverage: "red" }),
+    row("red two", { coverage: "red" }),
+  ];
+
+  it("each coverage filter returns exactly the students in its group", () => {
+    expect(names(applyFilter("green", rows))).toEqual(["green one", "green two"]);
+    expect(names(applyFilter("teal", rows))).toEqual(["teal one"]);
+    expect(names(applyFilter("red", rows))).toEqual(["red one", "red two"]);
+  });
+
+  it("the three groups partition the roster, so their counts sum to it", () => {
+    const keys: FilterKey[] = ["green", "teal", "red"];
+    const sum = keys.reduce((n, key) => n + applyFilter(key, rows).length, 0);
+    expect(sum).toBe(rows.length);
+  });
+
+  it("findFilter resolves the coverage keys, and ALL_FILTERS carries all nine", () => {
+    expect(findFilter("green")?.tile).toBe("Has a P2");
+    expect(findFilter("teal")?.tile).toBe("Touch point sent");
+    expect(findFilter("red")?.tile).toBe("Needs a touch point");
+    expect(COVERAGE_FILTERS.map((filter) => filter.key)).toEqual(["green", "teal", "red"]);
+    expect(ALL_FILTERS).toHaveLength(9);
+    // The six P2 filters are untouched and still first.
+    expect(ROSTER_FILTERS).toHaveLength(6);
+  });
+
+  it("red takes the warning tint, the two reached groups the accent", () => {
+    expect(findFilter("red")?.tone).toBe("warning");
+    expect(findFilter("green")?.tone).toBe("accent");
+    expect(findFilter("teal")?.tone).toBe("accent");
   });
 });
 

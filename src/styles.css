@@ -5266,6 +5266,140 @@ button.touch-block:hover {
 }
 
 /* The P2 progress bar sits with the stat strip as a one line summary. */
+/* The coverage meter, in place of the six tiles. One headline, one stacked
+   bar, one legend. Green, teal and red are the app's own tokens, so the
+   three schemes follow and dark carries no purple or yellow. */
+.coverage-meter {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.coverage-headline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.coverage-headline-number {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--badge-danger-text);
+  font-variant-numeric: tabular-nums;
+}
+.coverage-headline-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.coverage-headline-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+.coverage-caption {
+  font-size: 12.5px;
+  color: var(--text-soft);
+}
+.coverage-bar {
+  display: flex;
+  gap: 3px;
+  margin-top: 14px;
+  height: 34px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--badge-neutral-bg);
+}
+.coverage-seg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 0 8px;
+  border: none;
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.coverage-seg:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+.coverage-seg:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.coverage-seg-green {
+  background: var(--good);
+}
+.coverage-seg-teal {
+  background: var(--badge-calm-text);
+}
+.coverage-seg-red {
+  background: var(--badge-danger-text);
+}
+.coverage-seg.is-active {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.coverage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.coverage-legend-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 13px;
+}
+.coverage-legend-item:hover {
+  border-color: var(--accent-border);
+}
+.coverage-legend-item.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.coverage-dot {
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: none;
+}
+.coverage-legend-green .coverage-dot {
+  background: var(--good);
+}
+.coverage-legend-teal .coverage-dot {
+  background: var(--badge-calm-text);
+}
+.coverage-legend-red .coverage-dot {
+  background: var(--badge-danger-text);
+}
+.coverage-legend-label {
+  font-weight: 700;
+}
+.coverage-legend-note {
+  color: var(--text-soft);
+}
+.coverage-legend-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+
 .p2-progress {
   margin-top: 10px;
   padding: 10px 14px;

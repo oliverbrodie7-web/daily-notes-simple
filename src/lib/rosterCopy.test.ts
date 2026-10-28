@@ -13,6 +13,7 @@ import {
   type CopyStudent,
 } from "./rosterCopy";
 import { applyFilter } from "./rosterFilters";
+import type { CoverageGroup } from "./coverage";
 import { sortRoster } from "./rosterSort";
 
 function student(over: Partial<CopyStudent> & { student_name: string }): CopyStudent {
@@ -201,6 +202,7 @@ describe("what is on screen is what is copied", () => {
     focus: boolean;
     touchPoints: number;
     goneQuiet: boolean;
+    coverage: CoverageGroup;
     status: string;
     lastContacted: string | null;
     engagement: number;
@@ -214,6 +216,7 @@ describe("what is on screen is what is copied", () => {
       focus: false,
       touchPoints: 1,
       goneQuiet: false,
+      coverage: "red",
       status: "none",
       lastContacted: null,
       engagement: 0,

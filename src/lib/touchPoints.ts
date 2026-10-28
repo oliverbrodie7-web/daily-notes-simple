@@ -214,6 +214,14 @@ export function matchTouchPoints<T extends MatchableStudent>(
   return summaries;
 }
 
+// The shared touch point count: the drafted, resolved daily_notes count plus
+// one when the student has any quick email this term. One function, used by
+// both the table's Touch points column and the coverage meter, so the two
+// can never disagree.
+export function touchPointTotal(baseCount: number, hasQuickEmail: boolean): number {
+  return baseCount + (hasQuickEmail ? 1 : 0);
+}
+
 // How a count of OTHER touch points reads in a sentence. The line this goes
 // on sits under a note written today, so a number that included today would
 // read as though the student had been contacted before when they had not.

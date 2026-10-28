@@ -26,13 +26,19 @@ import {
 } from "../lib/terms";
 import type { CalendlyMismatch } from "../lib/mismatch";
 import {
-  ROSTER_FILTERS,
+  ALL_FILTERS,
   applyFilter,
   findFilter,
-  tileCount,
   toggleFilter,
   type FilterKey,
 } from "../lib/rosterFilters";
+import {
+  coverageGroup,
+  coverageSignalsByStudent,
+  NO_COVERAGE_SIGNALS,
+  type CoverageCounts,
+  type CoverageGroup,
+} from "../lib/coverage";
 import {
   DEFAULT_SORT_DIRECTION,
   DEFAULT_SORT_KEY,
@@ -52,7 +58,12 @@ import {
   type ParentEmail,
 } from "../lib/engagement";
 import { normaliseParentName } from "../lib/focus";
-import { latestTidiedText, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
+import {
+  latestTidiedText,
+  matchTouchPoints,
+  touchPointTotal,
+  type TouchPointNote,
+} from "../lib/touchPoints";
 import { TEMPLATE_COLUMNS, type ReengagementTemplate } from "../lib/reengagement";
 import { touchDisplay } from "../lib/touchDots";
 import { supabase } from "../lib/supabase";
@@ -71,6 +82,7 @@ import { RowLogSplit } from "./RowLogSplit";
 import { UndoToast } from "./UndoToast";
 import { ResetPromptDialog } from "./ResetPromptDialog";
 import { RetentionHelpDialog } from "./RetentionHelpDialog";
+import { CoverageMeter } from "./CoverageMeter";
 import {
   planDismiss,
   runUndo,
@@ -197,6 +209,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
   const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
   const [parentEmails, setParentEmails] = useState<ParentEmail[]>([]);
+  // Student ids with any quick email this term. Read only, the same term
+  // window as the touch point notes, and folded into the one shared touch
+  // point count so the table column and the meter agree.
+  const [quickEmailIds, setQuickEmailIds] = useState<Set<string>>(new Set());
   const [mismatches, setMismatches] = useState<CalendlyMismatch[]>([]);
   const [mismatchOpen, setMismatchOpen] = useState(false);
   const [engageId, setEngageId] = useState<string | null>(null);
@@ -389,6 +405,22 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     if (!liveRef.current) return;
     setParentEmails((emailsRes.data ?? []) as ParentEmail[]);
 
+    // Quick emails this term, grouped down to the set of student ids that
+    // have one. Read only, and not part of the fatal check: a failure just
+    // leaves the touch point counts resting on the notes alone.
+    const quickRes = await supabase
+      .from("quick_emails")
+      .select("student_id")
+      .gte("created_at", windowStart);
+    if (!liveRef.current) return;
+    const quickIds = new Set<string>();
+    for (const row of (quickRes.data ?? []) as { student_id: number | string | null }[]) {
+      if (row.student_id !== null && row.student_id !== undefined) {
+        quickIds.add(String(row.student_id));
+      }
+    }
+    setQuickEmailIds(quickIds);
+
     // Never fatal: without them the menu item simply has nothing to offer.
     const templatesRes = await supabase
       .from("reengagement_templates")
@@ -455,7 +487,19 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const warning = useMemo<TermWarning>(() => termWarning(terms, today), [terms, today]);
   const lastEnd = useMemo(() => lastTermEnd(terms), [terms]);
 
+  // The same window loadRoster scoped the term reads to: the active term's
+  // start, or a rolling fallback when no term is set. Coverage reads the one
+  // contact_log it already has against this boundary.
+  const windowStart = useMemo(() => term?.term_start_date ?? fallbackWindowStart(), [term]);
+
   const latestByStudent = useMemo(() => latestStatusEntryPerStudent(logs), [logs]);
+
+  // The two coverage signals per student, from the whole contact_log scoped
+  // to the term in one pass.
+  const coverageByStudent = useMemo(
+    () => coverageSignalsByStudent(logs, windowStart),
+    [logs, windowStart],
+  );
 
   const touchPointsByStudent = useMemo(
     () => matchTouchPoints(touchNotes, students ?? []),
@@ -490,9 +534,17 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       const done = isP2Done(status);
       const overdue = deadlinePassed && !done;
       const focus = !done && focusNames.has(normaliseParentName(student.parent_name));
-      // The same matching and the same draft_created rule the row badge
-      // uses, read from the one map rather than recomputed.
-      const touchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
+      // The one shared touch point count: the drafted notes count plus one
+      // for a quick email this term. The table column reads this same value,
+      // so the column and the meter cannot disagree.
+      const baseTouchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
+      const touchPoints = touchPointTotal(baseTouchPoints, quickEmailIds.has(String(student.id)));
+      // The one coverage group for the term, from the contact_log signals and
+      // that shared count.
+      const coverage = coverageGroup(
+        coverageByStudent.get(String(student.id)) ?? NO_COVERAGE_SIGNALS,
+        touchPoints,
+      );
       // The same entry the row's last contact line shows.
       const lastEntry = latestByStudent.get(String(student.id));
       const lastContacted = lastEntry?.date_contacted ?? null;
@@ -509,6 +561,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         overdue,
         focus,
         touchPoints,
+        coverage,
         lastContacted,
         lastContact,
         engagement: engagement.score,
@@ -523,6 +576,8 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     deadlinePassed,
     focusNames,
     touchPointsByStudent,
+    quickEmailIds,
+    coverageByStudent,
     engagementByParent,
     countingYet,
   ]);
@@ -545,11 +600,12 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     );
   }, [sorted, searchQuery, filterKey]);
 
-  // Every tile number comes from the filter that tile turns on, so the
-  // number and the list it produces are the same calculation.
+  // Every count comes from the filter it turns on, so a number and the list
+  // it produces are the same calculation. One tally over the P2 filters and
+  // the coverage groups alike.
   const counts = useMemo(() => {
     const tally = {} as Record<FilterKey, number>;
-    for (const filter of ROSTER_FILTERS) {
+    for (const filter of ALL_FILTERS) {
       tally[filter.key] = applyFilter(filter.key, decorated).length;
     }
     return tally;
@@ -566,7 +622,22 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     };
   }, [decorated, counts]);
 
+  // The meter's three numbers, from the same tally. They sum to the roster
+  // because every student is in exactly one group.
+  const coverage = useMemo<CoverageCounts>(
+    () => ({
+      green: counts.green,
+      teal: counts.teal,
+      red: counts.red,
+      total: decorated.length,
+    }),
+    [counts, decorated],
+  );
+
   const activeFilter = findFilter(filterKey);
+  // The coverage group the list is filtered to, if the active filter is one.
+  const activeCoverage: CoverageGroup | null =
+    filterKey === "green" || filterKey === "teal" || filterKey === "red" ? filterKey : null;
   const engageRow = engageId
     ? decorated.find((row) => String(row.student.id) === engageId)
     : undefined;
@@ -808,18 +879,6 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     "no active term set"
   );
 
-  // The colour of a tile's number. Only the wording and the counting rule
-  // live in the filter module; how a number is coloured is presentation.
-  function valueClass(key: FilterKey, value: number): string {
-    if (key === "complete") return "stat-success";
-    if (key === "outstanding") return "stat-plain";
-    if (key === "overdue") return value > 0 ? "stat-danger" : "stat-faint";
-    if (key === "focus") return value > 0 ? "stat-highlight" : "stat-faint";
-    // No touch point and Gone quiet are both jobs to do rather than good
-    // news, so they take the warning colour.
-    return value > 0 ? "stat-warning" : "stat-faint";
-  }
-
   return (
     <section
       className="tracker-screen"
@@ -887,29 +946,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
             </div>
           ) : null}
 
-          <ul className="stats-hero">
-            {ROSTER_FILTERS.map((filter) => {
-              const active = filterKey === filter.key;
-              const value = counts[filter.key];
-              return (
-                <li key={filter.key} className="stat-cell">
-                  <button
-                    type="button"
-                    className={`stat-tile stat-tile-button${
-                      active ? ` is-active is-${filter.tone}` : ""
-                    }`}
-                    aria-pressed={active}
-                    onClick={() => setFilterKey((current) => toggleFilter(current, filter.key))}
-                  >
-                    <span className="stat-label">{filter.tile}</span>
-                    <span className={`stat-value ${valueClass(filter.key, value)}`}>
-                      {tileCount(value)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <CoverageMeter
+            counts={coverage}
+            activeGroup={activeCoverage}
+            onSelect={(group) => setFilterKey((current) => toggleFilter(current, group))}
+          />
 
           <div className="p2-progress">
             <div className="p2-progress-head">
@@ -1206,7 +1247,16 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                   </div>
                   <ul className="roster-body">
                     {filtered.map(
-                      ({ student, status, done, overdue, focus, emails, lastContact }) => {
+                      ({
+                        student,
+                        status,
+                        done,
+                        overdue,
+                        focus,
+                        emails,
+                        lastContact,
+                        touchPoints,
+                      }) => {
                         const statusLabel = STATUS_LABELS[status];
                         const openKind =
                           panel && panel.studentId === String(student.id) ? panel.kind : null;
@@ -1215,7 +1265,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                             ? logs.filter((log) => String(log.student_id) === String(student.id))
                             : [];
                         const touch = touchPointsByStudent.get(String(student.id));
-                        const touchCount = touch?.count ?? 0;
+                        // The one shared count, including a quick email, so
+                        // the column matches the meter. The summary is kept
+                        // only for its latest date below.
+                        const touchCount = touchPoints;
                         // Replies come from the parent, touch points from the
                         // student, and nothing joins one to the other, so the
                         // cell counts rather than pairs.

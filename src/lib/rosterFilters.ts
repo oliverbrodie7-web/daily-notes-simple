@@ -7,6 +7,8 @@
 // reads the flags that were already worked out for the row badges, so the
 // tiles can never disagree with the rows either.
 
+import type { CoverageGroup } from "./coverage";
+
 export type FilterableRow = {
   done: boolean;
   overdue: boolean;
@@ -14,9 +16,20 @@ export type FilterableRow = {
   touchPoints: number;
   // Silent for three weeks or more, having emailed at least once this term.
   goneQuiet: boolean;
+  // The one coverage group this student is in for the term.
+  coverage: CoverageGroup;
 };
 
-export type FilterKey = "complete" | "outstanding" | "overdue" | "focus" | "no-touch" | "quiet";
+export type FilterKey =
+  | "complete"
+  | "outstanding"
+  | "overdue"
+  | "focus"
+  | "no-touch"
+  | "quiet"
+  | "green"
+  | "teal"
+  | "red";
 
 // Which soft tint the tile and the filter bar take when it is active.
 export type FilterTone = "accent" | "warning";
@@ -85,9 +98,42 @@ export const ROSTER_FILTERS: readonly RosterFilter[] = [
   },
 ];
 
+// The coverage meter's three groups, which filter the list the same way a
+// tile does. Kept apart from ROSTER_FILTERS, which still feeds the P2 bar, so
+// each list stays its own thing; findFilter and the counts read both.
+export const COVERAGE_FILTERS: readonly RosterFilter[] = [
+  {
+    key: "green",
+    tile: "Has a P2",
+    showing: "Showing families with a booked P2",
+    empty: "Nothing to show. No family has booked a P2 this term.",
+    tone: "accent",
+    matches: (row) => row.coverage === "green",
+  },
+  {
+    key: "teal",
+    tile: "Touch point sent",
+    showing: "Showing families you have reached this term",
+    empty: "Nothing to show. No family has had a touch point yet.",
+    tone: "accent",
+    matches: (row) => row.coverage === "teal",
+  },
+  {
+    key: "red",
+    tile: "Needs a touch point",
+    showing: "Showing families who still need a touch point",
+    empty: "Nothing to show. Every family has had a touch point this term.",
+    tone: "warning",
+    matches: (row) => row.coverage === "red",
+  },
+];
+
+// Every filter the screen can turn on: the P2 tiles and the coverage groups.
+export const ALL_FILTERS: readonly RosterFilter[] = [...ROSTER_FILTERS, ...COVERAGE_FILTERS];
+
 export function findFilter(key: FilterKey | null): RosterFilter | null {
   if (!key) return null;
-  return ROSTER_FILTERS.find((filter) => filter.key === key) ?? null;
+  return ALL_FILTERS.find((filter) => filter.key === key) ?? null;
 }
 
 // The one calculation behind both a tile's number and its filtered list.

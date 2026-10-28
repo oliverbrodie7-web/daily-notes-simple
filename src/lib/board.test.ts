@@ -17,7 +17,10 @@ import type { ContactStatus } from "./p2";
 // A roster wide enough that every column has people in it, that some
 // columns run past the first page, and that at least one filter empties a
 // column completely.
+import type { CoverageGroup } from "./coverage";
+
 type Row = BoardRow & {
+  coverage: CoverageGroup;
   student: { id: number; student_name: string; parent_name: string | null };
   focus: boolean;
   touchPoints: number;
@@ -45,6 +48,7 @@ function row(id: number, over: Partial<Row> = {}): Row {
     focus: false,
     touchPoints: 0,
     goneQuiet: false,
+    coverage: "red",
     lastContacted: null,
     engagement: 0,
     ...over,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { applyFilter, countFor, toggleFilter, type FilterKey } from "./rosterFilters";
+import type { CoverageGroup } from "./coverage";
 import {
   DEFAULT_SORT_DIRECTION,
   DEFAULT_SORT_KEY,
@@ -16,7 +17,12 @@ import {
   type SortableRow,
 } from "./rosterSort";
 
-type Row = SortableRow & { student: { student_name: string }; focus: boolean };
+type Row = SortableRow & {
+  student: { student_name: string };
+  focus: boolean;
+  goneQuiet: boolean;
+  coverage: CoverageGroup;
+};
 
 function row(name: string, over: Partial<Omit<Row, "student">> = {}): Row {
   return {
@@ -25,6 +31,8 @@ function row(name: string, over: Partial<Omit<Row, "student">> = {}): Row {
     done: false,
     overdue: false,
     focus: false,
+    goneQuiet: false,
+    coverage: "red",
     touchPoints: 0,
     lastContacted: null,
     engagement: 0,
