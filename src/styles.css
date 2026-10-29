@@ -6667,8 +6667,13 @@ button.touch-block:hover {
 /* The quick email panel. Built on the student picker's modal, so the overlay
    and panel come from there; these rules carry the skill control, the layer
    options and the preview. Tokens only, so the three schemes follow. */
+/* Wider than the other modals: the layered builder has full sentence options
+   and a preview, so on desktop it takes more width to keep them uncramped. On
+   a narrow screen width stays at 100%, so the overlay's 16px padding is the
+   only gutter and nothing scrolls sideways. The vertical scroll on
+   .match-panel is untouched. */
 .quick-email-panel {
-  max-width: 560px;
+  max-width: 760px;
 }
 .quick-email-field-label {
   margin-top: 14px;
