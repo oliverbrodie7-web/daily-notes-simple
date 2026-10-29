@@ -3522,7 +3522,7 @@ svg {
      the squares needs 249px on one line. It was 178px when the control was
      a single Log button, and there is only room for the wider one from
      1200px up. Below that the cell wraps: see the 1199px block. */
-  --roster-cols: minmax(0, 1fr) 150px 148px 128px 249px;
+  --roster-cols: minmax(0, 1fr) 150px 148px 128px 350px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -4870,6 +4870,14 @@ button.touch-block:hover {
 .row-square-button:hover {
   color: var(--accent);
   border-color: var(--accent-border);
+}
+
+/* The draft email action is the active one of the row's two leading icons,
+   so it wears the accent at rest, while the SMS placeholder stays neutral. */
+.row-square-button.is-accent {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .row-menu-wrap {
@@ -6285,7 +6293,8 @@ button.touch-block:hover {
 
   .col-actions {
     grid-area: actions;
-    justify-content: stretch;
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .row-log-button {
@@ -6295,6 +6304,14 @@ button.touch-block:hover {
   .row-log-split {
     flex: 1;
     min-width: 0;
+  }
+
+  /* The split fills the top line of the actions cell and the four square
+     buttons group on the line beneath it, so nothing is forced off the edge
+     on a narrow phone. */
+  .col-actions .row-log-split {
+    flex: 1 0 100%;
+    order: -1;
   }
 
   .row-log-main {
@@ -6328,7 +6345,9 @@ button.touch-block:hover {
    to spend here, and it is spent only in this band. */
 @media (min-width: 900px) and (max-width: 1199px) {
   .roster-table {
-    --roster-cols: minmax(0, 1fr) 150px 148px 128px 155px;
+    /* Wide enough for the four square buttons to share one line under the
+       full width split, so the menu button is not left on a line of its own. */
+    --roster-cols: minmax(0, 1fr) 150px 148px 128px 200px;
   }
 
   .col-actions {
@@ -6339,6 +6358,12 @@ button.touch-block:hover {
 
   .row-log-split {
     flex: 1 0 100%;
+  }
+
+  /* The split takes the top line of the actions cell, so the four square
+     buttons group together on the line below rather than being split by it. */
+  .col-actions .row-log-split {
+    order: -1;
   }
 
   .row-log-main {

@@ -1435,6 +1435,24 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                             </div>
 
                             <div className="col-actions">
+                              <button
+                                type="button"
+                                className="row-square-button is-accent"
+                                aria-label={`Draft email for ${student.student_name}`}
+                                title="Draft email"
+                                onClick={() => setDraftStudentId(String(student.id))}
+                              >
+                                <MailIcon />
+                              </button>
+                              <button
+                                type="button"
+                                className="row-square-button"
+                                aria-label={`Send an SMS to ${student.student_name}`}
+                                title="Send SMS"
+                                onClick={() => showExportMessage("SMS sending is coming soon")}
+                              >
+                                <MessageIcon />
+                              </button>
                               <RowLogSplit
                                 studentName={student.student_name}
                                 blocked={lowRiskBlocked(status)}
@@ -1476,18 +1494,6 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                                     aria-label={`More actions for ${student.student_name}`}
                                   >
                                     <div className="action-menu-group">
-                                      <button
-                                        type="button"
-                                        role="menuitem"
-                                        className="action-menu-item"
-                                        onClick={() => {
-                                          setRowMenuId(null);
-                                          setDraftStudentId(String(student.id));
-                                        }}
-                                      >
-                                        Draft email
-                                        <MailIcon className="action-menu-icon" />
-                                      </button>
                                       <button
                                         type="button"
                                         role="menuitem"
