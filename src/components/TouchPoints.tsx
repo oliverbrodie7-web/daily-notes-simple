@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { formatSydneyFullDate } from "../lib/dates";
+import { quickEmailLine, type QuickEmailEntry } from "../lib/quickEmail";
 import type { TouchPointSummary } from "../lib/touchPoints";
 
 // A student's touch points for the term, in one place.
@@ -12,9 +13,13 @@ import type { TouchPointSummary } from "../lib/touchPoints";
 type TouchPointsBodyProps = {
   studentName: string;
   touch: TouchPointSummary;
+  // Quick emails scheduled for the student this term. Shown as their own
+  // lines so a student whose only touch point is a quick email is no longer
+  // a count over an empty panel. The Today screen passes none.
+  quickEmails?: QuickEmailEntry[];
 };
 
-export function TouchPointsBody({ studentName, touch }: TouchPointsBodyProps) {
+export function TouchPointsBody({ studentName, touch, quickEmails = [] }: TouchPointsBodyProps) {
   return (
     <>
       <p className="roster-panel-title">Touch points for {studentName}</p>
@@ -31,6 +36,18 @@ export function TouchPointsBody({ studentName, touch }: TouchPointsBodyProps) {
                 {entry.addedBy ? `, ${entry.addedBy}` : ""}
               </p>
               <p className="history-when">{entry.text}</p>
+            </div>
+          </li>
+        ))}
+        {quickEmails.map((entry, index) => (
+          <li key={`quick-${entry.date}-${index}`} className="history-entry">
+            <div className="history-details">
+              <p className="history-line">
+                {quickEmailLine(
+                  entry.topics,
+                  entry.date ? formatSydneyFullDate(entry.date) : "No date",
+                )}
+              </p>
             </div>
           </li>
         ))}

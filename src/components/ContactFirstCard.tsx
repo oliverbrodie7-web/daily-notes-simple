@@ -8,17 +8,18 @@ import {
 // The card under the coverage meter. No hooks of its own, so each state can
 // be rendered and read on its own. It shows only while there is at least one
 // family to contact; when there is none it shows the all caught up line
-// instead. The Log action is the screen's existing one, handed down.
+// instead. Draft email opens the quick email panel, so the card is self
+// contained.
 
 type ContactFirstCardProps = {
   families: ContactFirstFamily[];
   // Every family that needs a touch point, for the footer count.
   redTotal: number;
-  onLog: (id: string) => void;
+  onDraft: (id: string) => void;
   onSeeAll: () => void;
 };
 
-export function ContactFirstCard({ families, redTotal, onLog, onSeeAll }: ContactFirstCardProps) {
+export function ContactFirstCard({ families, redTotal, onDraft, onSeeAll }: ContactFirstCardProps) {
   if (families.length === 0) {
     return (
       <div className="contact-first contact-first-clear" role="status">
@@ -47,10 +48,10 @@ export function ContactFirstCard({ families, redTotal, onLog, onSeeAll }: Contac
             </div>
             <button
               type="button"
-              className="row-button contact-first-log"
-              onClick={() => onLog(family.id)}
+              className="row-button contact-first-draft"
+              onClick={() => onDraft(family.id)}
             >
-              Log contact
+              Draft email
             </button>
           </li>
         ))}

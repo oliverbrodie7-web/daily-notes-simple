@@ -6549,3 +6549,72 @@ button.touch-block:hover {
 .reset-prompt-copy {
   margin-top: 10px;
 }
+
+/* The quick email panel. Built on the student picker's modal, so the overlay
+   and panel come from there; these rules carry the chips, the toggle and the
+   preview. Tokens only, so the three schemes follow. */
+.quick-email-panel {
+  max-width: 560px;
+}
+.quick-email-field-label {
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.quick-email-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.quick-email-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.quick-email-chip:hover {
+  border-color: var(--accent-border);
+}
+.quick-email-chip.is-on {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.quick-email-custom {
+  margin-top: 6px;
+}
+.quick-email-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+.quick-email-toggle input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.quick-email-body {
+  margin-top: 6px;
+  min-height: 170px;
+}
+.quick-email-actions {
+  flex-wrap: wrap;
+}
+.quick-email-schedule {
+  flex: 1 1 auto;
+}
+/* The contact first card's draft button sits where the log button did. */
+.contact-first-draft {
+  flex: none;
+}

@@ -86,6 +86,12 @@ import { RetentionHelpDialog } from "./RetentionHelpDialog";
 import { CoverageMeter } from "./CoverageMeter";
 import { ContactFirstCard } from "./ContactFirstCard";
 import { contactFirstFamilies } from "../lib/contactFirst";
+import { QuickEmailPanel } from "./QuickEmailPanel";
+import {
+  DEFAULT_QUICK_EMAIL_TOPICS,
+  readQuickEmailTopics,
+  type QuickEmailEntry,
+} from "../lib/quickEmail";
 import {
   planDismiss,
   runUndo,
@@ -212,10 +218,19 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [focusNames, setFocusNames] = useState<Set<string>>(new Set());
   const [touchNotes, setTouchNotes] = useState<TouchPointNote[]>([]);
   const [parentEmails, setParentEmails] = useState<ParentEmail[]>([]);
-  // Student ids with any quick email this term. Read only, the same term
-  // window as the touch point notes, and folded into the one shared touch
-  // point count so the table column and the meter agree.
-  const [quickEmailIds, setQuickEmailIds] = useState<Set<string>>(new Set());
+  // Quick emails this term, per student. Read only, the same term window as
+  // the touch point notes, and folded into the one shared touch point count
+  // so the table column and the meter agree. Also listed in the touch point
+  // panel so a quick email is never a count over an empty panel.
+  const [quickEmailsByStudent, setQuickEmailsByStudent] = useState<Map<string, QuickEmailEntry[]>>(
+    new Map(),
+  );
+  // The topic chips the quick email panel offers. Falls back to the defaults
+  // until the settings read lands.
+  const [quickTopics, setQuickTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
+  // Which student's quick email panel is open, if any. Its own flag, set
+  // from a table row and from the contact first card alike.
+  const [draftStudentId, setDraftStudentId] = useState<string | null>(null);
   const [mismatches, setMismatches] = useState<CalendlyMismatch[]>([]);
   const [mismatchOpen, setMismatchOpen] = useState(false);
   const [engageId, setEngageId] = useState<string | null>(null);
@@ -413,16 +428,24 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     // leaves the touch point counts resting on the notes alone.
     const quickRes = await supabase
       .from("quick_emails")
-      .select("student_id")
-      .gte("created_at", windowStart);
+      .select("student_id, topics, created_at")
+      .gte("created_at", windowStart)
+      .order("created_at", { ascending: false });
     if (!liveRef.current) return;
-    const quickIds = new Set<string>();
-    for (const row of (quickRes.data ?? []) as { student_id: number | string | null }[]) {
-      if (row.student_id !== null && row.student_id !== undefined) {
-        quickIds.add(String(row.student_id));
-      }
+    const quickMap = new Map<string, QuickEmailEntry[]>();
+    for (const row of (quickRes.data ?? []) as {
+      student_id: number | string | null;
+      topics: unknown;
+      created_at: string | null;
+    }[]) {
+      if (row.student_id === null || row.student_id === undefined) continue;
+      const id = String(row.student_id);
+      const topics = Array.isArray(row.topics) ? row.topics.map((t) => String(t)) : [];
+      const list = quickMap.get(id) ?? [];
+      list.push({ topics, date: row.created_at ? row.created_at.slice(0, 10) : null });
+      quickMap.set(id, list);
     }
-    setQuickEmailIds(quickIds);
+    setQuickEmailsByStudent(quickMap);
 
     // Never fatal: without them the menu item simply has nothing to offer.
     const templatesRes = await supabase
@@ -439,19 +462,28 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   }, [unlocked, loadRoster]);
 
   // Templates change rarely, so they load once rather than on every refresh.
+  // The quick email topics live in the one settings row and change rarely
+  // too, so they ride along here.
   useEffect(() => {
     if (!unlocked) return;
     (async () => {
-      const [smsRes, emailRes] = await Promise.all([
+      const [smsRes, emailRes, settingsRes] = await Promise.all([
         supabase.from("sms_templates").select("id, template_name, body").order("template_name"),
         supabase
           .from("email_templates")
           .select("id, template_name, subject, body")
           .order("template_name"),
+        // The one settings row is always id 1.
+        supabase.from("daily_notes_settings").select("quick_email_topics").eq("id", 1).single(),
       ]);
       if (!liveRef.current) return;
       setSmsTemplates((smsRes.data ?? []) as MessageTemplate[]);
       setEmailTemplates((emailRes.data ?? []) as MessageTemplate[]);
+      setQuickTopics(
+        readQuickEmailTopics(
+          (settingsRes.data as { quick_email_topics?: unknown } | null)?.quick_email_topics,
+        ),
+      );
     })();
   }, [unlocked]);
 
@@ -541,7 +573,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       // for a quick email this term. The table column reads this same value,
       // so the column and the meter cannot disagree.
       const baseTouchPoints = touchPointsByStudent.get(String(student.id))?.count ?? 0;
-      const touchPoints = touchPointTotal(baseTouchPoints, quickEmailIds.has(String(student.id)));
+      const touchPoints = touchPointTotal(
+        baseTouchPoints,
+        quickEmailsByStudent.has(String(student.id)),
+      );
       // The one coverage group for the term, from the contact_log signals and
       // that shared count.
       const coverage = coverageGroup(
@@ -579,7 +614,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     deadlinePassed,
     focusNames,
     touchPointsByStudent,
-    quickEmailIds,
+    quickEmailsByStudent,
     coverageByStudent,
     engagementByParent,
     countingYet,
@@ -665,6 +700,10 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const reengageRow = reengageId
     ? decorated.find((row) => String(row.student.id) === reengageId)
     : undefined;
+  // The student whose quick email panel is open, if any.
+  const draftRow = draftStudentId
+    ? decorated.find((row) => String(row.student.id) === draftStudentId)
+    : undefined;
   // The newest tidied wording about that student, which is what the templates
   // that mention a detail are filled from.
   const reengageDetail = reengageRow
@@ -723,6 +762,19 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
     window.setTimeout(() => {
       if (liveRef.current) setExportMessage(null);
     }, 4000);
+  }
+
+  // A quick email was scheduled: fold it into the counts straight away, so
+  // the family moves out of red and the headline drops without waiting for a
+  // reload, and confirm it. No daily_notes write, here or in the panel.
+  function handleDraftScheduled(studentId: string, topics: string[]) {
+    setQuickEmailsByStudent((current) => {
+      const next = new Map(current);
+      const list = next.get(studentId) ?? [];
+      next.set(studentId, [{ topics, date: sydneyTodayIso() }, ...list]);
+      return next;
+    });
+    showExportMessage("Draft scheduled for tonight.");
   }
 
   async function handleExport() {
@@ -982,7 +1034,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           <ContactFirstCard
             families={contactFirst}
             redTotal={coverage.red}
-            onLog={(id) => openPanel("log", id)}
+            onDraft={(id) => setDraftStudentId(id)}
             onSeeAll={() => setFilterKey("red")}
           />
 
@@ -1428,6 +1480,18 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                                         type="button"
                                         role="menuitem"
                                         className="action-menu-item"
+                                        onClick={() => {
+                                          setRowMenuId(null);
+                                          setDraftStudentId(String(student.id));
+                                        }}
+                                      >
+                                        Draft email
+                                        <MailIcon className="action-menu-icon" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="action-menu-item"
                                         disabled={!student.parent_phone}
                                         onClick={() => {
                                           setRowMenuId(null);
@@ -1498,12 +1562,18 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
                                 onSaved={handleLogSaved}
                               />
                             ) : null}
-                            {openKind === "touch" && touch ? (
+                            {openKind === "touch" &&
+                            (touch || quickEmailsByStudent.has(String(student.id))) ? (
                               <div className="roster-panel">
                                 {/* The same body the Today screen shows, so the
                                 two can never disagree about a student's
-                                history. It stays inline here, as it was. */}
-                                <TouchPointsBody studentName={student.student_name} touch={touch} />
+                                history. It stays inline here, as it was, now
+                                listing quick emails too. */}
+                                <TouchPointsBody
+                                  studentName={student.student_name}
+                                  touch={touch ?? { count: 0, latestDate: null, entries: [] }}
+                                  quickEmails={quickEmailsByStudent.get(String(student.id)) ?? []}
+                                />
                                 <div className="roster-panel-actions">
                                   <button
                                     type="button"
@@ -1626,6 +1696,20 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           parentName={engageRow.student.parent_name}
           engagement={engageRow.emails}
           onClose={() => setEngageId(null)}
+        />
+      ) : null}
+
+      {draftRow ? (
+        <QuickEmailPanel
+          studentId={draftRow.student.id}
+          studentName={draftRow.student.student_name}
+          parentName={draftRow.student.parent_name}
+          parentEmail={draftRow.student.parent_email}
+          topics={quickTopics}
+          onClose={() => setDraftStudentId(null)}
+          onScheduled={(topics) => {
+            if (draftStudentId) handleDraftScheduled(draftStudentId, topics);
+          }}
         />
       ) : null}
 

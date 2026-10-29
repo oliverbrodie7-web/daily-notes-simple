@@ -141,10 +141,11 @@ describe("the shared touch point count", () => {
 
   test("the screen builds both the column and the meter from this one count", () => {
     const tracker = source("../components/TrackerScreen.tsx");
-    // The decorated row's touchPoints is the shared count.
-    expect(tracker).toContain(
-      "touchPointTotal(baseTouchPoints, quickEmailIds.has(String(student.id)))",
-    );
+    // The decorated row's touchPoints is the shared count, folding in a quick
+    // email. Asserted in pieces so the formatter's line wrapping cannot break
+    // it.
+    expect(tracker).toContain("touchPointTotal(");
+    expect(tracker).toContain("quickEmailsByStudent.has(String(student.id))");
     // The table reads that same row value rather than recomputing.
     expect(tracker).toContain("const touchCount = touchPoints;");
     // And coverage is derived from that same shared count.

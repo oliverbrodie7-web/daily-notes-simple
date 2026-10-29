@@ -112,7 +112,7 @@ describe("the card", () => {
       createElement(ContactFirstCard, {
         families,
         redTotal: 9,
-        onLog: () => {},
+        onDraft: () => {},
         onSeeAll: () => {},
         ...over,
       }),
@@ -129,9 +129,9 @@ describe("the card", () => {
     expect(html).toContain("Bo Ng");
     // A blank parent name falls back rather than printing nothing.
     expect(html).toContain("No parent name");
-    // Two rows, two Log actions.
+    // Two rows, two Draft actions.
     expect(html.split('class="contact-first-row"').length - 1).toBe(2);
-    expect(html.split(">Log contact</button>").length - 1).toBe(2);
+    expect(html.split(">Draft email</button>").length - 1).toBe(2);
     // The footer names the whole red group.
     expect(html).toContain("See all 9 who need a touch point");
   });
@@ -142,7 +142,7 @@ describe("the card", () => {
     expect(CONTACT_FIRST_CLEAR).toBe("All caught up");
     expect(html).not.toContain(CONTACT_FIRST_TITLE);
     expect(html).not.toContain("See all");
-    expect(html).not.toContain("Log contact");
+    expect(html).not.toContain("Draft email");
   });
 });
 
@@ -156,8 +156,8 @@ describe("how the screen wires it", () => {
     expect(bar).toBeGreaterThan(card);
   });
 
-  test("Log uses the screen's existing log panel, the footer filters to red", () => {
-    expect(TRACKER_SOURCE).toContain('onLog={(id) => openPanel("log", id)}');
+  test("Draft opens the quick email panel, the footer filters to red", () => {
+    expect(TRACKER_SOURCE).toContain("onDraft={(id) => setDraftStudentId(id)}");
     expect(TRACKER_SOURCE).toContain('onSeeAll={() => setFilterKey("red")}');
     // The footer count is the whole red group.
     expect(TRACKER_SOURCE).toContain("redTotal={coverage.red}");
