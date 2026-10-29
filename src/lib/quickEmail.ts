@@ -53,36 +53,72 @@ export function joinTopics(topics: string[]): string {
   return `${topics.slice(0, -1).join(", ")} and ${topics[topics.length - 1]}`;
 }
 
+// The built-in wording, used when the settings row has no template saved.
+// {parent} and {child} are the first names; {topics} becomes " with <the
+// chosen topics>" when any are picked and nothing when none are.
+export const DEFAULT_QUICK_EMAIL_TEMPLATE = [
+  "Hi {parent},",
+  "I wanted to share a quick update on how {child} is going{topics}.",
+  "Any questions, just let me know.",
+].join("\n\n");
+
+// Appended as its own paragraph when the screenshots toggle is on.
+export const DEFAULT_QUICK_EMAIL_SCREENSHOTS_LINE =
+  "I am happy to send through a few screenshots of how it is done now, if that would help at home.";
+
+// The saved template, or the built-in one when the column is empty or missing.
+export function effectiveTemplate(raw: unknown): string {
+  return typeof raw === "string" && raw.trim() !== "" ? raw : DEFAULT_QUICK_EMAIL_TEMPLATE;
+}
+
+// The saved screenshots sentence, or the built-in one when it is empty.
+export function effectiveScreenshotsLine(raw: unknown): string {
+  return typeof raw === "string" && raw.trim() !== "" ? raw : DEFAULT_QUICK_EMAIL_SCREENSHOTS_LINE;
+}
+
+// The template with its placeholders filled. {topics} carries its own leading
+// " with " so the sentence reads naturally when topics are chosen and closes
+// cleanly when none are.
+export function fillQuickEmailTemplate(
+  template: string,
+  values: { parent: string; child: string; topics: string[] },
+): string {
+  const topicsText = values.topics.length > 0 ? ` with ${joinTopics(values.topics)}` : "";
+  return template
+    .replaceAll("{parent}", values.parent)
+    .replaceAll("{child}", values.child)
+    .replaceAll("{topics}", topicsText);
+}
+
 export type DraftParts = {
   parentName: string | null;
   studentName: string | null;
   topics: string[];
   offerScreenshots: boolean;
+  // The saved wording, when the panel has it. Empty or missing falls back to
+  // the built-in template and screenshots sentence.
+  template?: string | null | undefined;
+  screenshotsLine?: string | null | undefined;
 };
 
 // The assembled draft, in a warm voice. The parent first name is derived the
 // way the rest of the app does it, falling back to "there", and the child
-// first name the same way.
+// first name the same way. The body comes from the editable template, with
+// the screenshots sentence appended when the toggle is on.
 export function assembleDraft({
   parentName,
   studentName,
   topics,
   offerScreenshots,
+  template,
+  screenshotsLine,
 }: DraftParts): string {
   const parent = greetingName(parentName);
   const child = firstName(studentName) || (studentName ?? "").trim() || "your child";
-  const paras = [`Hi ${parent},`];
-  paras.push(
-    topics.length > 0
-      ? `I wanted to share a quick update on how ${child} is going, especially ${joinTopics(topics)}.`
-      : `I wanted to share a quick update on how ${child} is going.`,
-  );
+  const paras = [fillQuickEmailTemplate(effectiveTemplate(template), { parent, child, topics })];
   if (offerScreenshots) {
-    paras.push(
-      "I am happy to send through a few screenshots of how it is done now, if that would help at home.",
-    );
+    paras.push(effectiveScreenshotsLine(screenshotsLine));
   }
-  paras.push("Any questions, just let me know.");
   return paras.join("\n\n");
 }
 

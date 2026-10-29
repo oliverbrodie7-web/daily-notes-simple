@@ -81,9 +81,8 @@ describe("the edited topics reach the quick email panel", () => {
 
 describe("how the settings screen wires the editor", () => {
   test("it reads quick_email_topics from the one settings row", () => {
-    expect(SETTINGS_SOURCE).toContain(
-      '.select("email_subject, email_template, quick_email_topics")',
-    );
+    // A substring of the select so adding more columns later cannot break it.
+    expect(SETTINGS_SOURCE).toContain("email_subject, email_template, quick_email_topics");
     // Seeded through the shared reader, so an empty column opens on the
     // six defaults as the starting point.
     expect(SETTINGS_SOURCE).toContain("readQuickEmailTopics(data.quick_email_topics)");
@@ -99,7 +98,7 @@ describe("how the settings screen wires the editor", () => {
   test("the editor writes the exact field the panel reads", () => {
     // The screen that mounts the panel reads the field the editor writes, so
     // a change in Settings shows up in the chips with no code change.
-    expect(TRACKER_SOURCE).toContain('.select("quick_email_topics")');
+    expect(TRACKER_SOURCE).toContain('.select("quick_email_topics');
     expect(SETTINGS_SOURCE).toContain("quick_email_topics: tidy");
   });
 

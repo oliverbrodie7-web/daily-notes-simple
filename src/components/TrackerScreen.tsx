@@ -179,6 +179,9 @@ type ActiveTerm = TermRow;
 
 type TrackerScreenProps = {
   pinGate: PinGate;
+  // Opens the quick email template editor on the Settings screen, used by the
+  // link under the quick email preview.
+  onEditTemplate?: () => void;
 };
 
 // The pill colour now comes from the row state (done, overdue, due this
@@ -209,7 +212,7 @@ function shortMethod(method: string | null): string {
   return SHORT_METHODS[key] ?? method ?? "Contact";
 }
 
-export function TrackerScreen({ pinGate }: TrackerScreenProps) {
+export function TrackerScreen({ pinGate, onEditTemplate }: TrackerScreenProps) {
   const unlocked = pinGate.state === "unlocked";
 
   const [students, setStudents] = useState<RosterStudent[] | null>(null);
@@ -228,6 +231,11 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   // The topic chips the quick email panel offers. Falls back to the defaults
   // until the settings read lands.
   const [quickTopics, setQuickTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
+  // The editable quick email wording. Null until the settings read lands, and
+  // left null when the column is empty, so the panel falls back to the
+  // built-in template and screenshots sentence.
+  const [quickTemplate, setQuickTemplate] = useState<string | null>(null);
+  const [quickScreenshotsLine, setQuickScreenshotsLine] = useState<string | null>(null);
   // Which student's quick email panel is open, if any. Its own flag, set
   // from a table row and from the contact first card alike.
   const [draftStudentId, setDraftStudentId] = useState<string | null>(null);
@@ -474,15 +482,28 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           .select("id, template_name, subject, body")
           .order("template_name"),
         // The one settings row is always id 1.
-        supabase.from("daily_notes_settings").select("quick_email_topics").eq("id", 1).single(),
+        supabase
+          .from("daily_notes_settings")
+          .select("quick_email_topics, quick_email_template, quick_email_screenshots_line")
+          .eq("id", 1)
+          .single(),
       ]);
       if (!liveRef.current) return;
       setSmsTemplates((smsRes.data ?? []) as MessageTemplate[]);
       setEmailTemplates((emailRes.data ?? []) as MessageTemplate[]);
-      setQuickTopics(
-        readQuickEmailTopics(
-          (settingsRes.data as { quick_email_topics?: unknown } | null)?.quick_email_topics,
-        ),
+      const settings = settingsRes.data as {
+        quick_email_topics?: unknown;
+        quick_email_template?: unknown;
+        quick_email_screenshots_line?: unknown;
+      } | null;
+      setQuickTopics(readQuickEmailTopics(settings?.quick_email_topics));
+      setQuickTemplate(
+        typeof settings?.quick_email_template === "string" ? settings.quick_email_template : null,
+      );
+      setQuickScreenshotsLine(
+        typeof settings?.quick_email_screenshots_line === "string"
+          ? settings.quick_email_screenshots_line
+          : null,
       );
     })();
   }, [unlocked]);
@@ -1712,10 +1733,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           parentName={draftRow.student.parent_name}
           parentEmail={draftRow.student.parent_email}
           topics={quickTopics}
+          template={quickTemplate}
+          screenshotsLine={quickScreenshotsLine}
           onClose={() => setDraftStudentId(null)}
           onScheduled={(topics) => {
             if (draftStudentId) handleDraftScheduled(draftStudentId, topics);
           }}
+          onEditTemplate={onEditTemplate}
         />
       ) : null}
 

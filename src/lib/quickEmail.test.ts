@@ -67,7 +67,7 @@ describe("the topic chips", () => {
   });
 
   test("the screen reads the setting and hands the panel those chips", () => {
-    expect(TRACKER_SOURCE).toContain('.select("quick_email_topics")');
+    expect(TRACKER_SOURCE).toContain('.select("quick_email_topics');
     expect(TRACKER_SOURCE).toContain("readQuickEmailTopics(");
     expect(TRACKER_SOURCE).toContain("topics={quickTopics}");
   });

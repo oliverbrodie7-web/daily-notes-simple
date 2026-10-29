@@ -373,10 +373,12 @@ describe("what it does not touch", () => {
       expect(file).not.toContain('.from("');
     }
     // The Settings screen still touches exactly the one settings row it did:
-    // the read, the PIN, the template, the screen names, and the quick email
-    // topics editor all read or write daily_notes_settings and nothing else.
+    // the read, the PIN, the email template, the screen names, the quick email
+    // topics editor and the quick email wording editor all read or write
+    // daily_notes_settings and nothing else.
     const settings = source("../components/SettingsScreen.tsx");
     expect([...settings.matchAll(/\.from\("([a-z_]+)"\)/g)].map((m) => m[1])).toEqual([
+      "daily_notes_settings",
       "daily_notes_settings",
       "daily_notes_settings",
       "daily_notes_settings",

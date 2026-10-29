@@ -24,10 +24,16 @@ type QuickEmailPanelProps = {
   parentEmail: string | null;
   // The chips to offer.
   topics: string[];
+  // The saved wording for the draft. Empty or missing falls back to the
+  // built-in template and screenshots sentence inside assembleDraft.
+  template?: string | null | undefined;
+  screenshotsLine?: string | null | undefined;
   onClose: () => void;
   // The chosen topics, handed back so the screen can move the family out of
   // red at once.
   onScheduled: (topics: string[]) => void;
+  // Opens the template editor on the Settings screen, when wired.
+  onEditTemplate?: (() => void) | undefined;
 };
 
 // The quick email panel, a modal opened from a table row and from the
@@ -40,8 +46,11 @@ export function QuickEmailPanel({
   parentName,
   parentEmail,
   topics,
+  template,
+  screenshotsLine,
   onClose,
   onScheduled,
+  onEditTemplate,
 }: QuickEmailPanelProps) {
   const [selected, setSelected] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
@@ -49,7 +58,14 @@ export function QuickEmailPanel({
   // Seeded with the draft for the opening state, so the preview is there on
   // the first paint rather than only after the effect runs.
   const [body, setBody] = useState(() =>
-    assembleDraft({ parentName, studentName, topics: [], offerScreenshots: false }),
+    assembleDraft({
+      parentName,
+      studentName,
+      topics: [],
+      offerScreenshots: false,
+      template,
+      screenshotsLine,
+    }),
   );
   // Once the person edits the draft, the chips stop rewriting it under them.
   const [edited, setEdited] = useState(false);
@@ -70,9 +86,11 @@ export function QuickEmailPanel({
         studentName,
         topics: effectiveTopics(selected, custom),
         offerScreenshots: offer,
+        template,
+        screenshotsLine,
       }),
     );
-  }, [selected, custom, offer, edited, parentName, studentName]);
+  }, [selected, custom, offer, edited, parentName, studentName, template, screenshotsLine]);
 
   // Focus into the panel on open, back to the opener on close.
   useEffect(() => {
@@ -219,6 +237,19 @@ export function QuickEmailPanel({
             setEdited(true);
           }}
         />
+
+        {onEditTemplate ? (
+          <button
+            type="button"
+            className="quick-email-template-link"
+            onClick={() => {
+              onClose();
+              onEditTemplate();
+            }}
+          >
+            Need to change the wording? Edit the template
+          </button>
+        ) : null}
 
         {message ? (
           <p className="roster-panel-message" role="alert">

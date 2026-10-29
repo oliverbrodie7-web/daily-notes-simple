@@ -41,6 +41,9 @@ function Index() {
   const [view, setView] = useState<AppView>("today");
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [templatesDirty, setTemplatesDirty] = useState(false);
+  // Set when a link asks to open a particular Settings card, so the screen can
+  // scroll to it once it is on. Cleared the moment the screen has done so.
+  const [settingsFocus, setSettingsFocus] = useState<string | null>(null);
 
   // One shared PIN lock for the Manager and Settings screens, held in
   // memory only in this single hook instance.
@@ -133,7 +136,13 @@ function Index() {
                   {view === "output" ? (
                     <OutputScreen />
                   ) : view === "parents" ? (
-                    <TrackerScreen pinGate={pinGate} />
+                    <TrackerScreen
+                      pinGate={pinGate}
+                      onEditTemplate={() => {
+                        setSettingsFocus("quick-email-template");
+                        handleViewChange("settings");
+                      }}
+                    />
                   ) : view === "manager" ? (
                     <ManagerScreen pinGate={pinGate} />
                   ) : view === "templates" ? (
@@ -144,6 +153,8 @@ function Index() {
                       pinGate={pinGate}
                       labels={labels}
                       onLabelsChange={applyNavLabels}
+                      scrollTo={settingsFocus}
+                      onScrolled={() => setSettingsFocus(null)}
                     />
                   ) : (
                     <TodayScreen />

@@ -3,6 +3,8 @@ import type { PinGate } from "../hooks/usePinGate";
 import { hashPin, isValidPin } from "../lib/pin";
 import {
   DEFAULT_QUICK_EMAIL_TOPICS,
+  effectiveScreenshotsLine,
+  effectiveTemplate,
   readQuickEmailTopics,
   tidyQuickEmailTopics,
 } from "../lib/quickEmail";
@@ -39,6 +41,9 @@ type SettingsScreenProps = {
   pinGate: PinGate;
   labels: NavLabels;
   onLabelsChange: (next: NavLabels) => void;
+  // A card to scroll to once the screen is on, set by a link elsewhere.
+  scrollTo?: string | null;
+  onScrolled?: () => void;
 };
 
 export function SettingsScreen({
@@ -46,6 +51,8 @@ export function SettingsScreen({
   pinGate,
   labels,
   onLabelsChange,
+  scrollTo,
+  onScrolled,
 }: SettingsScreenProps) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -88,13 +95,32 @@ export function SettingsScreen({
   const topicsSavedTimer = useRef<number | undefined>(undefined);
   const topicsDirty = JSON.stringify(tidyQuickEmailTopics(topics)) !== JSON.stringify(savedTopics);
 
+  // The quick email wording. Seeded with the effective wording (the built-in
+  // template and screenshots sentence when the columns are empty), so the
+  // fields always open on the wording a draft would actually use.
+  const [qeTemplate, setQeTemplate] = useState(() => effectiveTemplate(null));
+  const [qeScreenshots, setQeScreenshots] = useState(() => effectiveScreenshotsLine(null));
+  const [savedQeTemplate, setSavedQeTemplate] = useState(() => effectiveTemplate(null));
+  const [savedQeScreenshots, setSavedQeScreenshots] = useState(() =>
+    effectiveScreenshotsLine(null),
+  );
+  const [qeBusy, setQeBusy] = useState(false);
+  const [qeSaved, setQeSaved] = useState(false);
+  const [qeMessage, setQeMessage] = useState<string | null>(null);
+  const qeSavedTimer = useRef<number | undefined>(undefined);
+  const templateCardRef = useRef<HTMLDivElement | null>(null);
+  const templateFieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const qeDirty = qeTemplate !== savedQeTemplate || qeScreenshots !== savedQeScreenshots;
+
   const dirty = !loading && !loadFailed && (subject !== savedSubject || body !== savedBody);
 
   useEffect(() => {
     let cancelled = false;
     supabase
       .from("daily_notes_settings")
-      .select("email_subject, email_template, quick_email_topics")
+      .select(
+        "email_subject, email_template, quick_email_topics, quick_email_template, quick_email_screenshots_line",
+      )
       .eq("id", SETTINGS_ROW_ID)
       .single()
       .then(({ data, error }) => {
@@ -114,6 +140,13 @@ export function SettingsScreen({
         const rowTopics = readQuickEmailTopics(data.quick_email_topics);
         setTopics(rowTopics);
         setSavedTopics(rowTopics);
+        // Empty or missing wording opens on the built-in template and sentence.
+        const rowTemplate = effectiveTemplate(data.quick_email_template);
+        const rowScreenshots = effectiveScreenshotsLine(data.quick_email_screenshots_line);
+        setQeTemplate(rowTemplate);
+        setSavedQeTemplate(rowTemplate);
+        setQeScreenshots(rowScreenshots);
+        setSavedQeScreenshots(rowScreenshots);
         setLoading(false);
       });
     return () => {
@@ -124,6 +157,23 @@ export function SettingsScreen({
   useEffect(() => () => window.clearTimeout(pinSavedTimer.current), []);
   useEffect(() => () => window.clearTimeout(labelsSavedTimer.current), []);
   useEffect(() => () => window.clearTimeout(topicsSavedTimer.current), []);
+  useEffect(() => () => window.clearTimeout(qeSavedTimer.current), []);
+
+  // A link elsewhere can ask for the template editor. Once the screen is on
+  // and unlocked, scroll it into view and focus the field, then clear the
+  // request so it does not fire again. Waits on the PIN state so a scroll
+  // asked for while locked still happens the moment the screen is unlocked.
+  useEffect(() => {
+    if (scrollTo !== "quick-email-template") return;
+    if (pinGate.state !== "unlocked") return;
+    const card = templateCardRef.current;
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    templateFieldRef.current?.focus();
+    onScrolled?.();
+    // Only on a new request or once the screen unlocks, never on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollTo, pinGate.state]);
 
   // A rename made somewhere else, or the first read arriving, refreshes the
   // fields as long as nothing is part typed.
@@ -312,6 +362,30 @@ export function SettingsScreen({
     topicsSavedTimer.current = window.setTimeout(() => setTopicsSaved(false), 2000);
   }
 
+  async function handleQuickEmailTemplateSave() {
+    if (qeBusy) return;
+    setQeBusy(true);
+    setQeMessage(null);
+    const { error } = await supabase
+      .from("daily_notes_settings")
+      .update({
+        quick_email_template: qeTemplate,
+        quick_email_screenshots_line: qeScreenshots,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", SETTINGS_ROW_ID);
+    setQeBusy(false);
+    if (error) {
+      setQeMessage("The wording could not be saved. Please try again.");
+      return;
+    }
+    setSavedQeTemplate(qeTemplate);
+    setSavedQeScreenshots(qeScreenshots);
+    setQeSaved(true);
+    window.clearTimeout(qeSavedTimer.current);
+    qeSavedTimer.current = window.setTimeout(() => setQeSaved(false), 2000);
+  }
+
   if (pinGate.state !== "unlocked") {
     return <LockGate heading="Settings" gate={pinGate} />;
   }
@@ -471,6 +545,81 @@ export function SettingsScreen({
             >
               {topicsBusy ? "Saving..." : topicsSaved ? "Saved" : "Save changes"}
             </button>
+          </>
+        )}
+      </div>
+
+      <div className="settings-card" ref={templateCardRef}>
+        <h2 className="section-heading">Quick email template</h2>
+        <p className="settings-sub">
+          The wording used for a quick email drafted from a parent row.
+        </p>
+        {loading ? (
+          <p className="settings-message">Loading the wording</p>
+        ) : loadFailed ? (
+          <p className="settings-message" role="alert">
+            The wording could not be loaded. Please try again.
+          </p>
+        ) : (
+          <>
+            <label className="field-label" htmlFor="quick-email-template">
+              Template
+            </label>
+            <textarea
+              id="quick-email-template"
+              className="text-field text-area"
+              rows={8}
+              ref={templateFieldRef}
+              value={qeTemplate}
+              onChange={(event) => {
+                setQeMessage(null);
+                setQeTemplate(event.target.value);
+              }}
+            />
+
+            <div className="placeholder-panel">
+              <p className="placeholder-line">
+                <span className="placeholder-token">{"{parent}"}</span> for the parent's first name
+              </p>
+              <p className="placeholder-line">
+                <span className="placeholder-token">{"{child}"}</span> for the student's first name
+              </p>
+              <p className="placeholder-line">
+                <span className="placeholder-token">{"{topics}"}</span> for the chosen topics, or
+                nothing when none are picked
+              </p>
+            </div>
+
+            <label className="field-label" htmlFor="quick-email-screenshots">
+              Screenshots sentence
+            </label>
+            <textarea
+              id="quick-email-screenshots"
+              className="text-field text-area settings-short-area"
+              rows={3}
+              value={qeScreenshots}
+              onChange={(event) => {
+                setQeMessage(null);
+                setQeScreenshots(event.target.value);
+              }}
+            />
+            <p className="settings-note">
+              Added as its own paragraph only when the screenshots toggle is on.
+            </p>
+
+            <button
+              type="button"
+              className="primary-button settings-save"
+              disabled={!qeDirty || qeBusy}
+              onClick={handleQuickEmailTemplateSave}
+            >
+              {qeBusy ? "Saving..." : qeSaved ? "Saved" : "Save changes"}
+            </button>
+            {qeMessage ? (
+              <p className="settings-message" role="alert">
+                {qeMessage}
+              </p>
+            ) : null}
           </>
         )}
       </div>

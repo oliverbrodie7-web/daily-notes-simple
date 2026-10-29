@@ -2474,6 +2474,13 @@ svg {
   color: var(--accent);
 }
 
+/* The screenshots sentence is a line or two, so it does not need the tall
+   min-height the multi-paragraph fields use. */
+.settings-short-area {
+  min-height: 96px;
+  overflow-y: auto;
+}
+
 /* On a narrow phone the rename field takes its own line so it stays
    comfortable to type in, with the reorder and remove controls beneath. */
 @media (max-width: 479px) {
@@ -6714,6 +6721,22 @@ button.touch-block:hover {
 .quick-email-body {
   margin-top: 6px;
   min-height: 170px;
+}
+/* The small link under the preview that opens the template editor. */
+.quick-email-template-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.quick-email-template-link:hover {
+  text-decoration: none;
 }
 .quick-email-actions {
   flex-wrap: wrap;
