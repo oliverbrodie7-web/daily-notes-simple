@@ -20,6 +20,7 @@ const PANEL_SOURCE = source("../components/QuickEmailPanel.tsx");
 const TRACKER_SOURCE = source("../components/TrackerScreen.tsx");
 const SETTINGS_SOURCE = source("../components/SettingsScreen.tsx");
 const ROUTE_SOURCE = source("../routes/index.tsx");
+const STYLES_SOURCE = source("../styles.css");
 
 function panelHtml(over: Partial<Parameters<typeof QuickEmailPanel>[0]> = {}): string {
   return renderToStaticMarkup(
@@ -162,16 +163,33 @@ describe("the panel previews the saved template", () => {
 });
 
 describe("the panel link opens the template editor", () => {
-  test("the link shows only when an edit handler is wired", () => {
+  test("the link sits on the Preview heading row, only when an edit handler is wired", () => {
     const withLink = panelHtml({ onEditTemplate: () => {} });
-    expect(withLink).toContain("Need to change the wording? Edit the template");
+    expect(withLink).toContain("Edit template");
+    // On the Preview heading row, with the pencil rendered before the words.
+    expect(withLink).toContain('class="quick-email-preview-head"');
+    expect(withLink).toMatch(/quick-email-edit-link"><svg/);
     const without = panelHtml();
-    expect(without).not.toContain("Edit the template");
+    expect(without).not.toContain("Edit template");
+  });
+
+  test("it is an accent pencil link, and the old under-preview link is gone", () => {
+    expect(PANEL_SOURCE).toContain('className="quick-email-edit-link"');
+    expect(PANEL_SOURCE).toContain("<PencilIcon");
+    expect(PANEL_SOURCE).toContain('import { PencilIcon } from "./Icons"');
+    // The old wording and class no longer exist anywhere in the panel.
+    expect(PANEL_SOURCE).not.toContain("Need to change the wording");
+    expect(PANEL_SOURCE).not.toContain("quick-email-template-link");
+    // The link is the app accent and carries no underline.
+    const start = STYLES_SOURCE.indexOf(".quick-email-edit-link {");
+    const linkCss = STYLES_SOURCE.slice(start, start + 240);
+    expect(start).toBeGreaterThan(-1);
+    expect(linkCss).toContain("color: var(--accent)");
+    expect(linkCss).not.toContain("underline");
   });
 
   test("the link closes the panel and calls the edit handler", () => {
     // Asserted on the source: the click runs both, so the screen navigates.
-    expect(PANEL_SOURCE).toContain('className="quick-email-template-link"');
     expect(PANEL_SOURCE).toMatch(/onClose\(\);\s*onEditTemplate\(\);/);
   });
 

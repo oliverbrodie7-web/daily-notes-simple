@@ -140,6 +140,27 @@ export function MailIcon({ className, size = 15 }: IconProps) {
   );
 }
 
+export function PencilIcon({ className, size = 15 }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z" />
+      <path d="M13.5 7.5 16.5 10.5" />
+    </svg>
+  );
+}
+
 export function UploadIcon({ className, size = 16 }: IconProps) {
   return (
     <svg

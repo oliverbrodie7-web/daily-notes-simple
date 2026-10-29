@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { copyText } from "../lib/clipboard";
 import { supabase } from "../lib/supabase";
+import { PencilIcon } from "./Icons";
 import {
   assembleDraft,
   effectiveTopics,
@@ -224,9 +225,24 @@ export function QuickEmailPanel({
           <span>Offer to send screenshots of how it is done now</span>
         </label>
 
-        <label className="field-label" htmlFor="quick-email-body">
-          Preview
-        </label>
+        <div className="quick-email-preview-head">
+          <label className="field-label" htmlFor="quick-email-body">
+            Preview
+          </label>
+          {onEditTemplate ? (
+            <button
+              type="button"
+              className="quick-email-edit-link"
+              onClick={() => {
+                onClose();
+                onEditTemplate();
+              }}
+            >
+              <PencilIcon size={13} />
+              Edit template
+            </button>
+          ) : null}
+        </div>
         <textarea
           id="quick-email-body"
           className="text-field text-area quick-email-body"
@@ -237,19 +253,6 @@ export function QuickEmailPanel({
             setEdited(true);
           }}
         />
-
-        {onEditTemplate ? (
-          <button
-            type="button"
-            className="quick-email-template-link"
-            onClick={() => {
-              onClose();
-              onEditTemplate();
-            }}
-          >
-            Need to change the wording? Edit the template
-          </button>
-        ) : null}
 
         {message ? (
           <p className="roster-panel-message" role="alert">

@@ -6722,21 +6722,34 @@ button.touch-block:hover {
   margin-top: 6px;
   min-height: 170px;
 }
-/* The small link under the preview that opens the template editor. */
-.quick-email-template-link {
-  display: inline-block;
-  margin-top: 10px;
+/* The Preview label and its edit-template link share one row: the label on
+   the left, the link right-aligned beside it. */
+.quick-email-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.quick-email-preview-head .field-label {
+  margin-bottom: 0;
+}
+/* The link to the template editor: the app accent, a pencil before the
+   words, no underline. */
+.quick-email-edit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 0;
   border: none;
   background: none;
   color: var(--accent);
   font-size: 12.5px;
   font-weight: 600;
-  text-decoration: underline;
   cursor: pointer;
 }
-.quick-email-template-link:hover {
-  text-decoration: none;
+.quick-email-edit-link:hover {
+  opacity: 0.75;
 }
 .quick-email-actions {
   flex-wrap: wrap;
