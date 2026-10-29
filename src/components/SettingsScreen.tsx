@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { PinGate } from "../hooks/usePinGate";
 import { hashPin, isValidPin } from "../lib/pin";
+import {
+  DEFAULT_QUICK_EMAIL_TOPICS,
+  readQuickEmailTopics,
+  tidyQuickEmailTopics,
+} from "../lib/quickEmail";
 import { supabase } from "../lib/supabase";
 import {
   DEFAULT_NAV_LABELS,
@@ -13,6 +18,7 @@ import {
   tidyNavLabels,
   type NavLabels,
 } from "../lib/navLabels";
+import { ChevronDownIcon, ChevronUpIcon, CloseIcon } from "./Icons";
 import { LockGate } from "./LockGate";
 
 // The daily_notes_settings table holds exactly one row whose id is always 1.
@@ -70,13 +76,25 @@ export function SettingsScreen({
   const labelsSavedTimer = useRef<number | undefined>(undefined);
   const labelsDirty = !sameNavLabels(tidyNavLabels(draftLabels), labels);
 
+  // The quick email topics, seeded with the defaults so the fields show
+  // something before the row loads. savedTopics tracks what is effectively
+  // stored (the defaults when the column is empty), so the dirty check and
+  // the panel agree about what the chips are.
+  const [topics, setTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
+  const [savedTopics, setSavedTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
+  const [topicsBusy, setTopicsBusy] = useState(false);
+  const [topicsSaved, setTopicsSaved] = useState(false);
+  const [topicsMessage, setTopicsMessage] = useState<string | null>(null);
+  const topicsSavedTimer = useRef<number | undefined>(undefined);
+  const topicsDirty = JSON.stringify(tidyQuickEmailTopics(topics)) !== JSON.stringify(savedTopics);
+
   const dirty = !loading && !loadFailed && (subject !== savedSubject || body !== savedBody);
 
   useEffect(() => {
     let cancelled = false;
     supabase
       .from("daily_notes_settings")
-      .select("email_subject, email_template")
+      .select("email_subject, email_template, quick_email_topics")
       .eq("id", SETTINGS_ROW_ID)
       .single()
       .then(({ data, error }) => {
@@ -92,6 +110,10 @@ export function SettingsScreen({
         setBody(rowBody);
         setSavedSubject(rowSubject);
         setSavedBody(rowBody);
+        // Empty or missing falls back to the six defaults as the starting point.
+        const rowTopics = readQuickEmailTopics(data.quick_email_topics);
+        setTopics(rowTopics);
+        setSavedTopics(rowTopics);
         setLoading(false);
       });
     return () => {
@@ -101,6 +123,7 @@ export function SettingsScreen({
 
   useEffect(() => () => window.clearTimeout(pinSavedTimer.current), []);
   useEffect(() => () => window.clearTimeout(labelsSavedTimer.current), []);
+  useEffect(() => () => window.clearTimeout(topicsSavedTimer.current), []);
 
   // A rename made somewhere else, or the first read arriving, refreshes the
   // fields as long as nothing is part typed.
@@ -239,6 +262,56 @@ export function SettingsScreen({
     void saveLabels(DEFAULT_NAV_LABELS, true);
   }
 
+  function editTopic(index: number, value: string) {
+    setTopicsMessage(null);
+    setTopics((current) => current.map((topic, i) => (i === index ? value : topic)));
+  }
+
+  function addTopic() {
+    setTopicsMessage(null);
+    setTopics((current) => [...current, ""]);
+  }
+
+  function removeTopic(index: number) {
+    setTopicsMessage(null);
+    setTopics((current) => current.filter((_, i) => i !== index));
+  }
+
+  function moveTopic(index: number, delta: number) {
+    setTopicsMessage(null);
+    setTopics((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      return next;
+    });
+  }
+
+  async function handleTopicsSave() {
+    if (topicsBusy) return;
+    const tidy = tidyQuickEmailTopics(topics);
+    setTopicsBusy(true);
+    setTopicsMessage(null);
+    const { error } = await supabase
+      .from("daily_notes_settings")
+      .update({ quick_email_topics: tidy, updated_at: new Date().toISOString() })
+      .eq("id", SETTINGS_ROW_ID);
+    setTopicsBusy(false);
+    if (error) {
+      setTopicsMessage("The topics could not be saved. Please try again.");
+      return;
+    }
+    // Written as the tidy array, which may be empty; the fields and the dirty
+    // check then show the effective list, the defaults when nothing is left.
+    const effective = readQuickEmailTopics(tidy);
+    setSavedTopics(effective);
+    setTopics(effective);
+    setTopicsSaved(true);
+    window.clearTimeout(topicsSavedTimer.current);
+    topicsSavedTimer.current = window.setTimeout(() => setTopicsSaved(false), 2000);
+  }
+
   if (pinGate.state !== "unlocked") {
     return <LockGate heading="Settings" gate={pinGate} />;
   }
@@ -322,6 +395,82 @@ export function SettingsScreen({
               <p className="preview-subject">{fillPlaceholders(subject)}</p>
               <p className="preview-body">{fillPlaceholders(body)}</p>
             </div>
+          </>
+        )}
+      </div>
+
+      <div className="settings-card">
+        <h2 className="section-heading">Quick email topics</h2>
+        <p className="settings-sub">
+          These are the chips offered when a quick email is drafted from a parent row.
+        </p>
+        {loading ? (
+          <p className="settings-message">Loading the topics</p>
+        ) : loadFailed ? (
+          <p className="settings-message" role="alert">
+            The topics could not be loaded. Please try again.
+          </p>
+        ) : (
+          <>
+            <ul className="topics-editor">
+              {topics.map((topic, index) => (
+                <li key={index} className="topics-row">
+                  <input
+                    className="text-field topics-input"
+                    type="text"
+                    value={topic}
+                    aria-label={`Topic ${index + 1}`}
+                    placeholder="A topic to offer"
+                    onChange={(event) => editTopic(index, event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="topics-icon-button"
+                    aria-label={`Move topic ${index + 1} up`}
+                    disabled={index === 0}
+                    onClick={() => moveTopic(index, -1)}
+                  >
+                    <ChevronUpIcon size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="topics-icon-button"
+                    aria-label={`Move topic ${index + 1} down`}
+                    disabled={index === topics.length - 1}
+                    onClick={() => moveTopic(index, 1)}
+                  >
+                    <ChevronDownIcon size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="topics-icon-button topics-remove"
+                    aria-label={`Remove topic ${index + 1}`}
+                    onClick={() => removeTopic(index)}
+                  >
+                    <CloseIcon size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <button type="button" className="topics-add" onClick={addTopic}>
+              Add a topic
+            </button>
+
+            {topicsMessage ? (
+              <p className="settings-message" role="alert">
+                {topicsMessage}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              className="primary-button settings-save"
+              disabled={!topicsDirty || topicsBusy}
+              onClick={handleTopicsSave}
+            >
+              {topicsBusy ? "Saving..." : topicsSaved ? "Saved" : "Save changes"}
+            </button>
           </>
         )}
       </div>

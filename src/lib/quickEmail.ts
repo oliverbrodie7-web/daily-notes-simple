@@ -30,6 +30,13 @@ export function readQuickEmailTopics(raw: unknown): string[] {
   return [...DEFAULT_QUICK_EMAIL_TOPICS];
 }
 
+// The topics tidied for saving: each trimmed, blank ones dropped, order
+// kept. Saving the result is always safe, even when it is empty, because
+// the reader above falls back to the defaults when no words are stored.
+export function tidyQuickEmailTopics(topics: string[]): string[] {
+  return topics.map((topic) => topic.trim()).filter((topic) => topic !== "");
+}
+
 // The chosen topics: the selected chips, plus the typed one when there is
 // one, without repeating a chip the person also typed.
 export function effectiveTopics(selected: string[], custom: string): string[] {

@@ -2405,6 +2405,88 @@ svg {
   cursor: default;
 }
 
+/* The quick email topics editor: one rename field per topic, each with its
+   own reorder and remove controls, then an add button under the list. */
+.topics-editor {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topics-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topics-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.topics-icon-button {
+  flex: none;
+  width: 38px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-soft);
+}
+
+.topics-icon-button:hover {
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+.topics-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.topics-remove:hover {
+  color: var(--badge-danger-text);
+  border-color: var(--badge-danger-text);
+}
+
+.topics-add {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.topics-add:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* On a narrow phone the rename field takes its own line so it stays
+   comfortable to type in, with the reorder and remove controls beneath. */
+@media (max-width: 479px) {
+  .topics-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .topics-input {
+    flex: 1 0 100%;
+  }
+}
+
 .settings-save {
   width: 100%;
   margin-top: 16px;
