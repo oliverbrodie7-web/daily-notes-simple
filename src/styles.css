@@ -6665,8 +6665,8 @@ button.touch-block:hover {
 }
 
 /* The quick email panel. Built on the student picker's modal, so the overlay
-   and panel come from there; these rules carry the chips, the toggle and the
-   preview. Tokens only, so the three schemes follow. */
+   and panel come from there; these rules carry the skill control, the layer
+   options and the preview. Tokens only, so the three schemes follow. */
 .quick-email-panel {
   max-width: 560px;
 }
@@ -6676,80 +6676,45 @@ button.touch-block:hover {
   font-weight: 700;
   color: var(--text);
 }
-.quick-email-chips {
+/* The skill control: a dropdown of saved skills with a text field under it for
+   one that is not in the list. */
+.quick-email-skill {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* Each layer is a vertical list of single select options. The selected one
+   wears the same accent fill the topic chips used to, tokens and all. */
+.quick-email-options {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-top: 8px;
 }
-.quick-email-chip {
-  min-height: 36px;
-  padding: 0 12px;
+.quick-email-option {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  text-align: left;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 500;
 }
-.quick-email-chip:hover {
+.quick-email-option:hover {
   border-color: var(--accent-border);
 }
-.quick-email-chip.is-on {
+.quick-email-option.is-on {
   border-color: transparent;
   background: var(--accent-soft);
   color: var(--accent);
 }
-.quick-email-custom {
-  margin-top: 6px;
-}
-.quick-email-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 14px;
-  font-size: 13.5px;
-  color: var(--text);
-  cursor: pointer;
-}
-.quick-email-toggle input {
-  margin-top: 2px;
-  width: 18px;
-  height: 18px;
-  flex: none;
-}
 .quick-email-body {
   margin-top: 6px;
   min-height: 170px;
-}
-/* The Preview label and its edit-template link share one row: the label on
-   the left, the link right-aligned beside it. */
-.quick-email-preview-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.quick-email-preview-head .field-label {
-  margin-bottom: 0;
-}
-/* The link to the template editor: the app accent, a pencil before the
-   words, no underline. */
-.quick-email-edit-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.quick-email-edit-link:hover {
-  opacity: 0.75;
 }
 .quick-email-actions {
   flex-wrap: wrap;

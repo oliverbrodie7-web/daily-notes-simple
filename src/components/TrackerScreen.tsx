@@ -88,8 +88,11 @@ import { ContactFirstCard } from "./ContactFirstCard";
 import { contactFirstFamilies } from "../lib/contactFirst";
 import { QuickEmailPanel } from "./QuickEmailPanel";
 import {
-  DEFAULT_QUICK_EMAIL_TOPICS,
-  readQuickEmailTopics,
+  DEFAULT_QUICK_EMAIL_LAYER1,
+  DEFAULT_QUICK_EMAIL_LAYER2,
+  DEFAULT_QUICK_EMAIL_LAYER3,
+  DEFAULT_QUICK_EMAIL_SKILLS,
+  readStringArray,
   type QuickEmailEntry,
 } from "../lib/quickEmail";
 import {
@@ -179,9 +182,6 @@ type ActiveTerm = TermRow;
 
 type TrackerScreenProps = {
   pinGate: PinGate;
-  // Opens the quick email template editor on the Settings screen, used by the
-  // link under the quick email preview.
-  onEditTemplate?: () => void;
 };
 
 // The pill colour now comes from the row state (done, overdue, due this
@@ -212,7 +212,7 @@ function shortMethod(method: string | null): string {
   return SHORT_METHODS[key] ?? method ?? "Contact";
 }
 
-export function TrackerScreen({ pinGate, onEditTemplate }: TrackerScreenProps) {
+export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const unlocked = pinGate.state === "unlocked";
 
   const [students, setStudents] = useState<RosterStudent[] | null>(null);
@@ -228,14 +228,12 @@ export function TrackerScreen({ pinGate, onEditTemplate }: TrackerScreenProps) {
   const [quickEmailsByStudent, setQuickEmailsByStudent] = useState<Map<string, QuickEmailEntry[]>>(
     new Map(),
   );
-  // The topic chips the quick email panel offers. Falls back to the defaults
-  // until the settings read lands.
-  const [quickTopics, setQuickTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
-  // The editable quick email wording. Null until the settings read lands, and
-  // left null when the column is empty, so the panel falls back to the
-  // built-in template and screenshots sentence.
-  const [quickTemplate, setQuickTemplate] = useState<string | null>(null);
-  const [quickScreenshotsLine, setQuickScreenshotsLine] = useState<string | null>(null);
+  // The three layer banks and the skill list the quick email builder offers.
+  // Each falls back to the built-in wording until the settings read lands.
+  const [quickLayer1, setQuickLayer1] = useState<string[]>([...DEFAULT_QUICK_EMAIL_LAYER1]);
+  const [quickLayer2, setQuickLayer2] = useState<string[]>([...DEFAULT_QUICK_EMAIL_LAYER2]);
+  const [quickLayer3, setQuickLayer3] = useState<string[]>([...DEFAULT_QUICK_EMAIL_LAYER3]);
+  const [quickSkills, setQuickSkills] = useState<string[]>([...DEFAULT_QUICK_EMAIL_SKILLS]);
   // Which student's quick email panel is open, if any. Its own flag, set
   // from a table row and from the contact first card alike.
   const [draftStudentId, setDraftStudentId] = useState<string | null>(null);
@@ -484,7 +482,7 @@ export function TrackerScreen({ pinGate, onEditTemplate }: TrackerScreenProps) {
         // The one settings row is always id 1.
         supabase
           .from("daily_notes_settings")
-          .select("quick_email_topics, quick_email_template, quick_email_screenshots_line")
+          .select("quick_email_layer1, quick_email_layer2, quick_email_layer3, quick_email_skills")
           .eq("id", 1)
           .single(),
       ]);
@@ -492,19 +490,15 @@ export function TrackerScreen({ pinGate, onEditTemplate }: TrackerScreenProps) {
       setSmsTemplates((smsRes.data ?? []) as MessageTemplate[]);
       setEmailTemplates((emailRes.data ?? []) as MessageTemplate[]);
       const settings = settingsRes.data as {
-        quick_email_topics?: unknown;
-        quick_email_template?: unknown;
-        quick_email_screenshots_line?: unknown;
+        quick_email_layer1?: unknown;
+        quick_email_layer2?: unknown;
+        quick_email_layer3?: unknown;
+        quick_email_skills?: unknown;
       } | null;
-      setQuickTopics(readQuickEmailTopics(settings?.quick_email_topics));
-      setQuickTemplate(
-        typeof settings?.quick_email_template === "string" ? settings.quick_email_template : null,
-      );
-      setQuickScreenshotsLine(
-        typeof settings?.quick_email_screenshots_line === "string"
-          ? settings.quick_email_screenshots_line
-          : null,
-      );
+      setQuickLayer1(readStringArray(settings?.quick_email_layer1, DEFAULT_QUICK_EMAIL_LAYER1));
+      setQuickLayer2(readStringArray(settings?.quick_email_layer2, DEFAULT_QUICK_EMAIL_LAYER2));
+      setQuickLayer3(readStringArray(settings?.quick_email_layer3, DEFAULT_QUICK_EMAIL_LAYER3));
+      setQuickSkills(readStringArray(settings?.quick_email_skills, DEFAULT_QUICK_EMAIL_SKILLS));
     })();
   }, [unlocked]);
 
@@ -1732,14 +1726,14 @@ export function TrackerScreen({ pinGate, onEditTemplate }: TrackerScreenProps) {
           studentName={draftRow.student.student_name}
           parentName={draftRow.student.parent_name}
           parentEmail={draftRow.student.parent_email}
-          topics={quickTopics}
-          template={quickTemplate}
-          screenshotsLine={quickScreenshotsLine}
+          layer1={quickLayer1}
+          layer2={quickLayer2}
+          layer3={quickLayer3}
+          skills={quickSkills}
           onClose={() => setDraftStudentId(null)}
           onScheduled={(topics) => {
             if (draftStudentId) handleDraftScheduled(draftStudentId, topics);
           }}
-          onEditTemplate={onEditTemplate}
         />
       ) : null}
 

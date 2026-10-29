@@ -37,6 +37,34 @@ export function tidyQuickEmailTopics(topics: string[]): string[] {
   return topics.map((topic) => topic.trim()).filter((topic) => topic !== "");
 }
 
+// The three layer banks and the skill list for the layered builder. These are
+// fallbacks only, used when the matching daily_notes_settings column comes
+// back empty or missing. The real wording lives in the database, seeded
+// separately. Each Layer 1 line carries the literal token [skill], which the
+// builder fills with the chosen skill. One short placeholder per bank.
+export const DEFAULT_QUICK_EMAIL_LAYER1: readonly string[] = ["Today we worked on [skill]."];
+export const DEFAULT_QUICK_EMAIL_LAYER2: readonly string[] = [
+  "This matters because it is a building block for what comes next.",
+];
+export const DEFAULT_QUICK_EMAIL_LAYER3: readonly string[] = [
+  "A little practice at home this week would help it stick.",
+];
+export const DEFAULT_QUICK_EMAIL_SKILLS: readonly string[] = ["this skill"];
+
+// A saved text array from daily_notes_settings, or the given fallback when the
+// column is empty, missing, or not a list of words. The same shape as
+// readQuickEmailTopics, with the fallback handed in so the three layer banks
+// and the skill list can share it.
+export function readStringArray(raw: unknown, fallback: readonly string[]): string[] {
+  if (Array.isArray(raw)) {
+    const cleaned = raw
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item !== "");
+    if (cleaned.length > 0) return cleaned;
+  }
+  return [...fallback];
+}
+
 // The chosen topics: the selected chips, plus the typed one when there is
 // one, without repeating a chip the person also typed.
 export function effectiveTopics(selected: string[], custom: string): string[] {
@@ -120,6 +148,50 @@ export function assembleDraft({
     paras.push(effectiveScreenshotsLine(screenshotsLine));
   }
   return paras.join("\n\n");
+}
+
+// Fill one line with the parent and child first names and the chosen skill.
+// {parent} and {child} go through the shared template helper, the way the
+// rest of the quick email flow resolves them, then the literal [skill] token
+// is replaced. Used for the preview body and for the option labels in the
+// panel, so both read the same way.
+export function fillLayerLine(
+  line: string,
+  parentName: string | null,
+  studentName: string | null,
+  skill: string,
+): string {
+  const parent = greetingName(parentName);
+  const child = firstName(studentName) || (studentName ?? "").trim() || "your child";
+  return fillQuickEmailTemplate(line, { parent, child, topics: [] }).replaceAll(
+    "[skill]",
+    (skill ?? "").trim(),
+  );
+}
+
+export type LayeredDraftParts = {
+  parentName: string | null;
+  studentName: string | null;
+  skill: string;
+  // One chosen line per layer, in order.
+  layer1: string;
+  layer2: string;
+  layer3: string;
+};
+
+// The layered draft: a greeting, the three chosen layer lines in order, and a
+// sign-off, then one substitution pass over the whole string for {parent},
+// {child} and [skill].
+export function assembleLayeredDraft({
+  parentName,
+  studentName,
+  skill,
+  layer1,
+  layer2,
+  layer3,
+}: LayeredDraftParts): string {
+  const skeleton = ["Hi {parent},", layer1, layer2, layer3, "Thanks,"].join("\n\n");
+  return fillLayerLine(skeleton, parentName, studentName, skill);
 }
 
 export type QuickEmailRow = {

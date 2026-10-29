@@ -1,8 +1,5 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { QuickEmailPanel } from "../components/QuickEmailPanel";
 import {
   assembleDraft,
   DEFAULT_QUICK_EMAIL_SCREENSHOTS_LINE,
@@ -12,30 +9,15 @@ import {
   fillQuickEmailTemplate,
 } from "./quickEmail";
 
+// The template helpers still back the Quick email template editor on the
+// Settings screen, even though the parent row panel now uses the layered
+// builder instead, so they keep their coverage here.
 function source(file: string): string {
   return readFileSync(new URL(file, import.meta.url), "utf8");
 }
 
 const PANEL_SOURCE = source("../components/QuickEmailPanel.tsx");
-const TRACKER_SOURCE = source("../components/TrackerScreen.tsx");
 const SETTINGS_SOURCE = source("../components/SettingsScreen.tsx");
-const ROUTE_SOURCE = source("../routes/index.tsx");
-const STYLES_SOURCE = source("../styles.css");
-
-function panelHtml(over: Partial<Parameters<typeof QuickEmailPanel>[0]> = {}): string {
-  return renderToStaticMarkup(
-    createElement(QuickEmailPanel, {
-      studentId: 1,
-      studentName: "Ava Donnelly",
-      parentName: "Nicole Donnelly",
-      parentEmail: "n@example.com",
-      topics: ["Spelling"],
-      onClose: () => {},
-      onScheduled: () => {},
-      ...over,
-    }),
-  );
-}
 
 describe("the editable template fills the placeholders", () => {
   test("{parent} and {child} become the first names", () => {
@@ -146,69 +128,7 @@ describe("the fallbacks to the built-in wording", () => {
   });
 });
 
-describe("the panel previews the saved template", () => {
-  test("the preview follows the template it is handed", () => {
-    const a = panelHtml({ template: "First wording for {child}." });
-    expect(a).toContain("First wording for Ava.");
-    const b = panelHtml({ template: "Second wording for {child}." });
-    expect(b).toContain("Second wording for Ava.");
-    expect(b).not.toContain("First wording");
-  });
-
-  test("with no saved template it shows the built-in opener", () => {
-    const html = panelHtml();
-    expect(html).toContain("Hi Nicole,");
-    expect(html).toContain("I wanted to share a quick update");
-  });
-});
-
-describe("the panel link opens the template editor", () => {
-  test("the link sits on the Preview heading row, only when an edit handler is wired", () => {
-    const withLink = panelHtml({ onEditTemplate: () => {} });
-    expect(withLink).toContain("Edit template");
-    // On the Preview heading row, with the pencil rendered before the words.
-    expect(withLink).toContain('class="quick-email-preview-head"');
-    expect(withLink).toMatch(/quick-email-edit-link"><svg/);
-    const without = panelHtml();
-    expect(without).not.toContain("Edit template");
-  });
-
-  test("it is an accent pencil link, and the old under-preview link is gone", () => {
-    expect(PANEL_SOURCE).toContain('className="quick-email-edit-link"');
-    expect(PANEL_SOURCE).toContain("<PencilIcon");
-    expect(PANEL_SOURCE).toContain('import { PencilIcon } from "./Icons"');
-    // The old wording and class no longer exist anywhere in the panel.
-    expect(PANEL_SOURCE).not.toContain("Need to change the wording");
-    expect(PANEL_SOURCE).not.toContain("quick-email-template-link");
-    // The link is the app accent and carries no underline.
-    const start = STYLES_SOURCE.indexOf(".quick-email-edit-link {");
-    const linkCss = STYLES_SOURCE.slice(start, start + 240);
-    expect(start).toBeGreaterThan(-1);
-    expect(linkCss).toContain("color: var(--accent)");
-    expect(linkCss).not.toContain("underline");
-  });
-
-  test("the link closes the panel and calls the edit handler", () => {
-    // Asserted on the source: the click runs both, so the screen navigates.
-    expect(PANEL_SOURCE).toMatch(/onClose\(\);\s*onEditTemplate\(\);/);
-  });
-
-  test("the screen and route carry the request to the Settings card", () => {
-    // The screen hands the panel its edit handler and the saved wording.
-    expect(TRACKER_SOURCE).toContain("onEditTemplate={onEditTemplate}");
-    expect(TRACKER_SOURCE).toContain("template={quickTemplate}");
-    expect(TRACKER_SOURCE).toContain("screenshotsLine={quickScreenshotsLine}");
-    // The route points that handler at the quick email template card.
-    expect(ROUTE_SOURCE).toContain('setSettingsFocus("quick-email-template")');
-    expect(ROUTE_SOURCE).toContain('handleViewChange("settings")');
-    expect(ROUTE_SOURCE).toContain("scrollTo={settingsFocus}");
-    // The Settings screen scrolls to that card when asked.
-    expect(SETTINGS_SOURCE).toContain('scrollTo !== "quick-email-template"');
-    expect(SETTINGS_SOURCE).toContain("templateCardRef.current");
-  });
-});
-
-describe("the settings screen wires the template editor", () => {
+describe("the settings screen still wires the template editor", () => {
   test("it reads the wording columns from the one settings row", () => {
     expect(SETTINGS_SOURCE).toContain("quick_email_template, quick_email_screenshots_line");
     expect(SETTINGS_SOURCE).toContain("effectiveTemplate(data.quick_email_template)");
@@ -226,10 +146,8 @@ describe("the settings screen wires the template editor", () => {
     expect(SETTINGS_SOURCE).toContain("{topics}");
   });
 
-  test("the screen reads the field the editor writes, with no change to scheduling", () => {
-    // The panel's wording comes from the same column the editor saves.
-    expect(TRACKER_SOURCE).toContain("quick_email_template");
-    // The one insert the flow makes is still just the quick_emails row.
+  test("the layered panel still writes only the one quick_emails row", () => {
+    // The builder changed, but the one insert the flow makes is unchanged.
     expect([...PANEL_SOURCE.matchAll(/\.from\("([a-z_]+)"\)/g)].map((m) => m[1])).toEqual([
       "quick_emails",
     ]);

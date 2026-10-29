@@ -136,13 +136,7 @@ function Index() {
                   {view === "output" ? (
                     <OutputScreen />
                   ) : view === "parents" ? (
-                    <TrackerScreen
-                      pinGate={pinGate}
-                      onEditTemplate={() => {
-                        setSettingsFocus("quick-email-template");
-                        handleViewChange("settings");
-                      }}
-                    />
+                    <TrackerScreen pinGate={pinGate} />
                   ) : view === "manager" ? (
                     <ManagerScreen pinGate={pinGate} />
                   ) : view === "templates" ? (

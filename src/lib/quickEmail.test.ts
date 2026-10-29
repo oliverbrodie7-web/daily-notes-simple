@@ -31,7 +31,10 @@ function panelHtml(over: Partial<Parameters<typeof QuickEmailPanel>[0]> = {}): s
       studentName: "Ava Donnelly",
       parentName: "Nicole Donnelly",
       parentEmail: "nicole@example.com",
-      topics: [...DEFAULT_QUICK_EMAIL_TOPICS],
+      layer1: ["We worked on [skill] today.", "We revised [skill] again."],
+      layer2: ["It builds confidence for {child}."],
+      layer3: ["Please practise at home.", "No action needed, just sharing."],
+      skills: ["fractions", "spelling"],
       onClose: () => {},
       onScheduled: () => {},
       ...over,
@@ -56,20 +59,42 @@ describe("the topic chips", () => {
     expect(readQuickEmailTopics("not a list")).toEqual([...DEFAULT_QUICK_EMAIL_TOPICS]);
     expect(DEFAULT_QUICK_EMAIL_TOPICS).toHaveLength(6);
   });
+});
 
-  test("the panel renders exactly the chips it is handed", () => {
-    const html = panelHtml({ topics: ["Spelling", "Times tables"] });
-    expect(html).toContain("Spelling");
-    expect(html).toContain("Times tables");
-    // The chip buttons, not the chips container. None are selected on open,
-    // so each carries the bare class.
-    expect(html.split('class="quick-email-chip"').length - 1).toBe(2);
+describe("the layered builder", () => {
+  test("renders the three layers and the skill picker", () => {
+    const html = panelHtml();
+    expect(html).toContain("What happened");
+    expect(html).toContain("Why it matters");
+    expect(html).toContain("The ask");
+    // The skill dropdown holds the skills.
+    expect(html).toContain("fractions");
+    expect(html).toContain("spelling");
+    // Each layer option is filled the way the preview is: [skill] becomes the
+    // chosen skill and {child} the student first name.
+    expect(html).toContain("We worked on fractions today.");
+    expect(html).toContain("It builds confidence for Ava.");
+    // Exactly one option is selected per layer on open (the first of each).
+    expect(html.split('class="quick-email-option is-on"').length - 1).toBe(3);
   });
 
-  test("the screen reads the setting and hands the panel those chips", () => {
-    expect(TRACKER_SOURCE).toContain('.select("quick_email_topics');
-    expect(TRACKER_SOURCE).toContain("readQuickEmailTopics(");
-    expect(TRACKER_SOURCE).toContain("topics={quickTopics}");
+  test("the opening preview is complete, with no leftover tokens", () => {
+    const html = panelHtml();
+    expect(html).toContain("Hi Nicole,");
+    expect(html).toContain("We worked on fractions today.");
+    expect(html).toContain("It builds confidence for Ava.");
+    expect(html).toContain("Thanks,");
+    // Nothing in the rendered panel still shows a placeholder token.
+    expect(html).not.toContain("{parent}");
+    expect(html).not.toContain("{child}");
+    expect(html).not.toContain("[skill]");
+  });
+
+  test("the screen reads the layer banks and hands them to the panel", () => {
+    expect(TRACKER_SOURCE).toContain('.select("quick_email_layer1, quick_email_layer2');
+    expect(TRACKER_SOURCE).toContain("readStringArray(settings?.quick_email_layer1");
+    expect(TRACKER_SOURCE).toContain("layer1={quickLayer1}");
+    expect(TRACKER_SOURCE).toContain("skills={quickSkills}");
   });
 });
 
@@ -123,12 +148,6 @@ describe("the assembled draft", () => {
     expect(effectiveTopics(["a"], "b")).toEqual(["a", "b"]);
     expect(effectiveTopics(["a"], "a")).toEqual(["a"]);
     expect(effectiveTopics(["a"], "   ")).toEqual(["a"]);
-  });
-
-  test("the panel shows the draft with the names in it", () => {
-    const html = panelHtml();
-    expect(html).toContain("Hi Nicole,");
-    expect(html).toContain("Ava");
   });
 });
 
@@ -205,6 +224,14 @@ describe("scheduling writes one quick_emails row and nothing else", () => {
     expect(PANEL_SOURCE).not.toContain(".update(");
     expect(PANEL_SOURCE).not.toContain(".delete(");
     expect(PANEL_SOURCE).not.toContain("fetch(");
+  });
+
+  test("the panel schedules the chosen skill as the one topic, with the body", () => {
+    // The row stays the shape the nightly drafter reads: a populated body and a
+    // single skill topic, screenshots off now that the toggle is gone.
+    expect(PANEL_SOURCE).toContain("const topics = skill ? [skill] : [];");
+    expect(PANEL_SOURCE).toContain("offerScreenshots: false,");
+    expect(PANEL_SOURCE).toContain("onScheduled(topics)");
   });
 
   function baseArgs() {
