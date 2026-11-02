@@ -144,6 +144,47 @@ describe("the card", () => {
     expect(html).not.toContain("See all");
     expect(html).not.toContain("Draft email");
   });
+
+  test("expanded by default, with the count in the header and a toggle", () => {
+    const html = cardHtml();
+    // The header carries the count and a toggle that reports it is open.
+    expect(html).toContain('class="contact-first-count"');
+    expect(html).toContain(">9<");
+    expect(html).toContain('aria-expanded="true"');
+    // The list and footer are visible.
+    expect(html).toContain("Ava Donnelly");
+    expect(html).toContain("See all 9 who need a touch point");
+  });
+
+  test("collapsed keeps the title and count but hides the list and footer", () => {
+    // Render with storage that reports the card was left collapsed.
+    const saved = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = {
+      localStorage: { getItem: () => "1", setItem: () => {} },
+    };
+    try {
+      const html = cardHtml();
+      // Title and count stay in view.
+      expect(html).toContain(CONTACT_FIRST_TITLE);
+      expect(html).toContain(">9<");
+      expect(html).toContain('aria-expanded="false"');
+      // The list of families and the footer are gone.
+      expect(html).not.toContain("contact-first-row");
+      expect(html).not.toContain("See all");
+      expect(html).not.toContain("Draft email");
+    } finally {
+      (globalThis as { window?: unknown }).window = saved;
+    }
+  });
+
+  test("reads and writes the collapsed state through localStorage, guarded", () => {
+    const src = source("../components/ContactFirstCard.tsx");
+    expect(src).toContain("localStorage.getItem");
+    expect(src).toContain("localStorage.setItem");
+    // Both the read and the write are wrapped so a blocked storage cannot throw.
+    expect(src).toContain("try {");
+    expect(src).toContain("} catch {");
+  });
 });
 
 describe("how the screen wires it", () => {
