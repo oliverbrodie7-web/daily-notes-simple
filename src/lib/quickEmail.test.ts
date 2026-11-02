@@ -7,12 +7,18 @@ import { TouchPointsBody } from "../components/TouchPoints";
 import { coverageCounts, coverageGroup, type CoverageGroup } from "./coverage";
 import {
   assembleDraft,
+  assembleTwoTemplateDraft,
+  DEFAULT_QUICK_EMAIL_BOOKCHAT,
+  DEFAULT_QUICK_EMAIL_CALENDLY_LINK,
+  DEFAULT_QUICK_EMAIL_POSITIVE,
   DEFAULT_QUICK_EMAIL_TOPICS,
   effectiveTopics,
+  fillQuickEmailBody,
   joinTopics,
   quickEmailLine,
   quickEmailRow,
   readQuickEmailTopics,
+  readSettingText,
   scheduleQuickEmail,
   type QuickEmailRow,
 } from "./quickEmail";
@@ -31,10 +37,9 @@ function panelHtml(over: Partial<Parameters<typeof QuickEmailPanel>[0]> = {}): s
       studentName: "Ava Donnelly",
       parentName: "Nicole Donnelly",
       parentEmail: "nicole@example.com",
-      layer1: ["We worked on [skill] today.", "We revised [skill] again."],
-      layer2: ["It builds confidence for {child}."],
-      layer3: ["Please practise at home.", "No action needed, just sharing."],
-      skills: ["fractions", "spelling"],
+      positive: "Lovely work from {child} today[[, particularly with {topic}]]. Book here: {link}",
+      bookchat: "I would love to catch up about {child}. Book a time here: {link}",
+      calendlyLink: "https://cal.example/book",
       onClose: () => {},
       onScheduled: () => {},
       ...over,
@@ -61,40 +66,95 @@ describe("the topic chips", () => {
   });
 });
 
-describe("the layered builder", () => {
-  test("renders the three layers and the skill picker", () => {
+describe("the two template builder", () => {
+  test("renders the two choices, defaults to Positive, and shows the topic field", () => {
     const html = panelHtml();
-    expect(html).toContain("What happened");
-    expect(html).toContain("Why it matters");
-    expect(html).toContain("The ask");
-    // The skill dropdown holds the skills.
-    expect(html).toContain("fractions");
-    expect(html).toContain("spelling");
-    // Each layer option is filled the way the preview is: [skill] becomes the
-    // chosen skill and {child} the student first name.
-    expect(html).toContain("We worked on fractions today.");
-    expect(html).toContain("It builds confidence for Ava.");
-    // Exactly one option is selected per layer on open (the first of each).
-    expect(html.split('class="quick-email-option is-on"').length - 1).toBe(3);
+    expect(html).toContain("Positive");
+    expect(html).toContain("Book a chat");
+    // Positive is the one selected choice on open.
+    expect(html.split('class="quick-email-option is-on"').length - 1).toBe(1);
+    // Positive shows the optional topic field, gated on the choice in source.
+    expect(html).toContain("Topic (optional)");
+    expect(PANEL_SOURCE).toContain('choice === "positive" ?');
   });
 
-  test("the opening preview is complete, with no leftover tokens", () => {
+  test("the opening preview is a complete Positive draft with the link and no tokens", () => {
     const html = panelHtml();
     expect(html).toContain("Hi Nicole,");
-    expect(html).toContain("We worked on fractions today.");
-    expect(html).toContain("It builds confidence for Ava.");
+    // The positive body, with {child} and {link} filled and the empty topic
+    // clause dropped cleanly so the sentence still reads.
+    expect(html).toContain("Lovely work from Ava today. Book here: https://cal.example/book");
     expect(html).toContain("Thanks,");
-    // Nothing in the rendered panel still shows a placeholder token.
-    expect(html).not.toContain("{parent}");
-    expect(html).not.toContain("{child}");
-    expect(html).not.toContain("[skill]");
+    // No tokens or stray segment markers survive anywhere in the panel.
+    for (const token of ["{parent}", "{child}", "{topic}", "{link}", "[[", "]]"]) {
+      expect(html).not.toContain(token);
+    }
   });
 
-  test("the screen reads the layer banks and hands them to the panel", () => {
-    expect(TRACKER_SOURCE).toContain('.select("quick_email_layer1, quick_email_layer2');
-    expect(TRACKER_SOURCE).toContain("readStringArray(settings?.quick_email_layer1");
-    expect(TRACKER_SOURCE).toContain("layer1={quickLayer1}");
-    expect(TRACKER_SOURCE).toContain("skills={quickSkills}");
+  test("the screen reads the two templates and the link and hands them to the panel", () => {
+    expect(TRACKER_SOURCE).toContain(
+      '.select("quick_email_positive, quick_email_bookchat, quick_email_calendly_link")',
+    );
+    expect(TRACKER_SOURCE).toContain("readSettingText(settings?.quick_email_positive");
+    expect(TRACKER_SOURCE).toContain("positive={quickPositive}");
+    expect(TRACKER_SOURCE).toContain("calendlyLink={quickCalendlyLink}");
+  });
+});
+
+describe("the two template tokens", () => {
+  test("the greeting and sign-off wrap the body, with {child}, {parent} and {link} filled", () => {
+    const draft = assembleTwoTemplateDraft({
+      parentName: "Nicole Donnelly",
+      studentName: "Ava Donnelly",
+      template: "A note about {child}. Book here: {link}",
+      topic: "",
+      link: "https://cal.example/book",
+    });
+    expect(draft).toContain("Hi Nicole,");
+    expect(draft).toContain("A note about Ava. Book here: https://cal.example/book");
+    expect(draft.endsWith("Thanks,")).toBe(true);
+    // First names only.
+    expect(draft).not.toContain("Donnelly");
+  });
+
+  test("the optional [[ ]] clause is kept with a topic and removed without one", () => {
+    const template = "Lovely work from {child} today[[, particularly with {topic}]].";
+    expect(fillQuickEmailBody(template, "Nicole", "Ava", "fractions", "")).toBe(
+      "Lovely work from Ava today, particularly with fractions.",
+    );
+    expect(fillQuickEmailBody(template, "Nicole", "Ava", "", "")).toBe(
+      "Lovely work from Ava today.",
+    );
+    // A blank topic (spaces only) counts as no topic.
+    expect(fillQuickEmailBody(template, "Nicole", "Ava", "   ", "")).toBe(
+      "Lovely work from Ava today.",
+    );
+  });
+
+  test("the link fills from the argument and no markers or tokens survive", () => {
+    const out = fillQuickEmailBody(
+      "Book here: {link}[[ about {topic}]]",
+      "Nicole",
+      "Ava",
+      "",
+      "https://cal.example/book",
+    );
+    expect(out).toBe("Book here: https://cal.example/book");
+    for (const token of ["{parent}", "{child}", "{topic}", "{link}", "[[", "]]"]) {
+      expect(out).not.toContain(token);
+    }
+  });
+
+  test("readSettingText returns the value or the fallback, and the defaults are empty", () => {
+    expect(readSettingText("Hello", "")).toBe("Hello");
+    expect(readSettingText("   ", "fallback")).toBe("fallback");
+    expect(readSettingText(null, "")).toBe("");
+    expect(readSettingText(42, "fallback")).toBe("fallback");
+    // The two template bodies and the link default are empty by design: the
+    // real wording and link live in the database, never as a literal here.
+    expect(DEFAULT_QUICK_EMAIL_POSITIVE).toBe("");
+    expect(DEFAULT_QUICK_EMAIL_BOOKCHAT).toBe("");
+    expect(DEFAULT_QUICK_EMAIL_CALENDLY_LINK).toBe("");
   });
 });
 
@@ -226,10 +286,10 @@ describe("scheduling writes one quick_emails row and nothing else", () => {
     expect(PANEL_SOURCE).not.toContain("fetch(");
   });
 
-  test("the panel schedules the chosen skill as the one topic, with the body", () => {
+  test("the panel schedules the chosen template name as the one topic, with the body", () => {
     // The row stays the shape the nightly drafter reads: a populated body and a
-    // single skill topic, screenshots off now that the toggle is gone.
-    expect(PANEL_SOURCE).toContain("const topics = skill ? [skill] : [];");
+    // single topic naming the template, screenshots off.
+    expect(PANEL_SOURCE).toContain("const topics = [CHOICE_LABEL[choice]];");
     expect(PANEL_SOURCE).toContain("offerScreenshots: false,");
     expect(PANEL_SOURCE).toContain("onScheduled(topics)");
   });

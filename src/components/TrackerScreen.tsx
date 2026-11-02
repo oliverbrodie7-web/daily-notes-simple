@@ -88,11 +88,10 @@ import { ContactFirstCard } from "./ContactFirstCard";
 import { contactFirstFamilies } from "../lib/contactFirst";
 import { QuickEmailPanel } from "./QuickEmailPanel";
 import {
-  DEFAULT_QUICK_EMAIL_LAYER1,
-  DEFAULT_QUICK_EMAIL_LAYER2,
-  DEFAULT_QUICK_EMAIL_LAYER3,
-  DEFAULT_QUICK_EMAIL_SKILLS,
-  readStringArray,
+  DEFAULT_QUICK_EMAIL_BOOKCHAT,
+  DEFAULT_QUICK_EMAIL_CALENDLY_LINK,
+  DEFAULT_QUICK_EMAIL_POSITIVE,
+  readSettingText,
   type QuickEmailEntry,
 } from "../lib/quickEmail";
 import {
@@ -228,12 +227,13 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
   const [quickEmailsByStudent, setQuickEmailsByStudent] = useState<Map<string, QuickEmailEntry[]>>(
     new Map(),
   );
-  // The three layer banks and the skill list the quick email builder offers.
-  // Each falls back to the built-in wording until the settings read lands.
-  const [quickLayer1, setQuickLayer1] = useState<string[]>([...DEFAULT_QUICK_EMAIL_LAYER1]);
-  const [quickLayer2, setQuickLayer2] = useState<string[]>([...DEFAULT_QUICK_EMAIL_LAYER2]);
-  const [quickLayer3, setQuickLayer3] = useState<string[]>([...DEFAULT_QUICK_EMAIL_LAYER3]);
-  const [quickSkills, setQuickSkills] = useState<string[]>([...DEFAULT_QUICK_EMAIL_SKILLS]);
+  // The two fixed templates and the Calendly link the quick email builder uses.
+  // Each falls back to its built-in value until the settings read lands.
+  const [quickPositive, setQuickPositive] = useState<string>(DEFAULT_QUICK_EMAIL_POSITIVE);
+  const [quickBookchat, setQuickBookchat] = useState<string>(DEFAULT_QUICK_EMAIL_BOOKCHAT);
+  const [quickCalendlyLink, setQuickCalendlyLink] = useState<string>(
+    DEFAULT_QUICK_EMAIL_CALENDLY_LINK,
+  );
   // Which student's quick email panel is open, if any. Its own flag, set
   // from a table row and from the contact first card alike.
   const [draftStudentId, setDraftStudentId] = useState<string | null>(null);
@@ -482,7 +482,7 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
         // The one settings row is always id 1.
         supabase
           .from("daily_notes_settings")
-          .select("quick_email_layer1, quick_email_layer2, quick_email_layer3, quick_email_skills")
+          .select("quick_email_positive, quick_email_bookchat, quick_email_calendly_link")
           .eq("id", 1)
           .single(),
       ]);
@@ -490,15 +490,19 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
       setSmsTemplates((smsRes.data ?? []) as MessageTemplate[]);
       setEmailTemplates((emailRes.data ?? []) as MessageTemplate[]);
       const settings = settingsRes.data as {
-        quick_email_layer1?: unknown;
-        quick_email_layer2?: unknown;
-        quick_email_layer3?: unknown;
-        quick_email_skills?: unknown;
+        quick_email_positive?: unknown;
+        quick_email_bookchat?: unknown;
+        quick_email_calendly_link?: unknown;
       } | null;
-      setQuickLayer1(readStringArray(settings?.quick_email_layer1, DEFAULT_QUICK_EMAIL_LAYER1));
-      setQuickLayer2(readStringArray(settings?.quick_email_layer2, DEFAULT_QUICK_EMAIL_LAYER2));
-      setQuickLayer3(readStringArray(settings?.quick_email_layer3, DEFAULT_QUICK_EMAIL_LAYER3));
-      setQuickSkills(readStringArray(settings?.quick_email_skills, DEFAULT_QUICK_EMAIL_SKILLS));
+      setQuickPositive(
+        readSettingText(settings?.quick_email_positive, DEFAULT_QUICK_EMAIL_POSITIVE),
+      );
+      setQuickBookchat(
+        readSettingText(settings?.quick_email_bookchat, DEFAULT_QUICK_EMAIL_BOOKCHAT),
+      );
+      setQuickCalendlyLink(
+        readSettingText(settings?.quick_email_calendly_link, DEFAULT_QUICK_EMAIL_CALENDLY_LINK),
+      );
     })();
   }, [unlocked]);
 
@@ -1726,10 +1730,9 @@ export function TrackerScreen({ pinGate }: TrackerScreenProps) {
           studentName={draftRow.student.student_name}
           parentName={draftRow.student.parent_name}
           parentEmail={draftRow.student.parent_email}
-          layer1={quickLayer1}
-          layer2={quickLayer2}
-          layer3={quickLayer3}
-          skills={quickSkills}
+          positive={quickPositive}
+          bookchat={quickBookchat}
+          calendlyLink={quickCalendlyLink}
           onClose={() => setDraftStudentId(null)}
           onScheduled={(topics) => {
             if (draftStudentId) handleDraftScheduled(draftStudentId, topics);

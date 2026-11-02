@@ -37,32 +37,21 @@ export function tidyQuickEmailTopics(topics: string[]): string[] {
   return topics.map((topic) => topic.trim()).filter((topic) => topic !== "");
 }
 
-// The three layer banks and the skill list for the layered builder. These are
-// fallbacks only, used when the matching daily_notes_settings column comes
-// back empty or missing. The real wording lives in the database, seeded
-// separately. Each Layer 1 line carries the literal token [skill], which the
-// builder fills with the chosen skill. One short placeholder per bank.
-export const DEFAULT_QUICK_EMAIL_LAYER1: readonly string[] = ["Today we worked on [skill]."];
-export const DEFAULT_QUICK_EMAIL_LAYER2: readonly string[] = [
-  "This matters because it is a building block for what comes next.",
-];
-export const DEFAULT_QUICK_EMAIL_LAYER3: readonly string[] = [
-  "A little practice at home this week would help it stick.",
-];
-export const DEFAULT_QUICK_EMAIL_SKILLS: readonly string[] = ["this skill"];
+// The two fixed quick email templates and the Calendly booking link. These are
+// fallbacks only, used when the matching daily_notes_settings column comes back
+// empty or missing; the real wording and the real link live in the database.
+// The two bodies are deliberately empty: the wording could not be read from
+// here and must not be invented. The Calendly link is always empty in code, so
+// a real link can only ever come from the database column.
+export const DEFAULT_QUICK_EMAIL_POSITIVE = "";
+export const DEFAULT_QUICK_EMAIL_BOOKCHAT = "";
+export const DEFAULT_QUICK_EMAIL_CALENDLY_LINK = "";
 
-// A saved text array from daily_notes_settings, or the given fallback when the
-// column is empty, missing, or not a list of words. The same shape as
-// readQuickEmailTopics, with the fallback handed in so the three layer banks
-// and the skill list can share it.
-export function readStringArray(raw: unknown, fallback: readonly string[]): string[] {
-  if (Array.isArray(raw)) {
-    const cleaned = raw
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter((item) => item !== "");
-    if (cleaned.length > 0) return cleaned;
-  }
-  return [...fallback];
+// A saved text value from daily_notes_settings, or the given fallback when the
+// column is empty or missing. The single string counterpart of the array
+// reader above.
+export function readSettingText(raw: unknown, fallback: string): string {
+  return typeof raw === "string" && raw.trim() !== "" ? raw : fallback;
 }
 
 // The chosen topics: the selected chips, plus the typed one when there is
@@ -150,48 +139,52 @@ export function assembleDraft({
   return paras.join("\n\n");
 }
 
-// Fill one line with the parent and child first names and the chosen skill.
-// {parent} and {child} go through the shared template helper, the way the
-// rest of the quick email flow resolves them, then the literal [skill] token
-// is replaced. Used for the preview body and for the option labels in the
-// panel, so both read the same way.
-export function fillLayerLine(
-  line: string,
+// Fill a template body with the parent and child first names, the optional
+// topic, and the Calendly link. {parent} and {child} go through the shared
+// helper the rest of the flow uses. A segment wrapped in [[ ]] is an optional
+// clause: when a topic was entered its markers are dropped and {topic} is
+// filled, and when the topic is empty the whole segment is removed so the
+// sentence still reads cleanly.
+export function fillQuickEmailBody(
+  template: string,
   parentName: string | null,
   studentName: string | null,
-  skill: string,
+  topic: string,
+  link: string,
 ): string {
+  const topicTrimmed = (topic ?? "").trim();
+  const withSegment = template.replace(/\[\[([\s\S]*?)\]\]/g, (_match, inner: string) =>
+    topicTrimmed ? inner : "",
+  );
   const parent = greetingName(parentName);
   const child = firstName(studentName) || (studentName ?? "").trim() || "your child";
-  return fillQuickEmailTemplate(line, { parent, child, topics: [] }).replaceAll(
-    "[skill]",
-    (skill ?? "").trim(),
-  );
+  return fillQuickEmailTemplate(withSegment, { parent, child, topics: [] })
+    .replaceAll("{topic}", topicTrimmed)
+    .replaceAll("{link}", (link ?? "").trim());
 }
 
-export type LayeredDraftParts = {
+export type TwoTemplateParts = {
   parentName: string | null;
   studentName: string | null;
-  skill: string;
-  // One chosen line per layer, in order.
-  layer1: string;
-  layer2: string;
-  layer3: string;
+  // The chosen template body, before its tokens are filled.
+  template: string;
+  // The optional topic, used only by the positive template's [[ ]] clause.
+  topic: string;
+  // The Calendly booking link from the settings row.
+  link: string;
 };
 
-// The layered draft: a greeting, the three chosen layer lines in order, and a
-// sign-off, then one substitution pass over the whole string for {parent},
-// {child} and [skill].
-export function assembleLayeredDraft({
+// The two template draft: a greeting, the chosen template body with every token
+// filled, and a sign-off.
+export function assembleTwoTemplateDraft({
   parentName,
   studentName,
-  skill,
-  layer1,
-  layer2,
-  layer3,
-}: LayeredDraftParts): string {
-  const skeleton = ["Hi {parent},", layer1, layer2, layer3, "Thanks,"].join("\n\n");
-  return fillLayerLine(skeleton, parentName, studentName, skill);
+  template,
+  topic,
+  link,
+}: TwoTemplateParts): string {
+  const skeleton = ["Hi {parent},", template, "Thanks,"].join("\n\n");
+  return fillQuickEmailBody(skeleton, parentName, studentName, topic, link);
 }
 
 export type QuickEmailRow = {

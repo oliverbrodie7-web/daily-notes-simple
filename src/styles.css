@@ -6681,16 +6681,9 @@ button.touch-block:hover {
   font-weight: 700;
   color: var(--text);
 }
-/* The skill control: a dropdown of saved skills with a text field under it for
-   one that is not in the list. */
-.quick-email-skill {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-}
-/* Each layer is a vertical list of single select options. The selected one
-   wears the same accent fill the topic chips used to, tokens and all. */
+/* The template choices are a vertical list of single select options. The
+   selected one wears the same accent fill the topic chips used to, tokens and
+   all. */
 .quick-email-options {
   display: flex;
   flex-direction: column;

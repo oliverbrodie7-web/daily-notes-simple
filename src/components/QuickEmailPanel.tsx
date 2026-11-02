@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { copyText } from "../lib/clipboard";
 import { supabase } from "../lib/supabase";
 import {
-  assembleLayeredDraft,
-  fillLayerLine,
+  assembleTwoTemplateDraft,
   scheduleQuickEmail,
   type QuickEmailRow,
 } from "../lib/quickEmail";
@@ -17,66 +16,61 @@ const insertRow = async (row: QuickEmailRow): Promise<{ error: unknown }> => {
   return { error };
 };
 
+type Choice = "positive" | "bookchat";
+
+const CHOICE_LABEL: Record<Choice, string> = {
+  positive: "Positive",
+  bookchat: "Book a chat",
+};
+
 type QuickEmailPanelProps = {
   studentId: string | number;
   studentName: string;
   parentName: string | null;
   parentEmail: string | null;
-  // The three layer banks and the skill list, each already falling back to the
-  // built-in wording when the settings column was empty.
-  layer1: string[];
-  layer2: string[];
-  layer3: string[];
-  skills: string[];
+  // The two fixed template bodies and the Calendly link, already falling back
+  // to their built-in values when the settings column was empty.
+  positive: string;
+  bookchat: string;
+  calendlyLink: string;
   onClose: () => void;
-  // The chosen skill, handed back as a single item array so the screen can
-  // move the family out of red at once and the history line still reads.
+  // The chosen template name, handed back as a single item array so the screen
+  // can move the family out of red at once and the history line still reads.
   onScheduled: (topics: string[]) => void;
 };
 
 // The quick email panel, a modal opened from a table row and from the contact
-// first card alike. The user picks one option in each of three layers plus a
-// skill and the email assembles itself. On Schedule it writes one quick_emails
-// row and does nothing else. The nightly job drafts the real email later.
+// first card alike. The user picks one of two fixed templates, glances at the
+// preview and schedules. On Schedule it writes one quick_emails row and does
+// nothing else. The nightly job drafts the real email from that row later.
 export function QuickEmailPanel({
   studentId,
   studentName,
   parentName,
   parentEmail,
-  layer1,
-  layer2,
-  layer3,
-  skills,
+  positive,
+  bookchat,
+  calendlyLink,
   onClose,
   onScheduled,
 }: QuickEmailPanelProps) {
-  // The dropdown skill, defaulted to the first in the list, and a typed skill
-  // that overrides it when present.
-  const [skillChoice, setSkillChoice] = useState(() => skills[0] ?? "");
-  const [customSkill, setCustomSkill] = useState("");
-  // One chosen line per layer, defaulted to the first option so the preview is
-  // complete the moment the panel opens.
-  const [layer1Pick, setLayer1Pick] = useState(() => layer1[0] ?? "");
-  const [layer2Pick, setLayer2Pick] = useState(() => layer2[0] ?? "");
-  const [layer3Pick, setLayer3Pick] = useState(() => layer3[0] ?? "");
-
-  // The effective skill: the typed one when there is one, otherwise the
-  // dropdown. This is what fills the [skill] token.
-  const skill = customSkill.trim() || skillChoice;
+  // Which of the two templates, defaulted to Positive, and the optional topic
+  // the positive template can fold in.
+  const [choice, setChoice] = useState<Choice>("positive");
+  const [topic, setTopic] = useState("");
 
   // Seeded with the opening draft, so the preview is there on the first paint
   // rather than only after the effect runs.
   const [body, setBody] = useState(() =>
-    assembleLayeredDraft({
+    assembleTwoTemplateDraft({
       parentName,
       studentName,
-      skill: skills[0] ?? "",
-      layer1: layer1[0] ?? "",
-      layer2: layer2[0] ?? "",
-      layer3: layer3[0] ?? "",
+      template: positive,
+      topic: "",
+      link: calendlyLink,
     }),
   );
-  // Once the person edits the draft, the choices stop rewriting it under them.
+  // Once the person edits the draft, the choice stops rewriting it under them.
   const [edited, setEdited] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -84,20 +78,22 @@ export function QuickEmailPanel({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<Element | null>(null);
 
-  // Keep the preview in step with the choices until the person takes the pen.
+  // Keep the preview in step with the choice and topic until the person takes
+  // the pen. Book a chat ignores the topic.
   useEffect(() => {
     if (edited) return;
+    const template = choice === "positive" ? positive : bookchat;
+    const topicForFill = choice === "positive" ? topic : "";
     setBody(
-      assembleLayeredDraft({
+      assembleTwoTemplateDraft({
         parentName,
         studentName,
-        skill,
-        layer1: layer1Pick,
-        layer2: layer2Pick,
-        layer3: layer3Pick,
+        template,
+        topic: topicForFill,
+        link: calendlyLink,
       }),
     );
-  }, [skill, layer1Pick, layer2Pick, layer3Pick, edited, parentName, studentName]);
+  }, [choice, topic, positive, bookchat, calendlyLink, edited, parentName, studentName]);
 
   // Focus into the panel on open, back to the opener on close.
   useEffect(() => {
@@ -127,9 +123,9 @@ export function QuickEmailPanel({
     if (busy) return;
     setBusy(true);
     setMessage(null);
-    // A single item array holding the chosen skill, kept only so the history
+    // A single item array naming the chosen template, kept only so the history
     // line still reads. The email itself is the body text below.
-    const topics = skill ? [skill] : [];
+    const topics = [CHOICE_LABEL[choice]];
     const result = await scheduleQuickEmail(
       { insert: insertRow },
       {
@@ -168,36 +164,6 @@ export function QuickEmailPanel({
     }
   }
 
-  // One layer, as a labelled vertical list of single select options. The label
-  // on each option is filled the same way the preview is, so what you pick is
-  // what you read.
-  const renderLayer = (
-    label: string,
-    options: string[],
-    pick: string,
-    onPick: (value: string) => void,
-  ) => (
-    <>
-      <p className="quick-email-field-label">{label}</p>
-      <div className="quick-email-options" role="group" aria-label={label}>
-        {options.map((option) => {
-          const on = option === pick;
-          return (
-            <button
-              key={option}
-              type="button"
-              className={`quick-email-option${on ? " is-on" : ""}`}
-              aria-pressed={on}
-              onClick={() => onPick(option)}
-            >
-              {fillLayerLine(option, parentName, studentName, skill)}
-            </button>
-          );
-        })}
-      </div>
-    </>
-  );
-
   return (
     <div
       className="match-overlay"
@@ -219,33 +185,39 @@ export function QuickEmailPanel({
           This writes a draft for tonight. The email is drafted later, not sent now.
         </p>
 
-        <p className="quick-email-field-label">Skill</p>
-        <div className="quick-email-skill">
-          <select
-            className="text-field"
-            aria-label="Skill"
-            value={skillChoice}
-            onChange={(event) => setSkillChoice(event.target.value)}
-          >
-            {skills.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <input
-            className="text-field"
-            type="text"
-            value={customSkill}
-            placeholder="Or type another skill"
-            aria-label="Type a skill not in the list"
-            onChange={(event) => setCustomSkill(event.target.value)}
-          />
+        <p className="quick-email-field-label">Template</p>
+        <div className="quick-email-options" role="group" aria-label="Template">
+          {(["positive", "bookchat"] as Choice[]).map((key) => {
+            const on = choice === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`quick-email-option${on ? " is-on" : ""}`}
+                aria-pressed={on}
+                onClick={() => setChoice(key)}
+              >
+                {CHOICE_LABEL[key]}
+              </button>
+            );
+          })}
         </div>
 
-        {renderLayer("What happened", layer1, layer1Pick, setLayer1Pick)}
-        {renderLayer("Why it matters", layer2, layer2Pick, setLayer2Pick)}
-        {renderLayer("The ask", layer3, layer3Pick, setLayer3Pick)}
+        {choice === "positive" ? (
+          <>
+            <label className="field-label" htmlFor="quick-email-topic">
+              Topic (optional)
+            </label>
+            <input
+              id="quick-email-topic"
+              className="text-field"
+              type="text"
+              value={topic}
+              placeholder="For example, fractions"
+              onChange={(event) => setTopic(event.target.value)}
+            />
+          </>
+        ) : null}
 
         <label className="field-label" htmlFor="quick-email-body">
           Preview
