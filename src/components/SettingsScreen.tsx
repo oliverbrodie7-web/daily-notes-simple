@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { PinGate } from "../hooks/usePinGate";
 import { hashPin, isValidPin } from "../lib/pin";
-import {
-  DEFAULT_QUICK_EMAIL_TOPICS,
-  effectiveScreenshotsLine,
-  effectiveTemplate,
-  readQuickEmailTopics,
-  tidyQuickEmailTopics,
-} from "../lib/quickEmail";
 import { supabase } from "../lib/supabase";
 import {
   DEFAULT_NAV_LABELS,
@@ -20,7 +13,6 @@ import {
   tidyNavLabels,
   type NavLabels,
 } from "../lib/navLabels";
-import { ChevronDownIcon, ChevronUpIcon, CloseIcon } from "./Icons";
 import { LockGate } from "./LockGate";
 
 // The daily_notes_settings table holds exactly one row whose id is always 1.
@@ -83,34 +75,24 @@ export function SettingsScreen({
   const labelsSavedTimer = useRef<number | undefined>(undefined);
   const labelsDirty = !sameNavLabels(tidyNavLabels(draftLabels), labels);
 
-  // The quick email topics, seeded with the defaults so the fields show
-  // something before the row loads. savedTopics tracks what is effectively
-  // stored (the defaults when the column is empty), so the dirty check and
-  // the panel agree about what the chips are.
-  const [topics, setTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
-  const [savedTopics, setSavedTopics] = useState<string[]>([...DEFAULT_QUICK_EMAIL_TOPICS]);
-  const [topicsBusy, setTopicsBusy] = useState(false);
-  const [topicsSaved, setTopicsSaved] = useState(false);
-  const [topicsMessage, setTopicsMessage] = useState<string | null>(null);
-  const topicsSavedTimer = useRef<number | undefined>(undefined);
-  const topicsDirty = JSON.stringify(tidyQuickEmailTopics(topics)) !== JSON.stringify(savedTopics);
-
-  // The quick email wording. Seeded with the effective wording (the built-in
-  // template and screenshots sentence when the columns are empty), so the
-  // fields always open on the wording a draft would actually use.
-  const [qeTemplate, setQeTemplate] = useState(() => effectiveTemplate(null));
-  const [qeScreenshots, setQeScreenshots] = useState(() => effectiveScreenshotsLine(null));
-  const [savedQeTemplate, setSavedQeTemplate] = useState(() => effectiveTemplate(null));
-  const [savedQeScreenshots, setSavedQeScreenshots] = useState(() =>
-    effectiveScreenshotsLine(null),
-  );
+  // The two quick email templates and the booking link. Each loads the raw
+  // column value, empty when the column is empty, the same way the email
+  // template fields do. The booking link lives only in the column, never as a
+  // literal in the code.
+  const [qePositive, setQePositive] = useState("");
+  const [qeBookchat, setQeBookchat] = useState("");
+  const [qeLink, setQeLink] = useState("");
+  const [savedQePositive, setSavedQePositive] = useState("");
+  const [savedQeBookchat, setSavedQeBookchat] = useState("");
+  const [savedQeLink, setSavedQeLink] = useState("");
   const [qeBusy, setQeBusy] = useState(false);
   const [qeSaved, setQeSaved] = useState(false);
   const [qeMessage, setQeMessage] = useState<string | null>(null);
   const qeSavedTimer = useRef<number | undefined>(undefined);
   const templateCardRef = useRef<HTMLDivElement | null>(null);
   const templateFieldRef = useRef<HTMLTextAreaElement | null>(null);
-  const qeDirty = qeTemplate !== savedQeTemplate || qeScreenshots !== savedQeScreenshots;
+  const qeDirty =
+    qePositive !== savedQePositive || qeBookchat !== savedQeBookchat || qeLink !== savedQeLink;
 
   const dirty = !loading && !loadFailed && (subject !== savedSubject || body !== savedBody);
 
@@ -119,7 +101,7 @@ export function SettingsScreen({
     supabase
       .from("daily_notes_settings")
       .select(
-        "email_subject, email_template, quick_email_topics, quick_email_template, quick_email_screenshots_line",
+        "email_subject, email_template, quick_email_positive, quick_email_bookchat, quick_email_calendly_link",
       )
       .eq("id", SETTINGS_ROW_ID)
       .single()
@@ -136,17 +118,17 @@ export function SettingsScreen({
         setBody(rowBody);
         setSavedSubject(rowSubject);
         setSavedBody(rowBody);
-        // Empty or missing falls back to the six defaults as the starting point.
-        const rowTopics = readQuickEmailTopics(data.quick_email_topics);
-        setTopics(rowTopics);
-        setSavedTopics(rowTopics);
-        // Empty or missing wording opens on the built-in template and sentence.
-        const rowTemplate = effectiveTemplate(data.quick_email_template);
-        const rowScreenshots = effectiveScreenshotsLine(data.quick_email_screenshots_line);
-        setQeTemplate(rowTemplate);
-        setSavedQeTemplate(rowTemplate);
-        setQeScreenshots(rowScreenshots);
-        setSavedQeScreenshots(rowScreenshots);
+        // The two templates and the link load straight from their columns,
+        // empty when the column is empty, the same as the email template above.
+        const rowPositive = (data.quick_email_positive as string | null) ?? "";
+        const rowBookchat = (data.quick_email_bookchat as string | null) ?? "";
+        const rowLink = (data.quick_email_calendly_link as string | null) ?? "";
+        setQePositive(rowPositive);
+        setSavedQePositive(rowPositive);
+        setQeBookchat(rowBookchat);
+        setSavedQeBookchat(rowBookchat);
+        setQeLink(rowLink);
+        setSavedQeLink(rowLink);
         setLoading(false);
       });
     return () => {
@@ -156,7 +138,6 @@ export function SettingsScreen({
 
   useEffect(() => () => window.clearTimeout(pinSavedTimer.current), []);
   useEffect(() => () => window.clearTimeout(labelsSavedTimer.current), []);
-  useEffect(() => () => window.clearTimeout(topicsSavedTimer.current), []);
   useEffect(() => () => window.clearTimeout(qeSavedTimer.current), []);
 
   // A link elsewhere can ask for the template editor. Once the screen is on
@@ -312,75 +293,27 @@ export function SettingsScreen({
     void saveLabels(DEFAULT_NAV_LABELS, true);
   }
 
-  function editTopic(index: number, value: string) {
-    setTopicsMessage(null);
-    setTopics((current) => current.map((topic, i) => (i === index ? value : topic)));
-  }
-
-  function addTopic() {
-    setTopicsMessage(null);
-    setTopics((current) => [...current, ""]);
-  }
-
-  function removeTopic(index: number) {
-    setTopicsMessage(null);
-    setTopics((current) => current.filter((_, i) => i !== index));
-  }
-
-  function moveTopic(index: number, delta: number) {
-    setTopicsMessage(null);
-    setTopics((current) => {
-      const target = index + delta;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target]!, next[index]!];
-      return next;
-    });
-  }
-
-  async function handleTopicsSave() {
-    if (topicsBusy) return;
-    const tidy = tidyQuickEmailTopics(topics);
-    setTopicsBusy(true);
-    setTopicsMessage(null);
-    const { error } = await supabase
-      .from("daily_notes_settings")
-      .update({ quick_email_topics: tidy, updated_at: new Date().toISOString() })
-      .eq("id", SETTINGS_ROW_ID);
-    setTopicsBusy(false);
-    if (error) {
-      setTopicsMessage("The topics could not be saved. Please try again.");
-      return;
-    }
-    // Written as the tidy array, which may be empty; the fields and the dirty
-    // check then show the effective list, the defaults when nothing is left.
-    const effective = readQuickEmailTopics(tidy);
-    setSavedTopics(effective);
-    setTopics(effective);
-    setTopicsSaved(true);
-    window.clearTimeout(topicsSavedTimer.current);
-    topicsSavedTimer.current = window.setTimeout(() => setTopicsSaved(false), 2000);
-  }
-
-  async function handleQuickEmailTemplateSave() {
+  async function handleQuickEmailTemplatesSave() {
     if (qeBusy) return;
     setQeBusy(true);
     setQeMessage(null);
     const { error } = await supabase
       .from("daily_notes_settings")
       .update({
-        quick_email_template: qeTemplate,
-        quick_email_screenshots_line: qeScreenshots,
+        quick_email_positive: qePositive,
+        quick_email_bookchat: qeBookchat,
+        quick_email_calendly_link: qeLink,
         updated_at: new Date().toISOString(),
       })
       .eq("id", SETTINGS_ROW_ID);
     setQeBusy(false);
     if (error) {
-      setQeMessage("The wording could not be saved. Please try again.");
+      setQeMessage("The templates could not be saved. Please try again.");
       return;
     }
-    setSavedQeTemplate(qeTemplate);
-    setSavedQeScreenshots(qeScreenshots);
+    setSavedQePositive(qePositive);
+    setSavedQeBookchat(qeBookchat);
+    setSavedQeLink(qeLink);
     setQeSaved(true);
     window.clearTimeout(qeSavedTimer.current);
     qeSavedTimer.current = window.setTimeout(() => setQeSaved(false), 2000);
@@ -473,145 +406,84 @@ export function SettingsScreen({
         )}
       </div>
 
-      <div className="settings-card">
-        <h2 className="section-heading">Quick email topics</h2>
-        <p className="settings-sub">
-          These are the chips offered when a quick email is drafted from a parent row.
-        </p>
-        {loading ? (
-          <p className="settings-message">Loading the topics</p>
-        ) : loadFailed ? (
-          <p className="settings-message" role="alert">
-            The topics could not be loaded. Please try again.
-          </p>
-        ) : (
-          <>
-            <ul className="topics-editor">
-              {topics.map((topic, index) => (
-                <li key={index} className="topics-row">
-                  <input
-                    className="text-field topics-input"
-                    type="text"
-                    value={topic}
-                    aria-label={`Topic ${index + 1}`}
-                    placeholder="A topic to offer"
-                    onChange={(event) => editTopic(index, event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="topics-icon-button"
-                    aria-label={`Move topic ${index + 1} up`}
-                    disabled={index === 0}
-                    onClick={() => moveTopic(index, -1)}
-                  >
-                    <ChevronUpIcon size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    className="topics-icon-button"
-                    aria-label={`Move topic ${index + 1} down`}
-                    disabled={index === topics.length - 1}
-                    onClick={() => moveTopic(index, 1)}
-                  >
-                    <ChevronDownIcon size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    className="topics-icon-button topics-remove"
-                    aria-label={`Remove topic ${index + 1}`}
-                    onClick={() => removeTopic(index)}
-                  >
-                    <CloseIcon size={14} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            <button type="button" className="topics-add" onClick={addTopic}>
-              Add a topic
-            </button>
-
-            {topicsMessage ? (
-              <p className="settings-message" role="alert">
-                {topicsMessage}
-              </p>
-            ) : null}
-
-            <button
-              type="button"
-              className="primary-button settings-save"
-              disabled={!topicsDirty || topicsBusy}
-              onClick={handleTopicsSave}
-            >
-              {topicsBusy ? "Saving..." : topicsSaved ? "Saved" : "Save changes"}
-            </button>
-          </>
-        )}
-      </div>
-
       <div className="settings-card" ref={templateCardRef}>
-        <h2 className="section-heading">Quick email template</h2>
+        <h2 className="section-heading">Quick email templates</h2>
         <p className="settings-sub">
-          The wording used for a quick email drafted from a parent row.
+          The two templates offered when a quick email is drafted from a parent row.
         </p>
         {loading ? (
-          <p className="settings-message">Loading the wording</p>
+          <p className="settings-message">Loading the templates</p>
         ) : loadFailed ? (
           <p className="settings-message" role="alert">
-            The wording could not be loaded. Please try again.
+            The templates could not be loaded. Please try again.
           </p>
         ) : (
           <>
-            <label className="field-label" htmlFor="quick-email-template">
-              Template
+            <label className="field-label" htmlFor="quick-email-positive">
+              Positive template
             </label>
             <textarea
-              id="quick-email-template"
+              id="quick-email-positive"
               className="text-field text-area"
-              rows={8}
+              rows={6}
               ref={templateFieldRef}
-              value={qeTemplate}
+              value={qePositive}
               onChange={(event) => {
                 setQeMessage(null);
-                setQeTemplate(event.target.value);
+                setQePositive(event.target.value);
+              }}
+            />
+
+            <label className="field-label" htmlFor="quick-email-bookchat">
+              Book a chat template
+            </label>
+            <textarea
+              id="quick-email-bookchat"
+              className="text-field text-area"
+              rows={6}
+              value={qeBookchat}
+              onChange={(event) => {
+                setQeMessage(null);
+                setQeBookchat(event.target.value);
               }}
             />
 
             <div className="placeholder-panel">
               <p className="placeholder-line">
-                <span className="placeholder-token">{"{parent}"}</span> for the parent's first name
-              </p>
-              <p className="placeholder-line">
                 <span className="placeholder-token">{"{child}"}</span> for the student's first name
               </p>
               <p className="placeholder-line">
-                <span className="placeholder-token">{"{topics}"}</span> for the chosen topics, or
-                nothing when none are picked
+                <span className="placeholder-token">{"{parent}"}</span> for the parent's first name
+              </p>
+              <p className="placeholder-line">
+                <span className="placeholder-token">{"{link}"}</span> for the booking link
+              </p>
+              <p className="placeholder-line">
+                <span className="placeholder-token">{"[[, particularly with {topic}]]"}</span> in
+                the positive template, an optional clause that drops out when no topic is entered
               </p>
             </div>
 
-            <label className="field-label" htmlFor="quick-email-screenshots">
-              Screenshots sentence
+            <label className="field-label" htmlFor="quick-email-link">
+              Booking link
             </label>
-            <textarea
-              id="quick-email-screenshots"
-              className="text-field text-area settings-short-area"
-              rows={3}
-              value={qeScreenshots}
+            <input
+              id="quick-email-link"
+              className="text-field"
+              type="text"
+              value={qeLink}
+              placeholder="Paste the booking link"
               onChange={(event) => {
                 setQeMessage(null);
-                setQeScreenshots(event.target.value);
+                setQeLink(event.target.value);
               }}
             />
-            <p className="settings-note">
-              Added as its own paragraph only when the screenshots toggle is on.
-            </p>
 
             <button
               type="button"
               className="primary-button settings-save"
               disabled={!qeDirty || qeBusy}
-              onClick={handleQuickEmailTemplateSave}
+              onClick={handleQuickEmailTemplatesSave}
             >
               {qeBusy ? "Saving..." : qeSaved ? "Saved" : "Save changes"}
             </button>

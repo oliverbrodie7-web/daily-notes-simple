@@ -9,9 +9,10 @@ import {
   fillQuickEmailTemplate,
 } from "./quickEmail";
 
-// The template helpers still back the Quick email template editor on the
-// Settings screen, even though the parent row panel now uses the layered
-// builder instead, so they keep their coverage here.
+// The template helpers (assembleDraft, effectiveTemplate and the rest) are no
+// longer wired to any screen, but they stay exported, so their behaviour keeps
+// its coverage here. The settings checks below cover the two-template editor
+// that replaced the old wording editor.
 function source(file: string): string {
   return readFileSync(new URL(file, import.meta.url), "utf8");
 }
@@ -128,22 +129,40 @@ describe("the fallbacks to the built-in wording", () => {
   });
 });
 
-describe("the settings screen still wires the template editor", () => {
-  test("it reads the wording columns from the one settings row", () => {
-    expect(SETTINGS_SOURCE).toContain("quick_email_template, quick_email_screenshots_line");
-    expect(SETTINGS_SOURCE).toContain("effectiveTemplate(data.quick_email_template)");
+describe("the settings screen wires the two-template editor", () => {
+  test("it reads the three template columns from the one settings row", () => {
     expect(SETTINGS_SOURCE).toContain(
-      "effectiveScreenshotsLine(data.quick_email_screenshots_line)",
+      "quick_email_positive, quick_email_bookchat, quick_email_calendly_link",
     );
+    expect(SETTINGS_SOURCE).toContain('(data.quick_email_positive as string | null) ?? ""');
+    expect(SETTINGS_SOURCE).toContain('(data.quick_email_bookchat as string | null) ?? ""');
+    expect(SETTINGS_SOURCE).toContain('(data.quick_email_calendly_link as string | null) ?? ""');
   });
 
-  test("saving writes both wording columns back to the same row", () => {
-    expect(SETTINGS_SOURCE).toContain("quick_email_template: qeTemplate");
-    expect(SETTINGS_SOURCE).toContain("quick_email_screenshots_line: qeScreenshots");
+  test("saving writes the three columns back to the same row", () => {
+    expect(SETTINGS_SOURCE).toContain("quick_email_positive: qePositive");
+    expect(SETTINGS_SOURCE).toContain("quick_email_bookchat: qeBookchat");
+    expect(SETTINGS_SOURCE).toContain("quick_email_calendly_link: qeLink");
     expect(SETTINGS_SOURCE).toContain('.eq("id", SETTINGS_ROW_ID)');
-    // The placeholders are listed as a hint on the card.
-    expect(SETTINGS_SOURCE).toContain("Quick email template");
-    expect(SETTINGS_SOURCE).toContain("{topics}");
+    // The card is titled for the two templates and lists the tokens as a hint.
+    expect(SETTINGS_SOURCE).toContain("Quick email templates");
+    expect(SETTINGS_SOURCE).toContain("{child}");
+    expect(SETTINGS_SOURCE).toContain("{parent}");
+    expect(SETTINGS_SOURCE).toContain("{link}");
+    expect(SETTINGS_SOURCE).toContain("[[, particularly with {topic}]]");
+  });
+
+  test("the dead topic and wording editors are gone", () => {
+    expect(SETTINGS_SOURCE).not.toContain("quick_email_topics");
+    expect(SETTINGS_SOURCE).not.toContain("quick_email_template");
+    expect(SETTINGS_SOURCE).not.toContain("quick_email_screenshots");
+    expect(SETTINGS_SOURCE).not.toContain("{topics}");
+  });
+
+  test("the booking link is never hardcoded in the settings code", () => {
+    // The link lives only in the column, so the source carries no URL at all.
+    expect(SETTINGS_SOURCE).not.toContain("http");
+    expect(SETTINGS_SOURCE).not.toContain("calendly.com");
   });
 
   test("the layered panel still writes only the one quick_emails row", () => {
