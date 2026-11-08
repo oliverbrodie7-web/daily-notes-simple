@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { supabase } from "../lib/supabase";
 import { closestStudents, normaliseStudentName, type MatchableStudent } from "../lib/touchPoints";
 
-export type PickerStudent = MatchableStudent & { student_name: string };
+export type PickerStudent = MatchableStudent & {
+  student_name: string;
+  // The days and times the student comes in, read on the Today screen so the
+  // "In today" box knows who is in and when. Optional: the matcher never reads
+  // them, and other callers build a roster without them.
+  attendance_days?: string[] | null;
+  attendance_schedule?: string | null;
+};
 
 type MatchStudentPanelProps<T extends PickerStudent> = {
   // Null when the note has not been saved yet, as on a bulk upload preview.

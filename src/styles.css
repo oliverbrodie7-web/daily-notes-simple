@@ -1117,8 +1117,8 @@ svg {
   gap: 18px;
   grid-template-areas:
     "tally"
+    "intoday"
     "input"
-    "suggest"
     "list"
     "backlog"
     "strip";
@@ -1338,15 +1338,22 @@ svg {
 /* A quiet nudge below the input card. No warning colours, no counts, and
    the chips are inert on purpose: a tappable chip that filled the name
    field would make it easy to write about a child who was not in. */
-.focus-strip {
-  grid-area: suggest;
+.in-today {
+  grid-area: intoday;
   padding: 13px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
 }
 
-.focus-strip-head {
+.in-today-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.in-today-title {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1354,16 +1361,33 @@ svg {
   color: var(--text-faint);
 }
 
-.focus-strip-chips {
+.in-today-summary {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.in-today-clear {
+  margin-top: 9px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.in-today-chips {
   margin-top: 9px;
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
-/* Deliberately flat: no shadow, no hover, no pointer, nothing that reads
-   as pressable. */
-.focus-chip {
+/* Unlike the old strip these chips are pressable: tapping one fills the
+   Student Name field, so they read as buttons with a hover and the shared
+   focus ring. */
+.in-today-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   padding: 6px 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1373,14 +1397,32 @@ svg {
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.focus-strip-note {
-  margin-top: 9px;
-  color: var(--text-faint);
-  font-size: 11.5px;
-  line-height: 1.35;
-  overflow-wrap: break-word;
+.in-today-chip:hover {
+  border-color: var(--accent);
+}
+
+.in-today-chip-time {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.in-today-more {
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.in-today-more:hover {
+  text-decoration: underline;
 }
 
 .today-list-section {
@@ -6525,8 +6567,8 @@ button.touch-block:hover {
     grid-template-rows: auto auto auto 1fr auto;
     grid-template-areas:
       "tally tally"
+      "intoday intoday"
       "input list"
-      "suggest list"
       "strip list"
       "backlog backlog";
     align-items: start;

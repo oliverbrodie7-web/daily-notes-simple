@@ -4,6 +4,7 @@ import {
   formatSydneyFullDate,
   formatSydneyShortDate,
   formatSydneyTime,
+  sydneyWeekdayName,
 } from "./dates";
 import { engagementByEmail, type ParentEmail } from "./engagement";
 
@@ -18,6 +19,26 @@ describe("the date formatters read a plain date", () => {
     expect(formatSydneyShortDate("2026-08-18")).toBe("18 Aug");
     expect(formatSydneyFullDate("2026-08-18")).toBe("Tuesday 18 August");
     expect(formatSydneyDateWithYear("2026-08-18")).toBe("18 August 2026");
+  });
+});
+
+describe("the Sydney weekday name", () => {
+  it("names the weekday of a plain date column value", () => {
+    expect(sydneyWeekdayName("2026-08-17")).toBe("Monday");
+    expect(sydneyWeekdayName("2026-08-18")).toBe("Tuesday");
+    expect(sydneyWeekdayName("2026-08-21")).toBe("Friday");
+  });
+
+  it("reads the calendar day out of a full timestamp", () => {
+    expect(sydneyWeekdayName("2026-08-18T04:12:33Z")).toBe("Tuesday");
+    expect(sydneyWeekdayName("2026-08-18 23:59:59+00")).toBe("Tuesday");
+  });
+
+  it("returns an empty string for anything it cannot read", () => {
+    for (const value of ["", "   ", null, "not a date"]) {
+      expect(() => sydneyWeekdayName(value)).not.toThrow();
+      expect(sydneyWeekdayName(value)).toBe("");
+    }
   });
 });
 

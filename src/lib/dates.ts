@@ -88,6 +88,19 @@ export function formatSydneyHeaderDate(): string {
   return formatSydneyDayMonth(new Date());
 }
 
+// The Sydney weekday long name, like "Monday". Given a date column value it
+// anchors to that calendar day the same way the formatters above do; called
+// with nothing it uses now. Empty when the value cannot be read, so a caller
+// can compare today against a list of day names without ever throwing.
+export function sydneyWeekdayName(dateIso?: string | null): string {
+  const date = dateIso === undefined ? new Date() : calendarDay(dateIso);
+  if (!date) return "";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: SYDNEY_TIME_ZONE,
+    weekday: "long",
+  }).format(date);
+}
+
 // A date column value like "Monday 3 August". Anchoring to UTC midnight
 // keeps the Sydney rendering on the same calendar day.
 export function formatSydneyFullDate(dateIso: string | null | undefined): string {

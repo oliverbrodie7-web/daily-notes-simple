@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { noteKey, parseBulkDocument, type BulkParseResult } from "../lib/bulkNotes";
-import { formatSydneyShortDate, formatSydneyTime, sydneyTodayIso } from "../lib/dates";
-import { focusSuggestions, mondayOf, type FocusRow } from "../lib/focus";
+import {
+  formatSydneyShortDate,
+  formatSydneyTime,
+  sydneyTodayIso,
+  sydneyWeekdayName,
+} from "../lib/dates";
+import { buildInTodayChips, countInToday } from "../lib/inToday";
 import { tallyView } from "../lib/tally";
 import { pickTermForDate, type TermRow } from "../lib/terms";
 import { matchCount, matchTouchPoints, type TouchPointNote } from "../lib/touchPoints";
@@ -17,7 +22,7 @@ import {
   type PendingNote,
 } from "../lib/noteSave";
 import { BulkUploadPanel } from "./BulkUploadPanel";
-import { FocusSuggestions } from "./FocusSuggestions";
+import { InTodayTouchPoints } from "./InTodayTouchPoints";
 import { MatchStudentPanel, type PickerStudent } from "./MatchStudentPanel";
 import { ScreenActions, ScreenSubtitle } from "./ScreenBar";
 import { TouchPointsDialog } from "./TouchPoints";
@@ -92,9 +97,10 @@ export function TodayScreen() {
   const [editNote, setEditNote] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [editMessage, setEditMessage] = useState<string | null>(null);
-  // The suggestion strip's own data. Null until it has all arrived, so the
-  // strip shows nothing at all while it is still loading.
-  const [focusRows, setFocusRows] = useState<FocusRow[] | null>(null);
+  // The quick emails this term, mapped from student id to their latest quick
+  // email date. Null until loaded, so the "In today" box never judges a student
+  // before their contact has arrived.
+  const [quickByStudent, setQuickByStudent] = useState<Map<string, string> | null>(null);
   const [termNotes, setTermNotes] = useState<TermNote[] | null>(null);
   // Set when the term's notes or the roster could not be read. The tally
   // strip then shows nothing at all rather than a number that is not true,
@@ -155,7 +161,7 @@ export function TodayScreen() {
     let cancelled = false;
     supabase
       .from("students")
-      .select("id, student_name, parent_name")
+      .select("id, student_name, parent_name, attendance_days, attendance_schedule")
       .eq("enrolment_status", "Active")
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -186,31 +192,51 @@ export function TodayScreen() {
     setTermNotes((data ?? []) as TermNote[]);
   }, []);
 
-  // This week's focus, and the term's touch points, for the suggestion
-  // strip. Read only, and never fatal: a failure here simply means no
-  // strip, which is the same as having nobody to suggest.
+  // The term window, the term's notes, and the term's quick emails, for the
+  // tally strip and the "In today" box. Read only, and never fatal: a failure
+  // leaves the box resting on whatever did load.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const today = sydneyTodayIso();
-      const [focusRes, termRes] = await Promise.all([
-        supabase.from("weekly_focus").select("parent_name, week_start"),
-        supabase
-          .from("term_settings")
-          .select("term_name, term_start_date, term_end_date, p2_deadline")
-          .order("term_start_date", { ascending: true }),
-      ]);
+      const todayIso = sydneyTodayIso();
+      const termRes = await supabase
+        .from("term_settings")
+        .select("term_name, term_start_date, term_end_date, p2_deadline")
+        .order("term_start_date", { ascending: true });
       if (cancelled) return;
-      setFocusRows((focusRes.data ?? []) as FocusRow[]);
 
       // The same term window the Parents screen scopes touch points to. No
       // term rows is a fallback rather than a failure, so it does not hide
       // the tally strip.
-      const term = pickTermForDate((termRes.data ?? []) as TermRow[], today);
+      const term = pickTermForDate((termRes.data ?? []) as TermRow[], todayIso);
       const windowStart = term?.term_start_date ?? fallbackWindowStart();
       if (cancelled) return;
       setTermWindowStart(windowStart);
       await loadTermNotes(windowStart);
+
+      // Quick emails this term, the latest date per student, loaded the same
+      // way the Dashboard loads them so the "In today" box agrees about who
+      // has been reached. A failure just leaves an empty map, which rests the
+      // box on the notes alone rather than hiding it.
+      const quickRes = await supabase
+        .from("quick_emails")
+        .select("student_id, created_at")
+        .gte("created_at", windowStart)
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      const quickMap = new Map<string, string>();
+      for (const row of (quickRes.data ?? []) as {
+        student_id: number | string | null;
+        created_at: string | null;
+      }[]) {
+        if (row.student_id === null || row.student_id === undefined) continue;
+        const date = row.created_at ? row.created_at.slice(0, 10) : null;
+        if (!date) continue;
+        const id = String(row.student_id);
+        const existing = quickMap.get(id);
+        if (!existing || date > existing) quickMap.set(id, date);
+      }
+      setQuickByStudent(quickMap);
     })();
     return () => {
       cancelled = true;
@@ -494,12 +520,36 @@ export function TodayScreen() {
     return matchTouchPoints(termNotes, students);
   }, [termDataFailed, termNotes, students]);
 
-  // In this week's focus and not yet written about this term. Empty while
-  // anything is still loading, so the strip never flashes a stale list.
-  const suggestions = useMemo(() => {
-    if (!students || !focusRows || !touchByStudent) return [];
-    return focusSuggestions(students, focusRows, new Set(touchByStudent.keys()), mondayOf(today));
-  }, [students, focusRows, touchByStudent, today]);
+  // Today's Sydney weekday, for the "In today" box to match against each
+  // student's attendance days.
+  const todayWeekday = useMemo(() => sydneyWeekdayName(today), [today]);
+
+  // How many active students are in today, whether they need a touch point or
+  // not. Just attendance, so it is known before the touch data arrives.
+  const inTodayCount = useMemo(
+    () => (students ? countInToday(students, todayWeekday) : 0),
+    [students, todayWeekday],
+  );
+
+  // The students in today who still need a touch point, worst wait first. Built
+  // only once both touch tracks are in, so a student whose contact has not
+  // loaded yet is never shown as though they had none. A note counts through
+  // matchTouchPoints; a quick email counts the same way the Dashboard counts
+  // it; a contact inside the stale window drops out.
+  const inTodayChips = useMemo(() => {
+    if (!students || touchByStudent === null || quickByStudent === null) return [];
+    const noteLatestById = new Map<string, string | null>();
+    for (const [id, summary] of touchByStudent) noteLatestById.set(id, summary.latestDate);
+    const quickLatestById = new Map<string, string | null>();
+    for (const [id, date] of quickByStudent) quickLatestById.set(id, date);
+    return buildInTodayChips({
+      students,
+      weekday: todayWeekday,
+      todayIso: today,
+      noteLatestById,
+      quickLatestById,
+    });
+  }, [students, touchByStudent, quickByStudent, todayWeekday, today]);
 
   // Everything the tally strip needs, worked out in one place so the numbers
   // and the bar can never be derived from different sets.
@@ -621,6 +671,15 @@ export function TodayScreen() {
     setPickingId(null);
   }
 
+  // Tapping a chip in the "In today" box fills the Student Name field and moves
+  // to the note, so a tutor can write about the child in front of them without
+  // retyping the name.
+  function handleInTodayPick(fullName: string) {
+    setStudentName(fullName);
+    setInputMessage(null);
+    noteRef.current?.focus();
+  }
+
   const loading = notes === null;
   const count = notes?.length ?? 0;
   const countLabel = `${count} ${count === 1 ? "note" : "notes"}`;
@@ -628,6 +687,13 @@ export function TodayScreen() {
   return (
     <section className="today-screen">
       <TouchTallyStrip view={tally} />
+
+      <InTodayTouchPoints
+        chips={inTodayChips}
+        weekday={todayWeekday}
+        inTodayCount={inTodayCount}
+        onPick={handleInTodayPick}
+      />
 
       <ScreenSubtitle>
         {countLabel === "0 notes" ? "No notes yet" : `${countLabel} added`}
@@ -741,8 +807,6 @@ export function TodayScreen() {
           </p>
         ) : null}
       </div>
-
-      <FocusSuggestions students={suggestions} />
 
       <div className="today-list-section">
         <div className="today-list-head">
